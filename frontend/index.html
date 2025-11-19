@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Value Finder vs Novig</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #111827;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            padding: 1rem 1.5rem;
+            background: #0f172a;
+            border-bottom: 1px solid #1f2937;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        header nav a {
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin-left: 0.75rem;
+        }
+
+        header nav a:hover {
+            color: #e5e7eb;
+        }
+
+        header nav a.active {
+            color: #e5e7eb;
+            font-weight: 500;
+        }
+
+        main {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: #020617;
+            border-radius: 0.75rem;
+            border: 1px solid #1f2937;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            margin-top: 0.6rem;
+            margin-bottom: 0.15rem;
+            color: #9ca3af;
+        }
+
+        select,
+        input[type="number"] {
+            width: 100%;
+            padding: 0.45rem 0.6rem;
+            border-radius: 0.5rem;
+            border: 1px solid #374151;
+            background: #020617;
+            color: #e5e7eb;
+            box-sizing: border-box;
+            font-size: 0.9rem;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 0.35rem;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #374151;
+            color: #e5e7eb;
+        }
+
+        .btn-link {
+            background: transparent;
+            border: 1px solid #374151;
+            color: #e5e7eb;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .status-bar {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            margin-top: 0.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #1f2937;
+            padding: 0.4rem 0.5rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #020617;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .scroll-container {
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        .small-text {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .badge {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 0.1rem 0.45rem;
+            font-size: 0.7rem;
+        }
+
+        .badge-positive {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .badge-negative {
+            background: #7f1d1d;
+            color: #fecaca;
+        }
+
+        .sgp-card {
+            margin-top: 0.75rem;
+            padding: 0.9rem;
+            border-radius: 0.5rem;
+            background: #111827;
+            border: 1px solid #1f2937;
+        }
+
+        .toggle-on {
+            background: #16a34a;
+            color: #e5e7eb;
+            border-color: #15803d;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div>
+            <h1>Value Finder vs Novig</h1>
+            <div class="small-text">
+                Home: compare a book’s lines to Novig, see the hedge side, and spot arbs.
+            </div>
+        </div>
+        <nav>
+            <a href="/" class="active">Value Finder</a>
+            <a href="/watcher.html">Watcher</a>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Left: controls -->
+        <section class="card">
+            <h2>Find Value Plays</h2>
+
+            <button class="btn btn-link" style="margin-bottom: 0.5rem;" onclick="window.location.href='/watcher.html'">
+                ⇄ Switch to Watcher (Team Alerts)
+            </button>
+
+            <label for="sport-select">Sport</label>
+            <select id="sport-select">
+                <option value="basketball_nba">NBA</option>
+                <option value="americanfootball_nfl">NFL</option>
+                <option value="basketball_ncaab">NCAAB</option>
+                <option value="americanfootball_ncaaf">NCAAF</option>
+            </select>
+
+            <label for="market-select">Market</label>
+            <select id="market-select">
+                <option value="h2h">Moneyline (h2h)</option>
+                <option value="spreads">Spreads</option>
+                <option value="totals">Totals</option>
+                <option value="player_points">Player Points</option>
+                <option value="player_assists">Player Assists</option>
+                <option value="player_rebounds">Player Rebounds</option>
+                <option value="player_points_assists_rebounds">Player Pts+Ast+Reb</option>
+            </select>
+
+            <label for="book-select">Target book (compare vs Novig)</label>
+            <select id="book-select">
+                <option value="draftkings">DraftKings</option>
+                <option value="fanduel">FanDuel</option>
+                <option value="fliff">Fliff</option>
+            </select>
+
+            <label for="max-results-input">Max value plays to show</label>
+            <input id="max-results-input" type="number" min="5" max="100" step="5" value="25" />
+
+            <label>
+                <input type="checkbox" id="sgp-checkbox" />
+                Suggest high-EV 3-leg parlay (cross-game) from top edges
+            </label>
+
+            <label for="interval-input">Polling interval (seconds)</label>
+            <input id="interval-input" type="number" min="15" step="15" value="60" />
+
+            <div style="margin-top: 0.5rem;">
+                <button class="btn btn-primary" id="find-btn">One-time search</button>
+                <button class="btn btn-secondary" id="start-loop-btn">Start watching</button>
+                <button class="btn btn-secondary" id="stop-loop-btn" disabled>Stop</button>
+                <button class="btn btn-secondary" id="clear-btn">Clear results</button>
+            </div>
+
+            <div style="margin-top: 0.5rem;">
+                <button class="btn btn-secondary" id="filter-opp-btn">
+                    Filter: Hedgeable Only (OFF)
+                </button>
+                <div class="small-text">
+                    Hedgeable = Novig has a posted opposite side you could potentially hedge with.
+                </div>
+            </div>
+
+            <div class="status-bar" id="status-bar">Ready.</div>
+        </section>
+
+        <!-- Right: results -->
+        <section class="card">
+            <h2>Value Plays</h2>
+            <div class="small-text" id="summary-bar"></div>
+            <div class="scroll-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Outcome (Book)</th>
+                            <th>Matchup</th>
+                            <th>Start Time</th>
+                            <th>Novig Price</th>
+                            <th>Novig Opposite (Hedge)</th>
+                            <th>Book Price</th>
+                            <th>EV% (approx)</th>
+                            <th>Arb</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body">
+                        <tr>
+                            <td colspan="8" class="small-text">No results yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="sgp-container"></div>
+        </section>
+    </main>
+
+    <script>
+        let valuePollTimer = null;
+        let lastValueData = null;
+        let filterHedgeOnly = false;
+
+        function setStatus(msg) {
+            document.getElementById("status-bar").textContent = msg;
+        }
+
+        function setSummary(msg) {
+            document.getElementById("summary-bar").textContent = msg;
+        }
+
+        function clearResults() {
+            const body = document.getElementById("results-body");
+            body.innerHTML = '<tr><td colspan="8" class="small-text">No results yet.</td></tr>';
+            document.getElementById("sgp-container").innerHTML = "";
+            setSummary("");
+            lastValueData = null;
+        }
+
+        function renderValuePlays(data, hedgeOnly = false) {
+            const body = document.getElementById("results-body");
+            body.innerHTML = "";
+
+            if (!data || !data.plays || data.plays.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" class="small-text">No value plays found (maybe market is empty or Novig not available).</td></tr>';
+                return;
+            }
+
+            let plays = data.plays;
+            if (hedgeOnly) {
+                plays = plays.filter(p =>
+                    p.novig_reverse_name !== null &&
+                    p.novig_reverse_name !== undefined &&
+                    p.novig_reverse_price !== null &&
+                    p.novig_reverse_price !== undefined
+                );
+            }
+
+            if (plays.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" class="small-text">No plays match the current hedge filter.</td></tr>';
+                return;
+            }
+
+            plays.forEach(play => {
+                const tr = document.createElement("tr");
+
+                const outcomeCell = document.createElement("td");
+                let outcomeText = play.outcome_name;
+                if (play.point !== null && play.point !== undefined) {
+                    outcomeText += " @ " + play.point;
+                }
+                outcomeCell.textContent = outcomeText;
+                tr.appendChild(outcomeCell);
+
+                const matchupCell = document.createElement("td");
+                matchupCell.textContent = play.matchup || "";
+                tr.appendChild(matchupCell);
+
+                const startCell = document.createElement("td");
+                startCell.textContent = play.start_time || "";
+                tr.appendChild(startCell);
+
+                const novigCell = document.createElement("td");
+                novigCell.textContent = play.novig_price;
+                tr.appendChild(novigCell);
+
+                const revCell = document.createElement("td");
+                if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined && play.novig_reverse_name) {
+                    revCell.textContent = `${play.novig_reverse_name} ${play.novig_reverse_price}`;
+                } else {
+                    revCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(revCell);
+
+                const bookCell = document.createElement("td");
+                bookCell.textContent = play.book_price;
+                tr.appendChild(bookCell);
+
+                const evCell = document.createElement("td");
+                const evRounded = Math.round(play.ev_percent * 100) / 100;
+                let badgeClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                evCell.innerHTML = `<span class="${badgeClass}">${evRounded}%</span>`;
+                tr.appendChild(evCell);
+
+                const arbCell = document.createElement("td");
+                if (play.is_arbitrage) {
+                    let marginText = "";
+                    if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
+                        const m = Math.round(play.arb_margin_percent * 100) / 100;
+                        marginText = ` ~${m}%`;
+                    }
+                    arbCell.innerHTML = `<span class="badge badge-positive">ARB${marginText}</span>`;
+                } else {
+                    arbCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(arbCell);
+
+                body.appendChild(tr);
+            });
+        }
+
+        function renderValueFromState() {
+            if (!lastValueData) return;
+            renderValuePlays(lastValueData, filterHedgeOnly);
+        }
+
+        function renderSGP(sgp, bookLabel) {
+            const container = document.getElementById("sgp-container");
+            container.innerHTML = "";
+            if (!sgp) return;
+
+            const card = document.createElement("div");
+            card.className = "sgp-card";
+
+            const header = document.createElement("div");
+            header.innerHTML = `<strong>3-Leg High-EV Parlay Suggestion @ ${bookLabel}</strong>`;
+            card.appendChild(header);
+
+            const legsList = document.createElement("ul");
+            legsList.className = "small-text";
+            sgp.legs.forEach((leg, idx) => {
+                const li = document.createElement("li");
+                let text = `[Leg ${idx + 1}] ${leg.matchup}: ${leg.outcome_name}`;
+                if (leg.point !== null && leg.point !== undefined) {
+                    text += ` @ ${leg.point}`;
+                }
+                text += ` | Book: ${leg.book_price}, Novig: ${leg.novig_price}, EV: ${leg.ev_percent}%`;
+                li.textContent = text;
+                legsList.appendChild(li);
+            });
+            card.appendChild(legsList);
+
+            const footer = document.createElement("div");
+            footer.className = "small-text";
+            footer.innerHTML = `
+        Approx parlay decimal odds: <strong>${sgp.approx_parlay_decimal_odds}</strong><br />
+        Approx parlay EV: <strong>${sgp.approx_parlay_ev_percent}%</strong> (vs Novig as sharp)
+      `;
+            card.appendChild(footer);
+
+            container.appendChild(card);
+        }
+
+        async function fetchValuePlays(singleRun = false) {
+            const sport = document.getElementById("sport-select").value;
+            const market = document.getElementById("market-select").value;
+            const book = document.getElementById("book-select").value;
+            const maxResults = Number(document.getElementById("max-results-input").value) || 25;
+            const includeSGP = document.getElementById("sgp-checkbox").checked;
+
+            if (singleRun) {
+                // Don't wipe lastValueData instantly; let new data overwrite.
+                setSummary("");
+            }
+            setStatus("Fetching value plays...");
+            try {
+                const res = await fetch("/api/value-plays", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_key: sport,
+                        market,
+                        target_book: book,
+                        include_sgp: includeSGP,
+                        max_results: maxResults
+                    }),
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || ("HTTP " + res.status));
+                }
+                const data = await res.json();
+                lastValueData = data;
+                renderValueFromState();
+
+                const playsCount = (data.plays || []).length;
+                setSummary(`Showing top ${playsCount} raw value plays for ${book} in market "${market}" vs Novig. Filter: ${filterHedgeOnly ? "Hedgeable only" : "All"}.`);
+                const bookLabel = document.querySelector("#book-select option:checked").textContent;
+                renderSGP(data.sgp_suggestion, bookLabel);
+                setStatus("Done.");
+            } catch (e) {
+                console.error(e);
+                setStatus("Error: " + e.message);
+            }
+        }
+
+        function startValueLoop() {
+            const intervalInput = document.getElementById("interval-input");
+            const intervalVal = Number(intervalInput.value) || 60;
+            const intervalMs = Math.max(intervalVal, 15) * 1000; // min 15 seconds
+
+            if (valuePollTimer) {
+                clearInterval(valuePollTimer);
+                valuePollTimer = null;
+            }
+
+            setStatus("Watching value plays...");
+            document.getElementById("start-loop-btn").disabled = true;
+            document.getElementById("find-btn").disabled = true;
+            document.getElementById("stop-loop-btn").disabled = false;
+
+            // initial fetch
+            fetchValuePlays(true);
+            valuePollTimer = setInterval(() => fetchValuePlays(false), intervalMs);
+        }
+
+        function stopValueLoop() {
+            if (valuePollTimer) {
+                clearInterval(valuePollTimer);
+                valuePollTimer = null;
+            }
+            setStatus("Stopped.");
+            document.getElementById("start-loop-btn").disabled = false;
+            document.getElementById("find-btn").disabled = false;
+            document.getElementById("stop-loop-btn").disabled = true;
+        }
+
+        function toggleHedgeFilter() {
+            filterHedgeOnly = !filterHedgeOnly;
+            const btn = document.getElementById("filter-opp-btn");
+            if (filterHedgeOnly) {
+                btn.classList.add("toggle-on");
+                btn.textContent = "Filter: Hedgeable Only (ON)";
+            } else {
+                btn.classList.remove("toggle-on");
+                btn.textContent = "Filter: Hedgeable Only (OFF)";
+            }
+            renderValueFromState();
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("find-btn").onclick = () => fetchValuePlays(true);
+            document.getElementById("clear-btn").onclick = clearResults;
+            document.getElementById("start-loop-btn").onclick = startValueLoop;
+            document.getElementById("stop-loop-btn").onclick = stopValueLoop;
+            document.getElementById("filter-opp-btn").onclick = toggleHedgeFilter;
+        });
+    </script>
+</body>
+
+</html>
