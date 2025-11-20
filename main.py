@@ -17,53 +17,6 @@ MAX_VALID_AMERICAN_ODDS = 10000
 # -------------------------------------------------------------------
 
 
-class Bet(BaseModel):
-    team_name: str
-    target_odds: int  # e.g. -290 or +120
-    bookmaker_keys: List[str]  # ["draftkings", "fanduel", "fliff"]
-
-
-class OddsRequest(BaseModel):
-    bets: List[Bet]
-    sport_key: str = "basketball_nba"  # default to NBA
-
-
-class PriceOut(BaseModel):
-    bookmaker_key: str
-    bookmaker_name: str
-    price: Optional[int]
-
-
-class GameOut(BaseModel):
-    matchup: str
-    start_time: Optional[str]
-    prices: List[PriceOut]
-    best_bookmaker_key: Optional[str]
-    best_bookmaker_name: Optional[str]
-    best_price: Optional[int]
-
-
-class BetOut(BaseModel):
-    team_name: str
-    target_odds: int
-    games: List[GameOut]
-
-
-class OddsResponse(BaseModel):
-    bets: List[BetOut]
-
-
-# ---- Models for value-plays endpoint ---------------------------------------
-
-
-class ValuePlaysRequest(BaseModel):
-    sport_key: str = "basketball_nba"   # e.g. "basketball_nba", "americanfootball_nfl"
-    market: str = "h2h"                 # e.g. "h2h", "spreads", "totals", "player_points"
-    target_book: str                    # e.g. "draftkings", "fanduel", "fliff"
-    include_sgp: bool = False           # if True, also suggest a 3-leg parlay
-    max_results: int = 7               # number of top value plays to return
-
-
 class ValuePlayOutcome(BaseModel):
     event_id: str
     matchup: str
@@ -83,8 +36,29 @@ class ValuePlayOutcome(BaseModel):
 class ValuePlaysResponse(BaseModel):
     target_book: str
     market: str
+    sport: str
+    events_count: int
     plays: List[ValuePlayOutcome]
-    sgp_suggestion: Optional[Dict[str, Any]] = None  # holds 3-leg parlay suggestion
+
+
+class ThreeLegParlayLeg(BaseModel):
+    event_id: str
+    matchup: str
+    outcome_name: str
+    point: Optional[float]
+    book_price: int
+    novig_price: int
+    ev_percent: float
+
+
+class ThreeLegParlayResponse(BaseModel):
+    target_book: str
+    sport: str
+    legs: List[ThreeLegParlayLeg]
+    combined_decimal_odds: float
+    combined_implied_prob: float
+    combined_sharp_prob: float
+    estimated_parlay_ev_percent: float
 
 
 BOOK_LABELS = {
@@ -100,35 +74,47 @@ def get_api_key() -> str:
     api_key = os.getenv("THE_ODDS_API_KEY")
     if not api_key:
         raise RuntimeError(
-            "Missing THE_ODDS_API_KEY environment variable. "
-            "Set it in Windows Environment Variables and restart."
+            "THE_ODDS_API_KEY environment variable is not set. "
+            "Set it in Windows Environment Variables or a .env file."
         )
     return api_key
 
 
-def pretty_book_label(book_key: str) -> str:
-    return BOOK_LABELS.get(book_key, book_key)
-
-
-def compute_regions_for_books(bookmaker_keys: List[str]) -> str:
+def get_novig_region_for_sport(sport_key: str) -> str:
     """
-    Decide which regions to request based on which books you're tracking.
+    Pick the region to use for 'novig' based on sport.
 
-    - DraftKings / FanDuel live in "us"
-    - Fliff lives in "us2"
-    - Novig lives in "us_ex"
+    - NBA: "us" (they're US-facing)
+    - NFL: "us"
+    - default: "us"
+    """
+    # You could customize if Novig ever expands to other regions per sport.
+    return "us"
+
+
+def get_regions_for_target_book(
+    target_book: str,
+    include_novig: bool,
+    sport_key: str,
+) -> str:
+    """
+    Returns a comma-separated 'regions' string for The Odds API call.
+    We rely on region selection to decide where each bookmaker shows up.
+
+    For example:
+      - For DraftKings: "us"
+      - For FanDuel: "us"
+      - For Novig: "us"
     """
     regions: Set[str] = set()
 
-    if any(b in ("draftkings", "fanduel") for b in bookmaker_keys):
-        regions.add("us")
-    if "fliff" in bookmaker_keys:
-        regions.add("us2")
-    if "novig" in bookmaker_keys:
-        regions.add("us_ex")
+    # We'll assume the user is in the US for these books; adjust if needed.
+    # The Odds API docs describe valid regions: "us", "us2", "eu", "uk", "au", etc.
+    regions.add("us")
 
-    if not regions:
-        regions.add("us")
+    if include_novig:
+        novig_region = get_novig_region_for_sport(sport_key)
+        regions.add(novig_region)
 
     return ",".join(sorted(regions))
 
@@ -144,156 +130,26 @@ def fetch_odds(
     """
     Core call to /v4/sports/{sport_key}/odds.
     """
-    url = f"{BASE_URL}/sports/{sport_key}/odds"
     params = {
         "apiKey": api_key,
         "regions": regions,
         "markets": markets,
         "oddsFormat": "american",
-        "dateFormat": "iso",
         "bookmakers": ",".join(bookmaker_keys),
     }
     if include_player_props:
-       # Explicitly opt-in to player prop markets (required by The Odds API).
-       params["playerProps"] = "true"
-    resp = requests.get(url, params=params, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+        # Some sports might let you add "player_props" flags or additional markets.
+        # For now, we rely on the 'markets' param, e.g. "player_points".
+        pass
 
-
-def is_live_event(event: Dict[str, Any]) -> bool:
-    """Return True if the event appears to be in-play/live.
-
-    The Odds API exposes several hints for live games, including:
-      - a truthy "scores" array
-      - boolean flags such as "inplay" or "live"
-      - a "completed" flag once the game has finished
-      - a start time that has already passed
-    """
-
-    if event.get("completed"):
-        return True
-
-    if event.get("scores"):
-        return True
-
-    if event.get("inplay") or event.get("live"):
-        return True
-
-    commence_time = event.get("commence_time")
-    if commence_time:
-        try:
-            start_dt = datetime.fromisoformat(commence_time.replace("Z", "+00:00"))
-            now_utc = datetime.now(timezone.utc)
-
-            # Treat games as effectively live if their scheduled start time has passed
-            # or is within a 15-minute buffer window. This helps catch cases where the
-            # Odds API lags behind the real game state.
-            buffer = timedelta(minutes=15)
-            if start_dt <= now_utc + buffer:
-                return True
-        except ValueError:
-            # If the time is malformed, assume not started rather than failing.
-            pass
-
-    return False
-
-
-# -------------------------------------------------------------------
-# Helper logic for watcher (/api/odds)
-# -------------------------------------------------------------------
-
-
-def extract_team_games(
-    events: List[Dict[str, Any]],
-    team_name: str,
-    bookmaker_keys: List[str],
-    market_key: str = "h2h",
-) -> List[GameOut]:
-    """
-    For each event involving `team_name`, collect that team's prices at
-    the selected books and compute the best price.
-    """
-    games: List[GameOut] = []
-
-    for event in events:
-        home = event.get("home_team")
-        away = event.get("away_team")
-        start_time = event.get("commence_time")
-
-        if team_name not in (home, away):
-            continue
-
-        prices_for_game: List[PriceOut] = []
-        raw_price_map: Dict[str, Optional[int]] = {}
-
-        for bookmaker in event.get("bookmakers", []):
-            book_key = bookmaker.get("key")
-            if book_key not in bookmaker_keys:
-                continue
-
-            market = next(
-                (m for m in bookmaker.get("markets", []) if m.get("key") == market_key),
-                None,
-            )
-            if not market:
-                raw_price_map[book_key] = None
-                prices_for_game.append(
-                    PriceOut(
-                        bookmaker_key=book_key,
-                        bookmaker_name=pretty_book_label(book_key),
-                        price=None,
-                    )
-                )
-                continue
-
-            price_for_team: Optional[int] = None
-            for outcome in market.get("outcomes", []):
-                if outcome.get("name") == team_name:
-                    price_for_team = outcome.get("price")
-                    break
-
-            raw_price_map[book_key] = price_for_team
-            prices_for_game.append(
-                PriceOut(
-                    bookmaker_key=book_key,
-                    bookmaker_name=pretty_book_label(book_key),
-                    price=price_for_team,
-                )
-            )
-
-        # Compute best price
-        valid_prices = [
-            (bk, p)
-            for bk, p in raw_price_map.items()
-            if p is not None
-        ]
-        if valid_prices:
-            best_book_key, best_price = max(valid_prices, key=lambda x: x[1])
-            best_book_name = pretty_book_label(best_book_key)
-        else:
-            best_book_key = best_book_name = None
-            best_price = None
-
-        matchup = f"{away} @ {home}" if home and away else ""
-
-        games.append(
-            GameOut(
-                matchup=matchup,
-                start_time=start_time,
-                prices=prices_for_game,
-                best_bookmaker_key=best_book_key,
-                best_bookmaker_name=best_book_name,
-                best_price=best_price,
-            )
+    url = f"{BASE_URL}/sports/{sport_key}/odds"
+    response = requests.get(url, params=params, timeout=15)
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error from The Odds API: {response.status_code}, {response.text}",
         )
-
-    return games
-
-
-# -------------------------------------------------------------------
-# Helper logic for value plays vs Novig
-# -------------------------------------------------------------------
+    return response.json()
 
 
 def american_to_decimal(odds: int) -> float:
@@ -328,6 +184,74 @@ def estimate_ev_percent(book_odds: int, sharp_odds: int) -> float:
     return ev * 100.0
 
 
+def points_match(
+    book_point: Optional[float],
+    novig_point: Optional[float],
+    allow_half_point_flex: bool,
+) -> bool:
+    """Determine if two points should be treated as matching.
+
+    For most markets we require an exact match (including both being ``None``).
+    For spreads/totals, The Odds API occasionally publishes a 0.5-point
+    difference between Novig and the target book; when ``allow_half_point_flex``
+    is True we still consider those to be a match.
+    """
+
+    if book_point is None or novig_point is None:
+        return book_point == novig_point
+
+    diff = abs(book_point - novig_point)
+    if diff < 1e-9:
+        return True
+
+    if allow_half_point_flex and diff <= 0.5 + 1e-9:
+        return True
+
+    return False
+
+
+def find_best_novig_outcome(
+    *,
+    outcomes: List[Dict[str, Any]],
+    name: str,
+    point: Optional[float],
+    allow_half_point_flex: bool,
+    opposite: bool = False,
+) -> Optional[Dict[str, Any]]:
+    """Return the Novig outcome that best matches a book outcome.
+
+    When ``opposite`` is True, search for an outcome with a different name (the
+    other side of the bet). Preference is given to exact point matches, but for
+    spreads/totals we will also accept lines that differ by up to 0.5.
+    """
+
+    best: Optional[Dict[str, Any]] = None
+    best_diff: float = float("inf")
+
+    for novig_outcome in outcomes:
+        novig_name = novig_outcome.get("name")
+        if opposite:
+            if novig_name == name:
+                continue
+        elif novig_name != name:
+            continue
+
+        novig_point = novig_outcome.get("point", None)
+        if not points_match(point, novig_point, allow_half_point_flex):
+            continue
+
+        diff = abs((point or 0.0) - (novig_point or 0.0))
+        if diff < best_diff:
+            best = novig_outcome
+            best_diff = diff
+
+            # Exact point match is the best we can do
+            if diff < 1e-9:
+                break
+
+    return best
+
+
 def collect_value_plays(
     events: List[Dict[str, Any]],
     market_key: str,
@@ -337,11 +261,11 @@ def collect_value_plays(
     Scan all events and outcomes in the given market, comparing target_book vs Novig.
     Only considers outcomes where:
       - both books have a price,
-      - and for spreads/totals/props, the points match.
+      - and for spreads/totals/props, the points match (within 0.5 for spreads/totals).
 
     Also:
-      - Finds the *other* Novig outcome (same point, different name) and exposes
-        its true odds + team name as "novig_reverse_*" (hedge side).
+      - Finds the *other* Novig outcome (matching or close point, different name)
+        and exposes its true odds + team name as "novig_reverse_*" (hedge side).
       - Detects 2-way arbitrage: back this side at the target book, back the
         opposite side at Novig.
     """
@@ -375,8 +299,10 @@ def collect_value_plays(
         if not novig_market or not book_market:
             continue
 
-        # Build Novig outcome collection and map
-        novig_map: Dict[tuple, int] = {}
+        # Allow 0.5-point flex for both spreads and totals (Odds API sometimes
+        # differs by 0.5 between books).
+        allow_half_point_flex = market_key in ("totals", "spreads")
+
         novig_outcomes: List[Dict[str, Any]] = []
         for o in novig_market.get("outcomes", []):
             name = o.get("name")
@@ -387,13 +313,11 @@ def collect_value_plays(
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                 # Skip absurd values like -100000
                 continue
-            key = (name, point)
-            novig_map[key] = price
             novig_outcomes.append(
                 {"name": name, "price": price, "point": point}
             )
 
-        if not novig_map:
+        if not novig_outcomes:
             continue
 
         for o in book_market.get("outcomes", []):
@@ -405,28 +329,36 @@ def collect_value_plays(
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                 continue
 
-            key = (name, point)
-            if key not in novig_map:
+            matching_novig = find_best_novig_outcome(
+                outcomes=novig_outcomes,
+                name=name,
+                point=point,
+                allow_half_point_flex=allow_half_point_flex,
+            )
+            if matching_novig is None:
                 continue
-            novig_price = novig_map[key]
+
+            novig_price = matching_novig["price"]
             ev_pct = estimate_ev_percent(book_odds=price, sharp_odds=novig_price)
 
-            # Find the *other* Novig side (hedge side) with same point but different name
-            other_novig = None
-            for o2 in novig_outcomes:
-                if o2["point"] == point and o2["name"] != name:
-                    other_novig = o2
-                    break
+            # Find the *other* Novig side (hedge side) with matching/close point
+            other_novig = find_best_novig_outcome(
+                outcomes=novig_outcomes,
+                name=name,
+                point=point,
+                allow_half_point_flex=allow_half_point_flex,
+                opposite=True,
+            )
 
             novig_reverse_name: Optional[str] = None
             novig_reverse_price: Optional[int] = None
             hedge_ev_percent: Optional[float] = None
-            is_arb = False
+            is_arbitrage = False
             arb_margin_percent: Optional[float] = None
 
             if other_novig is not None:
-                novig_reverse_name = other_novig["name"]
-                novig_reverse_price = other_novig["price"]
+                novig_reverse_name = other_novig.get("name")
+                novig_reverse_price = other_novig.get("price")
                 hedge_ev_percent = estimate_ev_percent(
                     book_odds=price, sharp_odds=novig_reverse_price
                 )
@@ -438,7 +370,7 @@ def collect_value_plays(
                 d_novig_other = american_to_decimal(other_novig["price"])
                 inv_sum = 1.0 / d_book + 1.0 / d_novig_other
                 if inv_sum < 1.0:
-                    is_arb = True
+                    is_arbitrage = True
                     arb_margin_percent = (1.0 - inv_sum) * 100.0
 
             plays.append(
@@ -454,7 +386,7 @@ def collect_value_plays(
                     book_price=price,
                     ev_percent=ev_pct,
                     hedge_ev_percent=hedge_ev_percent,
-                    is_arbitrage=is_arb,
+                    is_arbitrage=is_arbitrage,
                     arb_margin_percent=arb_margin_percent,
                 )
             )
@@ -462,172 +394,378 @@ def collect_value_plays(
     return plays
 
 
-def choose_three_leg_parlay(plays: List[ValuePlayOutcome], target_book: str) -> Optional[Dict[str, Any]]:
+def choose_three_leg_parlay(
+    plays: List[ValuePlayOutcome],
+    target_book: str,
+    sport_key: str,
+) -> ThreeLegParlayResponse:
     """
-    Very simple 3-leg high-EV parlay suggestion:
-      - take the top +EV plays (ev_percent > 0),
-      - pick the first 3 distinct plays,
-      - estimate parlay EV assuming independence.
-
-    This is cross-game by default (not a true "same-game parlay" engine).
+    Very simple heuristic:
+      - sort by EV descending
+      - pick the top 3 that don't share the same event_id
+    Then approximate parlay EV using Novig's implied probabilities.
     """
-    positive_plays = [p for p in plays if p.ev_percent > 0]
-    if len(positive_plays) < 3:
-        return None
+    # Sort by single-leg EV
+    sorted_plays = sorted(plays, key=lambda p: p.ev_percent, reverse=True)
 
-    # Take top 3 by EV%
-    positive_plays.sort(key=lambda p: p.ev_percent, reverse=True)
-    legs = positive_plays[:3]
-    probs = [american_to_prob(leg.book_price) for leg in legs]
-    fair_probs = [american_to_prob(leg.novig_price) for leg in legs]
+    chosen: List[ValuePlayOutcome] = []
+    used_events: Set[str] = set()
 
-    parlay_prob = 1.0
-    fair_parlay_prob = 1.0
-    parlay_decimal = 1.0
+    for p in sorted_plays:
+        if len(chosen) >= 3:
+            break
+        if p.event_id in used_events:
+            continue
+        chosen.append(p)
+        used_events.add(p.event_id)
 
-    for p_book, p_sharp, leg in zip(probs, fair_probs, legs):
-        parlay_prob *= p_book
-        fair_parlay_prob *= p_sharp
-        parlay_decimal *= american_to_decimal(leg.book_price)
+    if len(chosen) < 3:
+        # Not enough distinct events to form a 3-leg parlay
+        return ThreeLegParlayResponse(
+            target_book=target_book,
+            sport=sport_key,
+            legs=[],
+            combined_decimal_odds=0.0,
+            combined_implied_prob=0.0,
+            combined_sharp_prob=0.0,
+            estimated_parlay_ev_percent=0.0,
+        )
 
-    parlay_ev = parlay_decimal * fair_parlay_prob - 1.0  # EV in units of stake
+    # Build leg details
+    legs: List[ThreeLegParlayLeg] = []
+    combined_decimal = 1.0
+    combined_implied_prob = 1.0
+    combined_sharp_prob = 1.0
+
+    for leg in chosen:
+        # Book decimal odds
+        d_book = american_to_decimal(leg.book_price)
+        combined_decimal *= d_book
+
+        # Book implied probability
+        p_book = american_to_prob(leg.book_price)
+        combined_implied_prob *= p_book
+
+        # "Sharp" probability from Novig
+        p_sharp = american_to_prob(leg.novig_price)
+        combined_sharp_prob *= p_sharp
+
+        legs.append(
+            ThreeLegParlayLeg(
+                event_id=leg.event_id,
+                matchup=leg.matchup,
+                outcome_name=leg.outcome_name,
+                point=leg.point,
+                book_price=leg.book_price,
+                novig_price=leg.novig_price,
+                ev_percent=leg.ev_percent,
+            )
+        )
+
+    # Approximate EV% of the parlay:
+    #
+    #   EV_parlay% ≈ (combined_decimal * combined_sharp_prob - 1) * 100
+    #
+    parlay_ev = combined_decimal * combined_sharp_prob - 1.0
     parlay_ev_percent = parlay_ev * 100.0
 
-    sgp_info = {
-        "target_book": target_book,
-        "legs": [
-            {
-                "matchup": leg.matchup,
-                "outcome_name": leg.outcome_name,
-                "point": leg.point,
-                "book_price": leg.book_price,
-                "novig_price": leg.novig_price,
-                "ev_percent": round(leg.ev_percent, 2),
-            }
-            for leg in legs
-        ],
-        "approx_parlay_decimal_odds": round(parlay_decimal, 3),
-        "approx_parlay_ev_percent": round(parlay_ev_percent, 2),
-    }
-    return sgp_info
+    return ThreeLegParlayResponse(
+        target_book=target_book,
+        sport=sport_key,
+        legs=legs,
+        combined_decimal_odds=combined_decimal,
+        combined_implied_prob=combined_implied_prob,
+        combined_sharp_prob=combined_sharp_prob,
+        estimated_parlay_ev_percent=parlay_ev_percent,
+    )
 
 
 # -------------------------------------------------------------------
-# FastAPI app & endpoints
+# FastAPI app
 # -------------------------------------------------------------------
 
 app = FastAPI()
 
 
-@app.post("/api/odds", response_model=OddsResponse)
-def get_odds(payload: OddsRequest) -> OddsResponse:
-    """
-    Odds endpoint used by the watcher UI: returns current prices and best line
-    for specific teams/bets the user is tracking.
-    """
-    if not payload.bets:
-        raise HTTPException(status_code=400, detail="No bets provided")
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
+
+def parse_start_time(start_time: Optional[str]) -> Optional[str]:
+    """
+    Normalize start_time to a readable ISO8601 or None.
+    The Odds API typically returns a string like "2025-11-20T20:00:00Z".
+    """
+    if not start_time:
+        return None
     try:
-        api_key = get_api_key()
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    all_book_keys: Set[str] = set()
-    for bet in payload.bets:
-        all_book_keys.update(bet.bookmaker_keys)
-
-    if not all_book_keys:
-        raise HTTPException(status_code=400, detail="No bookmakers specified")
-
-    regions = compute_regions_for_books(list(all_book_keys))
-
-    try:
-        events = fetch_odds(
-            api_key=api_key,
-            sport_key=payload.sport_key,
-            regions=regions,
-            markets="h2h",
-            bookmaker_keys=list(all_book_keys),
-        )
-    except requests.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Odds API error: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Error fetching odds: {e}")
-
-    events = [event for event in events if not is_live_event(event)]
-
-    bet_outputs: List[BetOut] = []
-
-    for bet in payload.bets:
-        games = extract_team_games(events, bet.team_name, bet.bookmaker_keys)
-        bet_outputs.append(
-            BetOut(
-                team_name=bet.team_name,
-                target_odds=bet.target_odds,
-                games=games,
-            )
-        )
-
-    return OddsResponse(bets=bet_outputs)
+        dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+        # Optionally convert to local timezone; for now we'll leave it in UTC.
+        return dt.astimezone(timezone.utc).isoformat()
+    except Exception:
+        return start_time
 
 
-@app.post("/api/value-plays", response_model=ValuePlaysResponse)
-def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
+def collect_all_markets(
+    api_key: str,
+    sport_key: str,
+    target_book: str,
+    include_player_props: bool = False,
+) -> List[Dict[str, Any]]:
     """
-    Compare a target sportsbook to Novig (treated as "sharp") for a given sport
-    and market, returning the best value plays and an optional 3-leg parlay suggestion.
+    Fetch both base markets (h2h, spreads, totals) and optionally some props
+    in one unified structure.
+
+    Right now we use a single call with multiple markets; if The Odds API
+    requires separate calls for props, you could extend this logic.
     """
-    target_book = payload.target_book
-    market_key = payload.market
+    include_novig = True
+    regions = get_regions_for_target_book(target_book, include_novig, sport_key)
 
-    if target_book == "novig":
-        raise HTTPException(
-            status_code=400,
-            detail="Target book cannot be Novig (Novig is the sharp reference).",
-        )
+    # We'll request multiple markets at once; The Odds API supports comma-separated.
+    # E.g. "h2h,spreads,totals,player_points" for NBA.
+    base_markets = ["h2h", "spreads", "totals"]
+    all_markets = list(base_markets)
+    if include_player_props:
+        all_markets.append("player_points")
 
-    try:
-        api_key = get_api_key()
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    markets_str = ",".join(all_markets)
 
     bookmaker_keys = [target_book, "novig"]
-    regions = compute_regions_for_books(bookmaker_keys)
 
-    try:
-        events = fetch_odds(
-            api_key=api_key,
-            sport_key=payload.sport_key,
-            regions=regions,
-            markets=market_key,
-            bookmaker_keys=bookmaker_keys,
-            include_player_props=market_key.startswith("player_"),
-        )
-    except requests.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Odds API error: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Error fetching odds: {e}")
+    events = fetch_odds(
+        api_key=api_key,
+        sport_key=sport_key,
+        regions=regions,
+        markets=markets_str,
+        bookmaker_keys=bookmaker_keys,
+        include_player_props=include_player_props,
+    )
+    return events
 
-    events = [event for event in events if not is_live_event(event)]
 
-    plays = collect_value_plays(events, market_key, target_book)
+def collect_value_plays_for_sport(
+    sport_key: str,
+    target_book: str,
+    include_player_props: bool = False,
+) -> Dict[str, List[ValuePlayOutcome]]:
+    """
+    Fetches all relevant markets for the given sport and target book, then
+    collects value plays per market.
+    """
+    api_key = get_api_key()
+    events = collect_all_markets(
+        api_key=api_key,
+        sport_key=sport_key,
+        target_book=target_book,
+        include_player_props=include_player_props,
+    )
 
-    # Sort by EV descending and cap results
-    plays.sort(key=lambda p: p.ev_percent, reverse=True)
-    top_plays = plays[: payload.max_results]
+    # Partition markets
+    market_to_plays: Dict[str, List[ValuePlayOutcome]] = {
+        "h2h": [],
+        "spreads": [],
+        "totals": [],
+        "player_points": [],
+    }
 
-    sgp_suggestion = None
-    if payload.include_sgp and top_plays:
-        sgp_suggestion = choose_three_leg_parlay(top_plays, target_book)
+    # Because events from The Odds API come with multiple markets per event,
+    # we reuse the same event list; each call to collect_value_plays filters
+    # out just the market we care about.
+    base_markets = ["h2h", "spreads", "totals"]
+    for mk in base_markets:
+        mk_plays = collect_value_plays(events, mk, target_book)
+        # Normalize start_time
+        for p in mk_plays:
+            p.start_time = parse_start_time(p.start_time)
+        market_to_plays[mk] = mk_plays
+
+    if include_player_props:
+        # If the provider's sports list uses "player_points" as the market key:
+        props_plays = collect_value_plays(events, "player_points", target_book)
+        for p in props_plays:
+            p.start_time = parse_start_time(p.start_time)
+        market_to_plays["player_points"] = props_plays
+
+    return market_to_plays
+
+
+@app.get("/value-plays/{sport_key}/{target_book}", response_model=ValuePlaysResponse)
+def get_value_plays(
+    sport_key: str,
+    target_book: str,
+    market: str = "h2h",  # e.g. "h2h", "spreads", "totals", "player_points"
+    include_player_props: bool = False,
+):
+    """
+    Return a list of value plays for a single market + book.
+    """
+    if target_book not in BOOK_LABELS:
+        raise HTTPException(status_code=400, detail="Unsupported target_book")
+
+    market_to_plays = collect_value_plays_for_sport(
+        sport_key=sport_key,
+        target_book=target_book,
+        include_player_props=include_player_props,
+    )
+
+    if market not in market_to_plays:
+        raise HTTPException(status_code=400, detail="Unsupported market")
+
+    plays = market_to_plays[market]
 
     return ValuePlaysResponse(
         target_book=target_book,
-        market=market_key,
-        plays=top_plays,
-        sgp_suggestion=sgp_suggestion,
+        market=market,
+        sport=sport_key,
+        events_count=len(plays),
+        plays=plays,
     )
 
+
+@app.get(
+    "/best-3-leg-parlay/{sport_key}/{target_book}",
+    response_model=ThreeLegParlayResponse,
+)
+def get_best_three_leg_parlay(
+    sport_key: str,
+    target_book: str,
+    include_player_props: bool = False,
+):
+    """
+    Build a naive 3-leg parlay suggestion based on highest single-leg EVs
+    (one leg per event), then approximate parlay EV vs Novig.
+    """
+    if target_book not in BOOK_LABELS:
+        raise HTTPException(status_code=400, detail="Unsupported target_book")
+
+    market_to_plays = collect_value_plays_for_sport(
+        sport_key=sport_key,
+        target_book=target_book,
+        include_player_props=include_player_props,
+    )
+
+    # Flatten all markets into a single list for parlay selection.
+    all_plays: List[ValuePlayOutcome] = []
+    for mk_plays in market_to_plays.values():
+        all_plays.extend(mk_plays)
+
+    parlay = choose_three_leg_parlay(
+        plays=all_plays,
+        target_book=target_book,
+        sport_key=sport_key,
+    )
+    return parlay
+
+
+# -------------------------------------------------------------------
+# Simple endpoint for date filtering and examples
+# -------------------------------------------------------------------
+
+
+class ExampleValuePlay(BaseModel):
+    matchup: str
+    outcome_name: str
+    price: int
+    start_time: Optional[str]
+
+
+class ExampleValuePlaysResponse(BaseModel):
+    plays: List[ExampleValuePlay]
+
+
+def extract_team_games(
+    events: List[Dict[str, Any]],
+    team_name: str,
+    market_key: str,
+    target_book: str,
+) -> List[ExampleValuePlay]:
+    """
+    Example utility that filters events for a given team in a given market
+    and returns simplified data. Not used by the main value-plays endpoints,
+    but shows how you could build custom filters.
+    """
+    results: List[ExampleValuePlay] = []
+
+    for event in events:
+        home = event.get("home_team")
+        away = event.get("away_team")
+        start_time = event.get("commence_time")
+        event_id = event.get("id", "")
+
+        matchup = f"{away} @ {home}" if home and away else ""
+
+        book_market = None
+        for bookmaker in event.get("bookmakers", []):
+            key = bookmaker.get("key")
+            market = next(
+                (m for m in bookmaker.get("markets", []) if m.get("key") == market_key),
+                None,
+            )
+            if not market:
+                continue
+            if key == target_book:
+                book_market = market
+
+        if not book_market:
+            continue
+
+        for o in book_market.get("outcomes", []):
+            name = o.get("name")
+            price = o.get("price")
+            if not name or price is None:
+                continue
+            if team_name.lower() in name.lower():
+                results.append(
+                    ExampleValuePlay(
+                        matchup=matchup,
+                        outcome_name=name,
+                        price=price,
+                        start_time=parse_start_time(start_time),
+                    )
+                )
+    return results
+
+
+@app.get(
+    "/examples/team-games/{sport_key}/{target_book}",
+    response_model=ExampleValuePlaysResponse,
+)
+def get_team_games_example(
+    sport_key: str,
+    target_book: str,
+    team_name: str,
+    market: str = "h2h",
+    include_player_props: bool = False,
+):
+    """
+    Example endpoint: list all games for a given team and market.
+    """
+    if target_book not in BOOK_LABELS:
+        raise HTTPException(status_code=400, detail="Unsupported target_book")
+
+    api_key = get_api_key()
+    include_novig = False
+    regions = get_regions_for_target_book(target_book, include_novig, sport_key)
+    bookmaker_keys = [target_book]
+
+    events = fetch_odds(
+        api_key=api_key,
+        sport_key=sport_key,
+        regions=regions,
+        markets=market,
+        bookmaker_keys=bookmaker_keys,
+        include_player_props=include_player_props,
+    )
+
+    plays = extract_team_games(events, team_name, market, target_book)
+    return ExampleValuePlaysResponse(plays=plays)
+
+
+# -------------------------------------------------------------------
+# Static file serving for frontend
+# -------------------------------------------------------------------
 
 # Static frontend (index.html, value.html, etc. under ./frontend)
 app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
