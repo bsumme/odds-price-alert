@@ -290,8 +290,10 @@
                             <th>Opposite Side (Novig)</th>
                             <th>Novig Hedge Price</th>
                             <th>Book Price</th>
+                            <th>Hedge EV%</th>
                             <th>EV% (approx)</th>
                         </tr>
+
                     </thead>
                     <tbody id="results-body">
                         <tr>
@@ -309,6 +311,25 @@
         let valuePollTimer = null;
         let lastValueData = null;
         let filterHedgeOnly = false;
+
+        function formatStartTime(isoString) {
+            if (!isoString) return "";
+            try {
+                const date = new Date(isoString);
+                const options = {
+                    timeZone: "America/New_York",
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    hour12: true,
+                };
+                return date.toLocaleString("en-US", options) + " ET";
+            } catch (e) {
+                return isoString;
+            }
+        }
+
 
         function setStatus(msg) {
             document.getElementById("status-bar").textContent = msg;
@@ -331,7 +352,7 @@
             body.innerHTML = "";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="8" class="small-text">No value plays found (maybe market is empty or Novig not available).</td></tr>';
+                body.innerHTML = '<tr><td colspan="9" class="small-text">No value plays found (maybe market is empty or Novig not available).</td></tr>';
                 return;
             }
 
@@ -346,7 +367,7 @@
             }
 
             if (plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="8" class="small-text">No plays match the current hedge filter.</td></tr>';
+                body.innerHTML = '<tr><td colspan="9" class="small-text">No plays match the current hedge filter.</td></tr>';
                 return;
             }
 
@@ -366,7 +387,7 @@
                 tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
-                startCell.textContent = play.start_time || "";
+                startCell.textContent = formatStartTime(play.start_time);
                 tr.appendChild(startCell);
 
                 const novigCell = document.createElement("td");
@@ -393,11 +414,22 @@
                 bookCell.textContent = play.book_price;
                 tr.appendChild(bookCell);
 
+                const hedgeEvCell = document.createElement("td");
+                if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
+                    const hedgeRounded = Math.round(play.arb_margin_percent * 100) / 100;
+                    const hedgeClass = hedgeRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                    hedgeEvCell.innerHTML = `<span class="${hedgeClass}">${hedgeRounded}%</span>`;
+                } else {
+                    hedgeEvCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(hedgeEvCell);
+
                 const evCell = document.createElement("td");
                 const evRounded = Math.round(play.ev_percent * 100) / 100;
                 let badgeClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
                 evCell.innerHTML = `<span class="${badgeClass}">${evRounded}%</span>`;
                 tr.appendChild(evCell);
+
 
                 body.appendChild(tr);
             });
