@@ -158,6 +158,26 @@ def fetch_odds(
     resp.raise_for_status()
     return resp.json()
 
+def is_live_event(event: Dict[str, Any]) -> bool:
+    """Return True if the event appears to be in-play/live.
+
+    The Odds API exposes several hints for live games, including:
+      - a truthy "scores" array
+      - boolean flags such as "inplay" or "live"
+      - a "completed" flag once the game has finished
+    """
+
+    if event.get("completed"):
+        return True
+
+    if event.get("scores"):
+        return True
+
+    if event.get("inplay") or event.get("live"):
+        return True
+
+    return False
+
 
 # -------------------------------------------------------------------
 # Helper logic for watcher (/api/odds)
@@ -514,6 +534,8 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
 
     bet_outputs: List[BetOut] = []
 
+    events = [event for event in events if not is_live_event(event)]
+
     for bet in payload.bets:
         games = extract_team_games(events, bet.team_name, bet.bookmaker_keys)
         bet_outputs.append(
@@ -565,6 +587,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         raise HTTPException(status_code=502, detail=f"Error fetching odds: {e}")
 
     plays = collect_value_plays(events, market_key, target_book)
+    events = [event for event in events if not is_live_event(event)]
 
     # Sort by EV descending and cap results
     plays.sort(key=lambda p: p.ev_percent, reverse=True)
