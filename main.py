@@ -137,6 +137,7 @@ def fetch_odds(
     regions: str,
     markets: str,
     bookmaker_keys: List[str],
+    include_player_props: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Core call to /v4/sports/{sport_key}/odds.
@@ -150,6 +151,9 @@ def fetch_odds(
         "dateFormat": "iso",
         "bookmakers": ",".join(bookmaker_keys),
     }
+    if include_player_props:
+       # Explicitly opt-in to player prop markets (required by The Odds API).
+       params["playerProps"] = "true"
     resp = requests.get(url, params=params, timeout=15)
     resp.raise_for_status()
     return resp.json()
@@ -553,6 +557,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
             regions=regions,
             markets=market_key,
             bookmaker_keys=bookmaker_keys,
+            include_player_props=market_key.startswith("player_"),
         )
     except requests.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Odds API error: {e}")
