@@ -189,7 +189,7 @@
         <div>
             <h1>Value Finder vs Novig</h1>
             <div class="small-text">
-                Compare a book’s lines to Novig (sharp), see the opposite Novig side, and spot arbs.
+                Compare a book’s lines to Novig (sharp) and see the opposite Novig side.
             </div>
         </div>
         <nav>
@@ -262,10 +262,10 @@
                             <th>Matchup</th>
                             <th>Start Time</th>
                             <th>Novig Price</th>
-                            <th>Novig Opposite (Hedge)</th>
+                            <th>Opposite Side (Novig)</th>
+                            <th>Novig Hedge Price</th>
                             <th>Book Price</th>
                             <th>EV% (approx)</th>
-                            <th>Arb</th>
                         </tr>
                     </thead>
                     <tbody id="results-body">
@@ -330,13 +330,21 @@
                 novigCell.textContent = play.novig_price;
                 tr.appendChild(novigCell);
 
-                const revCell = document.createElement("td");
-                if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined && play.novig_reverse_name) {
-                    revCell.textContent = `${play.novig_reverse_name} ${play.novig_reverse_price}`;
+                const oppCell = document.createElement("td");
+                if (play.novig_reverse_name) {
+                    oppCell.textContent = play.novig_reverse_name;
                 } else {
-                    revCell.innerHTML = '<span class="small-text">-</span>';
+                    oppCell.innerHTML = '<span class="small-text">-</span>';
                 }
-                tr.appendChild(revCell);
+                tr.appendChild(oppCell);
+
+                const hedgeCell = document.createElement("td");
+                if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
+                    hedgeCell.textContent = play.novig_reverse_price;
+                } else {
+                    hedgeCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(hedgeCell);
 
                 const bookCell = document.createElement("td");
                 bookCell.textContent = play.book_price;
@@ -347,19 +355,6 @@
                 let badgeClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
                 evCell.innerHTML = `<span class="${badgeClass}">${evRounded}%</span>`;
                 tr.appendChild(evCell);
-
-                const arbCell = document.createElement("td");
-                if (play.is_arbitrage) {
-                    let marginText = "";
-                    if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
-                        const m = Math.round(play.arb_margin_percent * 100) / 100;
-                        marginText = ` ~${m}%`;
-                    }
-                    arbCell.innerHTML = `<span class="badge badge-positive">ARB${marginText}</span>`;
-                } else {
-                    arbCell.innerHTML = '<span class="small-text">-</span>';
-                }
-                tr.appendChild(arbCell);
 
                 body.appendChild(tr);
             });
@@ -406,7 +401,7 @@
             const sport = document.getElementById("sport-select").value;
             const market = document.getElementById("market-select").value;
             const book = document.getElementById("book-select").value;
-            const maxResults = Number(document.getElementById("max-results-input").value) || 25;
+            const maxResults = Number(document.getElementById("max-results-input").value) || 7;
             const includeSGP = document.getElementById("sgp-checkbox").checked;
 
             if (singleRun) {

@@ -61,7 +61,7 @@ class ValuePlaysRequest(BaseModel):
     market: str = "h2h"                 # e.g. "h2h", "spreads", "totals", "player_points"
     target_book: str                    # e.g. "draftkings", "fanduel", "fliff"
     include_sgp: bool = False           # if True, also suggest a 3-leg parlay
-    max_results: int = 25               # number of top value plays to return
+    max_results: int = 7               # number of top value plays to return
 
 
 class ValuePlayOutcome(BaseModel):
@@ -75,6 +75,7 @@ class ValuePlayOutcome(BaseModel):
     novig_reverse_price: Optional[int]
     book_price: int
     ev_percent: float        # estimated edge in percent (vs Novig)
+    hedge_ev_percent: Optional[float] = None  # edge vs Novig opposite side, if available
     is_arbitrage: bool = False
     arb_margin_percent: Optional[float] = None  # % margin of arb if present
 
@@ -419,12 +420,16 @@ def collect_value_plays(
 
             novig_reverse_name: Optional[str] = None
             novig_reverse_price: Optional[int] = None
+            hedge_ev_percent: Optional[float] = None
             is_arb = False
             arb_margin_percent: Optional[float] = None
 
             if other_novig is not None:
                 novig_reverse_name = other_novig["name"]
                 novig_reverse_price = other_novig["price"]
+                hedge_ev_percent = estimate_ev_percent(
+                    book_odds=price, sharp_odds=novig_reverse_price
+                )
 
                 # Detect 2-way arbitrage:
                 #  - back this side at target_book (book_price)
@@ -448,6 +453,7 @@ def collect_value_plays(
                     novig_reverse_price=novig_reverse_price,
                     book_price=price,
                     ev_percent=ev_pct,
+                    hedge_ev_percent=hedge_ev_percent,
                     is_arbitrage=is_arb,
                     arb_margin_percent=arb_margin_percent,
                 )
@@ -472,8 +478,6 @@ def choose_three_leg_parlay(plays: List[ValuePlayOutcome], target_book: str) -> 
     # Take top 3 by EV%
     positive_plays.sort(key=lambda p: p.ev_percent, reverse=True)
     legs = positive_plays[:3]
-
-    # Estimate parlay EV
     probs = [american_to_prob(leg.book_price) for leg in legs]
     fair_probs = [american_to_prob(leg.novig_price) for leg in legs]
 
