@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Set, Optional
 
 import requests
@@ -158,6 +159,7 @@ def fetch_odds(
     resp.raise_for_status()
     return resp.json()
 
+
 def is_live_event(event: Dict[str, Any]) -> bool:
     """Return True if the event appears to be in-play/live.
 
@@ -165,6 +167,7 @@ def is_live_event(event: Dict[str, Any]) -> bool:
       - a truthy "scores" array
       - boolean flags such as "inplay" or "live"
       - a "completed" flag once the game has finished
+      - a start time that has already passed
     """
 
     if event.get("completed"):
@@ -175,6 +178,22 @@ def is_live_event(event: Dict[str, Any]) -> bool:
 
     if event.get("inplay") or event.get("live"):
         return True
+
+    commence_time = event.get("commence_time")
+    if commence_time:
+        try:
+            start_dt = datetime.fromisoformat(commence_time.replace("Z", "+00:00"))
+            now_utc = datetime.now(timezone.utc)
+
+            # Treat games as effectively live if their scheduled start time has passed
+            # or is within a 15-minute buffer window. This helps catch cases where the
+            # Odds API lags behind the real game state.
+            buffer = timedelta(minutes=15)
+            if start_dt <= now_utc + buffer:
+                return True
+        except ValueError:
+            # If the time is malformed, assume not started rather than failing.
+            pass
 
     return False
 
@@ -532,9 +551,9 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Error fetching odds: {e}")
 
-    bet_outputs: List[BetOut] = []
-
     events = [event for event in events if not is_live_event(event)]
+
+    bet_outputs: List[BetOut] = []
 
     for bet in payload.bets:
         games = extract_team_games(events, bet.team_name, bet.bookmaker_keys)
@@ -586,8 +605,9 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Error fetching odds: {e}")
 
-    plays = collect_value_plays(events, market_key, target_book)
     events = [event for event in events if not is_live_event(event)]
+
+    plays = collect_value_plays(events, market_key, target_book)
 
     # Sort by EV descending and cap results
     plays.sort(key=lambda p: p.ev_percent, reverse=True)
