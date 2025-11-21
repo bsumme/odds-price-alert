@@ -66,10 +66,8 @@ class ValuePlayOutcome(BaseModel):
     hedge_ev_percent: Optional[float] = None  # legacy: edge vs Novig opposite side (not used for sort)
     is_arbitrage: bool = False
     arb_margin_percent: Optional[float] = None  # % margin of arb if present (book vs Novig opposite)
-    other_book_prices: Dict[str, Optional[int]] = Field(
-    default_factory=dict,
-    description="Prices for comparison books (DraftKings/FanDuel/Fliff)",
-    )
+    book_prices: Dict[str, Optional[int]] = Field(default_factory=dict)
+    
 
 class ValuePlaysResponse(BaseModel):
     target_book: str
@@ -101,6 +99,8 @@ BOOK_LABELS = {
     # add more as needed
 }
 
+# Books whose prices we want to surface alongside the target book in value finder
+VALUE_PLAY_DISPLAY_BOOKS = ["draftkings", "fanduel", "fliff"]
 
 def get_api_key() -> str:
     api_key = os.getenv("THE_ODDS_API_KEY")
@@ -232,7 +232,7 @@ def _canonical_outcome_name(name: Optional[str]) -> Optional[str]:
     return name.lower().replace(".", "").replace("'", "").strip()
 
 
-def find_best_novig_outcome(
+def find_best_matching_outcome(
     *,
     outcomes: List[Dict[str, Any]],
     name: str,
@@ -240,7 +240,7 @@ def find_best_novig_outcome(
     allow_half_point_flex: bool,
     opposite: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    """Return the Novig outcome that best matches a book outcome.
+    """Return the outcome that best matches a book outcome.
 
     When ``opposite`` is True, search for an outcome with a different name (the
     other side of the bet). Preference is given to exact point matches, but for
@@ -249,25 +249,22 @@ def find_best_novig_outcome(
 
     best: Optional[Dict[str, Any]] = None
     best_diff: float = float("inf")
-    normalized_name = _canonical_outcome_name(name)
 
-    for novig_outcome in outcomes:
-        novig_name_raw = novig_outcome.get("name")
-        novig_name = _canonical_outcome_name(novig_name_raw)
+    for candidate in outcomes:
+        candidate_name = candidate.get("name")
         if opposite:
-            if novig_name == normalized_name:
+            if candidate_name == name:
                 continue
-        elif novig_name != normalized_name:
-            # try loose match on normalized name to handle punctuation/casing differences
+        elif candidate_name != name:
             continue
 
-        novig_point = novig_outcome.get("point", None)
-        if not points_match(point, novig_point, allow_half_point_flex):
+        candidate_point = candidate.get("point", None)
+        if not points_match(point, candidate_point, allow_half_point_flex):
             continue
 
-        diff = abs((point or 0.0) - (novig_point or 0.0))
+        diff = abs((point or 0.0) - (candidate_point or 0.0))
         if diff < best_diff:
-            best = novig_outcome
+            best = candidate
             best_diff = diff
 
             # Exact point match is the best we can do
@@ -275,6 +272,20 @@ def find_best_novig_outcome(
                 break
 
     return best
+def extract_valid_outcomes(market: Dict[str, Any]) -> List[Dict[str, Any]]:
+    outcomes: List[Dict[str, Any]] = []
+    for o in market.get("outcomes", []):
+        name = o.get("name")
+        price = o.get("price")
+        point = o.get("point", None)
+        if name is None or price is None:
+            continue
+        if abs(price) >= MAX_VALID_AMERICAN_ODDS:
+            # Skip absurd values like -100000
+            continue
+        outcomes.append({"name": name, "price": price, "point": point})
+    return outcomes
+
 
 def normalize_outcomes(market: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Extract clean outcomes from a bookmaker market."""
@@ -301,7 +312,7 @@ def collect_value_plays(
     events: List[Dict[str, Any]],
     market_key: str,
     target_book: str,
-    comparison_books: List[str],
+    display_books: List[str],
 ) -> List[ValuePlayOutcome]:
     """
     Scan all events and outcomes in the given market, comparing target_book vs Novig.
@@ -327,7 +338,8 @@ def collect_value_plays(
 
         novig_market = None
         book_market = None
-        other_markets: Dict[str, Any] = {}
+        markets_by_book: Dict[str, Dict[str, Any]] = {}
+
         for bookmaker in event.get("bookmakers", []):
             key = bookmaker.get("key")
             market = next(
@@ -341,8 +353,10 @@ def collect_value_plays(
                 novig_market = market
             elif key == target_book:
                 book_market = market
-            elif key in comparison_books:
-                other_markets[key] = market
+
+            if key in display_books:
+                markets_by_book[key] = market
+
         if not novig_market or not book_market:
             continue
 
@@ -350,21 +364,18 @@ def collect_value_plays(
         # differs by 0.5 between books).
         allow_half_point_flex = market_key in ("totals", "spreads")
 
-        novig_outcomes = normalize_outcomes(novig_market)
-        comparison_outcomes: Dict[str, List[Dict[str, Any]]] = {
-            key: normalize_outcomes(market) for key, market in other_markets.items()
-        }
+        novig_outcomes = extract_valid_outcomes(novig_market)
+        book_outcomes = extract_valid_outcomes(book_market)
 
         if not novig_outcomes:
             continue
 
-        for o in normalize_outcomes(book_market):
+        for o in book_outcomes:
             name = o.get("name")
             price = o.get("price")
             point = o.get("point", None)
 
-
-            matching_novig = find_best_novig_outcome(
+            matching_novig = find_best_matching_outcome(
                 outcomes=novig_outcomes,
                 name=name,
                 point=point,
@@ -377,7 +388,7 @@ def collect_value_plays(
             ev_pct = estimate_ev_percent(book_odds=price, sharp_odds=novig_price)
 
             # Find the *other* Novig side (hedge side) with matching/close point
-            other_novig = find_best_novig_outcome(
+            other_novig = find_best_matching_outcome(
                 outcomes=novig_outcomes,
                 name=name,
                 point=point,
@@ -409,24 +420,23 @@ def collect_value_plays(
                 if arb_margin_percent > 0:
                     is_arb = True
 
-            other_prices: Dict[str, Optional[int]] = {}
-            for comp_book, outcomes in comparison_outcomes.items():
-                matching_outcome = find_best_novig_outcome(
-                    outcomes=outcomes,
+
+            book_prices: Dict[str, Optional[int]] = {}
+            for book_key in display_books:
+                market_for_book = markets_by_book.get(book_key)
+                if not market_for_book:
+                    book_prices[book_key] = None
+                    continue
+
+                outcomes_for_book = extract_valid_outcomes(market_for_book)
+                match = find_best_matching_outcome(
+                    outcomes=outcomes_for_book,
                     name=name,
                     point=point,
                     allow_half_point_flex=allow_half_point_flex,
                 )
-                other_prices[comp_book] = (
-                    matching_outcome.get("price") if matching_outcome else None
-                )
+                book_prices[book_key] = match.get("price") if match else None
 
-            for std_book in ("draftkings", "fanduel", "fliff"):
-                if std_book == target_book:
-                    other_prices[std_book] = price
-                else:
-                    other_prices.setdefault(std_book, None)
-                    
             plays.append(
                 ValuePlayOutcome(
                     event_id=event_id,
@@ -442,12 +452,11 @@ def collect_value_plays(
                     hedge_ev_percent=hedge_ev_percent,
                     is_arbitrage=is_arb,
                     arb_margin_percent=arb_margin_percent,
-                    other_book_prices=other_prices,
+                    book_prices=book_prices,
                 )
             )
 
     return plays
-
 
 def format_start_time_est(iso_str: str) -> str:
     """Convert an ISO UTC time string into an easy-to-read EST label.
@@ -687,10 +696,8 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    comparison_books = [
-        bk for bk in ("draftkings", "fanduel", "fliff") if bk != target_book
-    ]
-    bookmaker_keys = sorted({target_book, "novig", *comparison_books})
+    display_books = sorted(set(VALUE_PLAY_DISPLAY_BOOKS + [target_book]))
+    bookmaker_keys = sorted(set([target_book, "novig"] + VALUE_PLAY_DISPLAY_BOOKS))
     regions = compute_regions_for_books(bookmaker_keys)
 
     events = fetch_odds(
@@ -701,9 +708,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         bookmaker_keys=bookmaker_keys,
     )
 
-    raw_plays = collect_value_plays(
-        events, market_key, target_book, comparison_books
-    )
+    raw_plays = collect_value_plays(events, market_key, target_book, display_books)
 
     # Filter out games that started a long time ago (keep upcoming / recent only)
     now_utc = datetime.now(timezone.utc)
@@ -725,6 +730,8 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     for p in filtered_plays:
         if p.start_time:
             p.start_time = format_start_time_est(p.start_time)
+
+
 
     # Sort primarily by hedge opportunity (arb_margin_percent) descending.
     # Plays with no Novig opposite side get pushed to the bottom.

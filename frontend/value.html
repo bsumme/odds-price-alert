@@ -142,6 +142,15 @@
             z-index: 1;
         }
 
+        tbody tr.play-row {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        tbody tr.play-row:hover {
+            background: #0b1224;
+        }
+
         .scroll-container {
             max-height: 520px;
             overflow-y: auto;
@@ -175,6 +184,51 @@
             border-radius: 0.5rem;
             background: #111827;
             border: 1px solid #1f2937;
+        }
+
+        .details-row {
+            background: #0b1224;
+        }
+
+        .details-row.hidden {
+            display: none;
+        }
+
+        .book-chip {
+            display: inline-block;
+            padding: 0.25rem 0.45rem;
+            margin: 0.1rem 0.2rem;
+            border-radius: 999px;
+            background: #1f2937;
+            color: #e5e7eb;
+            font-size: 0.78rem;
+            border: 1px solid #374151;
+        }
+
+        .book-odds-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .click-hint {
+            color: #9ca3af;
+            font-size: 0.75rem;
+            display: block;
+            margin-top: 0.2rem;
+        }
+
+        .toggle-icon {
+            display: inline-block;
+            width: 0.9rem;
+            text-align: center;
+            margin-right: 0.35rem;
+            transition: transform 0.15s ease;
+        }
+
+        .toggle-icon.expanded {
+            transform: rotate(90deg);
         }
 
         @media (max-width: 900px) {
@@ -285,7 +339,11 @@
 
     <script>
         let valuePollTimer = null;
-
+        const DISPLAY_BOOK_LABELS = {
+            draftkings: "DraftKings",
+            fanduel: "FanDuel",
+            fliff: "Fliff",
+        };
         function setStatus(msg) {
             document.getElementById("status-bar").textContent = msg;
         }
@@ -301,6 +359,26 @@
             setSummary("");
         }
 
+        function renderBookChips(bookPrices) {
+            if (!bookPrices) return '<span class="small-text">No other book prices.</span>';
+
+            const chips = Object.entries(bookPrices)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([book, price]) => {
+                    const label = DISPLAY_BOOK_LABELS[book] || book;
+                    const priceText =
+                        price === null || price === undefined
+                            ? "N/A"
+                            : price;
+                    return `<span class="book-chip"><strong>${label}:</strong> ${priceText}</span>`;
+                });
+
+            if (!chips.length) {
+                return '<span class="small-text">No other book prices.</span>';
+            }
+            return `<div class="book-odds-list">${chips.join(" ")}</div>`;
+        }
+
         function renderValuePlays(data) {
             const body = document.getElementById("results-body");
             body.innerHTML = "";
@@ -312,16 +390,33 @@
 
             data.plays.forEach(play => {
                 const tr = document.createElement("tr");
+                tr.className = "play-row";
 
                 const outcomeCell = document.createElement("td");
                 let outcomeText = play.outcome_name;
                 if (play.point !== null && play.point !== undefined) {
                     outcomeText += " @ " + play.point;
                 }
-                outcomeCell.textContent = outcomeText;
+
+                const toggleIcon = document.createElement("span");
+                toggleIcon.className = "toggle-icon";
+                toggleIcon.textContent = "▶";
+
+                const textSpan = document.createElement("span");
+                textSpan.textContent = outcomeText;
+
+                const clickHint = document.createElement("span");
+                clickHint.className = "click-hint";
+                clickHint.textContent = "Click to view odds across DraftKings, FanDuel, and Fliff";
+
+                outcomeCell.appendChild(toggleIcon);
+                outcomeCell.appendChild(textSpan);
+                outcomeCell.appendChild(clickHint);
                 tr.appendChild(outcomeCell);
 
-
+                const matchupCell = document.createElement("td");
+                matchupCell.textContent = play.matchup || "";
+                tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
                 startCell.textContent = play.start_time || "";
@@ -350,23 +445,6 @@
                 const bookCell = document.createElement("td");
                 bookCell.textContent = play.book_price;
                 tr.appendChild(bookCell);
-                const otherPrices = play.other_book_prices || {};
-                const comparisonBooks = [
-                    ["draftkings", "DraftKings"],
-                    ["fanduel", "FanDuel"],
-                    ["fliff", "Fliff"],
-                ];
-
-                comparisonBooks.forEach(([key]) => {
-                    const td = document.createElement("td");
-                    const price = otherPrices[key];
-                    if (price !== null && price !== undefined) {
-                        td.textContent = price;
-                    } else {
-                        td.innerHTML = '<span class="small-text">-</span>';
-                    }
-                    tr.appendChild(td);
-                });
 
                 const evCell = document.createElement("td");
                 const evRounded = Math.round(play.ev_percent * 100) / 100;
@@ -374,7 +452,24 @@
                 evCell.innerHTML = `<span class="${badgeClass}">${evRounded}%</span>`;
                 tr.appendChild(evCell);
 
+                const detailRow = document.createElement("tr");
+                detailRow.className = "details-row hidden";
+                const detailCell = document.createElement("td");
+                detailCell.colSpan = 8;
+                detailCell.innerHTML = `<div class="small-text" style="margin-bottom: 0.25rem;">Odds across books:</div>${renderBookChips(play.book_prices)}`;
+                detailRow.appendChild(detailCell);
+
+                tr.onclick = () => {
+                    detailRow.classList.toggle("hidden");
+                    const isExpanded = !detailRow.classList.contains("hidden");
+                    toggleIcon.classList.toggle("expanded", isExpanded);
+                    clickHint.textContent = isExpanded
+                        ? "Hide book odds"
+                        : "Click to view odds across DraftKings, FanDuel, and Fliff";
+                };
+
                 body.appendChild(tr);
+                body.appendChild(detailRow);
             });
         }
 
@@ -443,6 +538,12 @@
                     throw new Error(text || ("HTTP " + res.status));
                 }
                 const data = await res.json();
+                const playsForLog = (data.plays || []).map(p => ({
+                    outcome: p.outcome_name,
+                    point: p.point,
+                    book_prices: p.book_prices,
+                }));
+                console.log("Value play odds by book:", playsForLog);
                 renderValuePlays(data);
                 const playsCount = (data.plays || []).length;
                 setSummary(`Showing top ${playsCount} value plays for ${book} in market "${market}" vs Novig.`);
