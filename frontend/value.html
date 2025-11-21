@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Value Finder vs Novig</title>
+    <title>Value Finder</title>
     <style>
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -187,9 +187,9 @@
 <body>
     <header>
         <div>
-            <h1>Value Finder vs Novig</h1>
+            <h1>Value Finder</h1>
             <div class="small-text">
-                Compare a book’s lines to Novig (sharp) and see the opposite Novig side.
+                Compare a book's lines to another book and see the opposite side.
             </div>
         </div>
         <nav>
@@ -222,8 +222,15 @@
                 <option value="player_points_assists_rebounds">Player Pts+Ast+Reb</option>
             </select>
 
-            <label for="book-select">Target book (compare vs Novig)</label>
+            <label for="book-select">Target book</label>
             <select id="book-select">
+                <option value="draftkings">DraftKings</option>
+                <option value="fanduel">FanDuel</option>
+                <option value="fliff">Fliff</option>
+            </select>
+
+            <label for="compare-book-select">Compare against</label>
+            <select id="compare-book-select">
                 <option value="draftkings">DraftKings</option>
                 <option value="fanduel">FanDuel</option>
                 <option value="fliff">Fliff</option>
@@ -261,9 +268,9 @@
                             <th>Outcome (Book)</th>
                             <th>Matchup</th>
                             <th>Start Time</th>
-                            <th>Novig Price</th>
-                            <th>Opposite Side (Novig)</th>
-                            <th>Novig Hedge Price</th>
+                            <th>Compare Price</th>
+                            <th>Opposite Side</th>
+                            <th>Hedge Price</th>
                             <th>Book Price</th>
                             <th>EV% (approx)</th>
                         </tr>
@@ -303,7 +310,8 @@
             body.innerHTML = "";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="8" class="small-text">No value plays found (maybe market is empty or Novig not available).</td></tr>';
+                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
+                body.innerHTML = `<tr><td colspan="8" class="small-text">No value plays found (maybe market is empty or ${compareBookLabel} not available).</td></tr>`;
                 return;
             }
 
@@ -326,9 +334,9 @@
                 startCell.textContent = play.start_time || "";
                 tr.appendChild(startCell);
 
-                const novigCell = document.createElement("td");
-                novigCell.textContent = play.novig_price;
-                tr.appendChild(novigCell);
+                const compareCell = document.createElement("td");
+                compareCell.textContent = play.novig_price;
+                tr.appendChild(compareCell);
 
                 const oppCell = document.createElement("td");
                 if (play.novig_reverse_name) {
@@ -380,7 +388,8 @@
                 if (leg.point !== null && leg.point !== undefined) {
                     text += ` @ ${leg.point}`;
                 }
-                text += ` | Book: ${leg.book_price}, Novig: ${leg.novig_price}, EV: ${leg.ev_percent}%`;
+                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
+                text += ` | Book: ${leg.book_price}, ${compareBookLabel}: ${leg.novig_price}, EV: ${leg.ev_percent}%`;
                 li.textContent = text;
                 legsList.appendChild(li);
             });
@@ -388,9 +397,10 @@
 
             const footer = document.createElement("div");
             footer.className = "small-text";
+            const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
             footer.innerHTML = `
         Approx parlay decimal odds: <strong>${sgp.approx_parlay_decimal_odds}</strong><br />
-        Approx parlay EV: <strong>${sgp.approx_parlay_ev_percent}%</strong> (vs Novig as sharp)
+        Approx parlay EV: <strong>${sgp.approx_parlay_ev_percent}%</strong> (vs ${compareBookLabel} as sharp)
       `;
             card.appendChild(footer);
 
@@ -401,8 +411,14 @@
             const sport = document.getElementById("sport-select").value;
             const market = document.getElementById("market-select").value;
             const book = document.getElementById("book-select").value;
+            const compareBook = document.getElementById("compare-book-select").value;
             const maxResults = Number(document.getElementById("max-results-input").value) || 7;
             const includeSGP = document.getElementById("sgp-checkbox").checked;
+
+            if (book === compareBook) {
+                setStatus("Error: Target book and comparison book cannot be the same.");
+                return;
+            }
 
             if (singleRun) {
                 clearResults();
@@ -416,6 +432,7 @@
                         sport_key: sport,
                         market,
                         target_book: book,
+                        compare_book: compareBook,
                         include_sgp: includeSGP,
                         max_results: maxResults
                     }),
@@ -427,7 +444,8 @@
                 const data = await res.json();
                 renderValuePlays(data);
                 const playsCount = (data.plays || []).length;
-                setSummary(`Showing top ${playsCount} value plays for ${book} in market "${market}" vs Novig.`);
+                const compareBookLabel = document.querySelector("#compare-book-select option:checked").textContent;
+                setSummary(`Showing top ${playsCount} value plays for ${book} in market "${market}" vs ${compareBookLabel}.`);
                 const bookLabel = document.querySelector("#book-select option:checked").textContent;
                 renderSGP(data.sgp_suggestion, bookLabel);
                 setStatus("Done.");
@@ -473,6 +491,21 @@
             document.getElementById("clear-btn").onclick = clearResults;
             document.getElementById("start-loop-btn").onclick = startValueLoop;
             document.getElementById("stop-loop-btn").onclick = stopValueLoop;
+            
+            // Prevent selecting the same book for both target and comparison
+            const bookSelect = document.getElementById("book-select");
+            const compareBookSelect = document.getElementById("compare-book-select");
+            
+            function validateBookSelection() {
+                if (bookSelect.value === compareBookSelect.value) {
+                    setStatus("Error: Target book and comparison book cannot be the same.");
+                    return false;
+                }
+                return true;
+            }
+            
+            bookSelect.addEventListener("change", validateBookSelection);
+            compareBookSelect.addEventListener("change", validateBookSelection);
         });
     </script>
 </body>

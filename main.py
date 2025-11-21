@@ -80,11 +80,13 @@ class ValuePlaysRequest(BaseModel):
     Request body for /api/value-plays:
       - sport_key: e.g. "basketball_nba"
       - target_book: e.g. "draftkings"
+      - compare_book: e.g. "fanduel" (the book to compare against)
       - market: "h2h", "spreads", "totals", or "player_points"
       - include_sgp: whether to build a naive 3-leg parlay from the top plays
     """
     sport_key: str
     target_book: str
+    compare_book: str
     market: str
     include_sgp: bool = False
     max_results: Optional[int] = None
@@ -221,7 +223,7 @@ def points_match(
     return False
 
 
-def find_best_novig_outcome(
+def find_best_comparison_outcome(
     *,
     outcomes: List[Dict[str, Any]],
     name: str,
@@ -229,7 +231,7 @@ def find_best_novig_outcome(
     allow_half_point_flex: bool,
     opposite: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    """Return the Novig outcome that best matches a book outcome.
+    """Return the comparison book outcome that best matches a target book outcome.
 
     When ``opposite`` is True, search for an outcome with a different name (the
     other side of the bet). Preference is given to exact point matches, but for
@@ -239,21 +241,21 @@ def find_best_novig_outcome(
     best: Optional[Dict[str, Any]] = None
     best_diff: float = float("inf")
 
-    for novig_outcome in outcomes:
-        novig_name = novig_outcome.get("name")
+    for comp_outcome in outcomes:
+        comp_name = comp_outcome.get("name")
         if opposite:
-            if novig_name == name:
+            if comp_name == name:
                 continue
-        elif novig_name != name:
+        elif comp_name != name:
             continue
 
-        novig_point = novig_outcome.get("point", None)
-        if not points_match(point, novig_point, allow_half_point_flex):
+        comp_point = comp_outcome.get("point", None)
+        if not points_match(point, comp_point, allow_half_point_flex):
             continue
 
-        diff = abs((point or 0.0) - (novig_point or 0.0))
+        diff = abs((point or 0.0) - (comp_point or 0.0))
         if diff < best_diff:
-            best = novig_outcome
+            best = comp_outcome
             best_diff = diff
 
             # Exact point match is the best we can do
@@ -267,18 +269,19 @@ def collect_value_plays(
     events: List[Dict[str, Any]],
     market_key: str,
     target_book: str,
+    compare_book: str,
 ) -> List[ValuePlayOutcome]:
     """
-    Scan all events and outcomes in the given market, comparing target_book vs Novig.
+    Scan all events and outcomes in the given market, comparing target_book vs compare_book.
     Only considers outcomes where:
       - both books have a price,
       - and for spreads/totals/props, the points match (within 0.5 for spreads/totals).
 
     Also:
-      - Finds the *other* Novig outcome (matching or close point, different name)
+      - Finds the *other* comparison book outcome (matching or close point, different name)
         and exposes its true odds + team name as "novig_reverse_*" (hedge side).
       - Detects 2-way arbitrage: back this side at the target book, back the
-        opposite side at Novig.
+        opposite side at the comparison book.
     """
     plays: List[ValuePlayOutcome] = []
 
@@ -290,7 +293,7 @@ def collect_value_plays(
 
         matchup = f"{away} @ {home}" if home and away else ""
 
-        novig_market = None
+        compare_market = None
         book_market = None
 
         for bookmaker in event.get("bookmakers", []):
@@ -302,20 +305,20 @@ def collect_value_plays(
             if not market:
                 continue
 
-            if key == "novig":
-                novig_market = market
+            if key == compare_book:
+                compare_market = market
             elif key == target_book:
                 book_market = market
 
-        if not novig_market or not book_market:
+        if not compare_market or not book_market:
             continue
 
         # Allow 0.5-point flex for both spreads and totals (Odds API sometimes
         # differs by 0.5 between books).
         allow_half_point_flex = market_key in ("totals", "spreads")
 
-        novig_outcomes: List[Dict[str, Any]] = []
-        for o in novig_market.get("outcomes", []):
+        compare_outcomes: List[Dict[str, Any]] = []
+        for o in compare_market.get("outcomes", []):
             name = o.get("name")
             price = o.get("price")
             point = o.get("point", None)
@@ -324,11 +327,11 @@ def collect_value_plays(
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                 # Skip absurd values like -100000
                 continue
-            novig_outcomes.append(
+            compare_outcomes.append(
                 {"name": name, "price": price, "point": point}
             )
 
-        if not novig_outcomes:
+        if not compare_outcomes:
             continue
 
         for o in book_market.get("outcomes", []):
@@ -340,21 +343,21 @@ def collect_value_plays(
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                 continue
 
-            matching_novig = find_best_novig_outcome(
-                outcomes=novig_outcomes,
+            matching_compare = find_best_comparison_outcome(
+                outcomes=compare_outcomes,
                 name=name,
                 point=point,
                 allow_half_point_flex=allow_half_point_flex,
             )
-            if matching_novig is None:
+            if matching_compare is None:
                 continue
 
-            novig_price = matching_novig["price"]
-            ev_pct = estimate_ev_percent(book_odds=price, sharp_odds=novig_price)
+            compare_price = matching_compare["price"]
+            ev_pct = estimate_ev_percent(book_odds=price, sharp_odds=compare_price)
 
-            # Find the *other* Novig side (hedge side) with matching/close point
-            other_novig = find_best_novig_outcome(
-                outcomes=novig_outcomes,
+            # Find the *other* comparison book side (hedge side) with matching/close point
+            other_compare = find_best_comparison_outcome(
+                outcomes=compare_outcomes,
                 name=name,
                 point=point,
                 allow_half_point_flex=allow_half_point_flex,
@@ -367,19 +370,19 @@ def collect_value_plays(
             is_arb = False
             arb_margin_percent: Optional[float] = None
 
-            if other_novig is not None:
-                novig_reverse_name = other_novig.get("name")
-                novig_reverse_price = other_novig.get("price")
+            if other_compare is not None:
+                novig_reverse_name = other_compare.get("name")
+                novig_reverse_price = other_compare.get("price")
                 hedge_ev_percent = estimate_ev_percent(
                     book_odds=price, sharp_odds=novig_reverse_price
                 )
 
                 # 2-way arb math:
                 #  - back this side at target_book (book_price)
-                #  - back opposite side at Novig (novig_reverse_price)
+                #  - back opposite side at comparison book (novig_reverse_price)
                 d_book = american_to_decimal(price)
-                d_novig_other = american_to_decimal(novig_reverse_price)
-                inv_sum = 1.0 / d_book + 1.0 / d_novig_other
+                d_compare_other = american_to_decimal(novig_reverse_price)
+                inv_sum = 1.0 / d_book + 1.0 / d_compare_other
                 # Hedge margin: 0% ~ fair (e.g. -125 / +125), >0% profitable arb, <0% losing hedge
                 arb_margin_percent = (1.0 - inv_sum) * 100.0
                 if arb_margin_percent > 0:
@@ -393,7 +396,7 @@ def collect_value_plays(
                     start_time=start_time,
                     outcome_name=name,
                     point=point,
-                    novig_price=novig_price,
+                    novig_price=compare_price,
                     novig_reverse_name=novig_reverse_name,
                     novig_reverse_price=novig_reverse_price,
                     book_price=price,
@@ -618,26 +621,27 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
 @app.post("/api/value-plays", response_model=ValuePlaysResponse)
 def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     """
-    Compare a target sportsbook to Novig (treated as "sharp") for a given sport
+    Compare a target sportsbook to a comparison book for a given sport
     and market, returning the best value plays and an optional 3-leg parlay suggestion.
 
     Sorting:
       - Primary sort is by hedge opportunity using arb_margin_percent:
-          arb_margin_percent = (1 - (1/dec_book + 1/dec_novig_opposite)) * 100
+          arb_margin_percent = (1 - (1/dec_book + 1/dec_compare_opposite)) * 100
         where dec_book is the decimal odds at the target book, and
-        dec_novig_opposite is the decimal odds of the Novig *opposite* side.
+        dec_compare_opposite is the decimal odds of the comparison book *opposite* side.
       - A pair like -125 / +125 gives ~0% (fair hedge).
       - Positive values indicate 2-way arbitrage (profitable hedge),
         negative values indicate a losing hedge.
-      - Plays with no Novig opposite side are pushed to the bottom.
+      - Plays with no comparison book opposite side are pushed to the bottom.
     """
     target_book = payload.target_book
+    compare_book = payload.compare_book
     market_key = payload.market
 
-    if target_book == "novig":
+    if target_book == compare_book:
         raise HTTPException(
             status_code=400,
-            detail="Target book cannot be Novig (Novig is the sharp reference).",
+            detail="Target book and comparison book cannot be the same.",
         )
 
     try:
@@ -645,7 +649,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    bookmaker_keys = [target_book, "novig"]
+    bookmaker_keys = [target_book, compare_book]
     regions = compute_regions_for_books(bookmaker_keys)
 
     events = fetch_odds(
@@ -656,7 +660,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         bookmaker_keys=bookmaker_keys,
     )
 
-    raw_plays = collect_value_plays(events, market_key, target_book)
+    raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
 
     # Filter out games that started a long time ago (keep upcoming / recent only)
     now_utc = datetime.now(timezone.utc)
@@ -680,10 +684,10 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
             p.start_time = format_start_time_est(p.start_time)
 
     # Sort primarily by hedge opportunity (arb_margin_percent) descending.
-    # Plays with no Novig opposite side get pushed to the bottom.
+    # Plays with no comparison book opposite side get pushed to the bottom.
     def hedge_sort_key(play: ValuePlayOutcome) -> float:
         """
-        Sort plays by hedge margin first. Plays without an opposite Novig side
+        Sort plays by hedge margin first. Plays without an opposite comparison book side
         get a large negative default so they appear at the bottom.
         """
         if play.arb_margin_percent is not None:
