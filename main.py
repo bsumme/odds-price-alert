@@ -223,6 +223,14 @@ def points_match(
 
     return False
 
+def _canonical_outcome_name(name: Optional[str]) -> Optional[str]:
+    """Normalize an outcome name for looser cross-book comparisons."""
+
+    if name is None:
+        return None
+
+    return name.lower().replace(".", "").replace("'", "").strip()
+
 
 def find_best_novig_outcome(
     *,
@@ -241,13 +249,16 @@ def find_best_novig_outcome(
 
     best: Optional[Dict[str, Any]] = None
     best_diff: float = float("inf")
+    normalized_name = _canonical_outcome_name(name)
 
     for novig_outcome in outcomes:
-        novig_name = novig_outcome.get("name")
+        novig_name_raw = novig_outcome.get("name")
+        novig_name = _canonical_outcome_name(novig_name_raw)
         if opposite:
-            if novig_name == name:
+            if novig_name == normalized_name:
                 continue
-        elif novig_name != name:
+        elif novig_name != normalized_name:
+            # try loose match on normalized name to handle punctuation/casing differences
             continue
 
         novig_point = novig_outcome.get("point", None)

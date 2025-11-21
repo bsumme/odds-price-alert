@@ -284,7 +284,6 @@
                     <thead>
                         <tr>
                             <th>Outcome (Book)</th>
-                            <th>Matchup</th>
                             <th>Start Time</th>
                             <th>Novig Price</th>
                             <th>Opposite Side (Novig)</th>
@@ -341,7 +340,7 @@
 
         function clearResults() {
             const body = document.getElementById("results-body");
-            body.innerHTML = '<tr><td colspan="8" class="small-text">No results yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="7" class="small-text">No results yet.</td></tr>';
             document.getElementById("sgp-container").innerHTML = "";
             setSummary("");
             lastValueData = null;
@@ -352,7 +351,7 @@
             body.innerHTML = "";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="9" class="small-text">No value plays found (maybe market is empty or Novig not available).</td></tr>';
+                body.innerHTML = '<tr><td colspan="8" class="small-text">No value plays found (maybe market is empty or Novig not available).</td></tr>';
                 return;
             }
 
@@ -367,7 +366,7 @@
             }
 
             if (plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="9" class="small-text">No plays match the current hedge filter.</td></tr>';
+                body.innerHTML = '<tr><td colspan="8" class="small-text">No plays match the current hedge filter.</td></tr>';
                 return;
             }
 
@@ -382,9 +381,6 @@
                 outcomeCell.textContent = outcomeText;
                 tr.appendChild(outcomeCell);
 
-                const matchupCell = document.createElement("td");
-                matchupCell.textContent = play.matchup || "";
-                tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
                 startCell.textContent = formatStartTime(play.start_time);
