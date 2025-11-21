@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Set, Optional
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from zoneinfo import ZoneInfo
 
 BASE_URL = "https://api.the-odds-api.com/v4"
@@ -66,7 +66,10 @@ class ValuePlayOutcome(BaseModel):
     hedge_ev_percent: Optional[float] = None  # legacy: edge vs Novig opposite side (not used for sort)
     is_arbitrage: bool = False
     arb_margin_percent: Optional[float] = None  # % margin of arb if present (book vs Novig opposite)
-
+    other_book_prices: Dict[str, Optional[int]] = Field(
+    default_factory=dict,
+    description="Prices for comparison books (DraftKings/FanDuel/Fliff)",
+    )
 
 class ValuePlaysResponse(BaseModel):
     target_book: str
@@ -262,11 +265,32 @@ def find_best_novig_outcome(
 
     return best
 
+def normalize_outcomes(market: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Extract clean outcomes from a bookmaker market."""
+
+    if not market:
+        return []
+
+    cleaned: List[Dict[str, Any]] = []
+    for o in market.get("outcomes", []):
+        name = o.get("name")
+        price = o.get("price")
+        point = o.get("point", None)
+        if name is None or price is None:
+            continue
+        if abs(price) >= MAX_VALID_AMERICAN_ODDS:
+            # Skip absurd values like -100000
+            continue
+        cleaned.append({"name": name, "price": price, "point": point})
+
+    return cleaned
+
 
 def collect_value_plays(
     events: List[Dict[str, Any]],
     market_key: str,
     target_book: str,
+    comparison_books: List[str],
 ) -> List[ValuePlayOutcome]:
     """
     Scan all events and outcomes in the given market, comparing target_book vs Novig.
@@ -292,7 +316,7 @@ def collect_value_plays(
 
         novig_market = None
         book_market = None
-
+        other_markets: Dict[str, Any] = {}
         for bookmaker in event.get("bookmakers", []):
             key = bookmaker.get("key")
             market = next(
@@ -306,7 +330,8 @@ def collect_value_plays(
                 novig_market = market
             elif key == target_book:
                 book_market = market
-
+            elif key in comparison_books:
+                other_markets[key] = market
         if not novig_market or not book_market:
             continue
 
@@ -314,31 +339,19 @@ def collect_value_plays(
         # differs by 0.5 between books).
         allow_half_point_flex = market_key in ("totals", "spreads")
 
-        novig_outcomes: List[Dict[str, Any]] = []
-        for o in novig_market.get("outcomes", []):
-            name = o.get("name")
-            price = o.get("price")
-            point = o.get("point", None)
-            if name is None or price is None:
-                continue
-            if abs(price) >= MAX_VALID_AMERICAN_ODDS:
-                # Skip absurd values like -100000
-                continue
-            novig_outcomes.append(
-                {"name": name, "price": price, "point": point}
-            )
+        novig_outcomes = normalize_outcomes(novig_market)
+        comparison_outcomes: Dict[str, List[Dict[str, Any]]] = {
+            key: normalize_outcomes(market) for key, market in other_markets.items()
+        }
 
         if not novig_outcomes:
             continue
 
-        for o in book_market.get("outcomes", []):
+        for o in normalize_outcomes(book_market):
             name = o.get("name")
             price = o.get("price")
             point = o.get("point", None)
-            if name is None or price is None:
-                continue
-            if abs(price) >= MAX_VALID_AMERICAN_ODDS:
-                continue
+
 
             matching_novig = find_best_novig_outcome(
                 outcomes=novig_outcomes,
@@ -385,7 +398,24 @@ def collect_value_plays(
                 if arb_margin_percent > 0:
                     is_arb = True
 
+            other_prices: Dict[str, Optional[int]] = {}
+            for comp_book, outcomes in comparison_outcomes.items():
+                matching_outcome = find_best_novig_outcome(
+                    outcomes=outcomes,
+                    name=name,
+                    point=point,
+                    allow_half_point_flex=allow_half_point_flex,
+                )
+                other_prices[comp_book] = (
+                    matching_outcome.get("price") if matching_outcome else None
+                )
 
+            for std_book in ("draftkings", "fanduel", "fliff"):
+                if std_book == target_book:
+                    other_prices[std_book] = price
+                else:
+                    other_prices.setdefault(std_book, None)
+                    
             plays.append(
                 ValuePlayOutcome(
                     event_id=event_id,
@@ -401,6 +431,7 @@ def collect_value_plays(
                     hedge_ev_percent=hedge_ev_percent,
                     is_arbitrage=is_arb,
                     arb_margin_percent=arb_margin_percent,
+                    other_book_prices=other_prices,
                 )
             )
 
@@ -645,7 +676,10 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    bookmaker_keys = [target_book, "novig"]
+    comparison_books = [
+        bk for bk in ("draftkings", "fanduel", "fliff") if bk != target_book
+    ]
+    bookmaker_keys = sorted({target_book, "novig", *comparison_books})
     regions = compute_regions_for_books(bookmaker_keys)
 
     events = fetch_odds(
@@ -656,7 +690,9 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         bookmaker_keys=bookmaker_keys,
     )
 
-    raw_plays = collect_value_plays(events, market_key, target_book)
+    raw_plays = collect_value_plays(
+        events, market_key, target_book, comparison_books
+    )
 
     # Filter out games that started a long time ago (keep upcoming / recent only)
     now_utc = datetime.now(timezone.utc)

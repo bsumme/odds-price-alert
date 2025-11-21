@@ -264,13 +264,16 @@
                             <th>Novig Price</th>
                             <th>Opposite Side (Novig)</th>
                             <th>Novig Hedge Price</th>
-                            <th>Book Price</th>
+                            <th>Target Book Price</th>
+                            <th>DraftKings</th>
+                            <th>FanDuel</th>
+                            <th>Fliff</th>
                             <th>EV% (approx)</th>
                         </tr>
                     </thead>
                     <tbody id="results-body">
                         <tr>
-                            <td colspan="8" class="small-text">No results yet.</td>
+                            <td colspan="11" class="small-text">No results yet.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -293,7 +296,7 @@
 
         function clearResults() {
             const body = document.getElementById("results-body");
-            body.innerHTML = '<tr><td colspan="8" class="small-text">No results yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="11" class="small-text">No results yet.</td></tr>';
             document.getElementById("sgp-container").innerHTML = "";
             setSummary("");
         }
@@ -303,7 +306,7 @@
             body.innerHTML = "";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="8" class="small-text">No value plays found (maybe market is empty or Novig not available).</td></tr>';
+                body.innerHTML = '<tr><td colspan="11" class="small-text">No value plays found (maybe market is empty or Novig not available).</td></tr>';
                 return;
             }
 
@@ -349,6 +352,23 @@
                 const bookCell = document.createElement("td");
                 bookCell.textContent = play.book_price;
                 tr.appendChild(bookCell);
+                const otherPrices = play.other_book_prices || {};
+                const comparisonBooks = [
+                    ["draftkings", "DraftKings"],
+                    ["fanduel", "FanDuel"],
+                    ["fliff", "Fliff"],
+                ];
+
+                comparisonBooks.forEach(([key]) => {
+                    const td = document.createElement("td");
+                    const price = otherPrices[key];
+                    if (price !== null && price !== undefined) {
+                        td.textContent = price;
+                    } else {
+                        td.innerHTML = '<span class="small-text">-</span>';
+                    }
+                    tr.appendChild(td);
+                });
 
                 const evCell = document.createElement("td");
                 const evRounded = Math.round(play.ev_percent * 100) / 100;
