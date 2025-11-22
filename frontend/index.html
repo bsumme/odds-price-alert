@@ -378,8 +378,8 @@
                             <th>Start Time</th>
                             <th>Compare Price</th>
                             <th>Opposite Side</th>
-                            <th>Hedge Price</th>
-                            <th>Book Price</th>
+                            <th>Hedge Bet (Book)</th>
+                            <th>Value Bet (Book)</th>
                             <th>Hedge EV%</th>
                             <th>EV% (approx)</th>
                         </tr>
@@ -411,8 +411,8 @@
                             <th>Start Time</th>
                             <th>Compare Price</th>
                             <th>Opposite Side</th>
-                            <th>Hedge Price</th>
-                            <th>Book Price</th>
+                            <th>Hedge Bet (Book)</th>
+                            <th>Value Bet (Book)</th>
                             <th>Hedge EV%</th>
                             <th>EV% (approx)</th>
                         </tr>
@@ -668,7 +668,7 @@
                 tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
-                startCell.textContent = formatStartTime(play.start_time);
+                startCell.textContent = play.start_time || "";
                 tr.appendChild(startCell);
 
                 const compareCell = document.createElement("td");
@@ -686,14 +686,16 @@
 
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
-                    hedgeCell.textContent = play.novig_reverse_price;
+                    const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
+                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_price}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(hedgeCell);
 
                 const bookCell = document.createElement("td");
-                bookCell.textContent = play.book_price;
+                const targetBookLabel = document.querySelector("#book-select option:checked")?.textContent || data.target_book || "Target";
+                bookCell.innerHTML = `<strong>${play.book_price}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(bookCell);
 
                 const hedgeEvCell = document.createElement("td");
@@ -933,7 +935,7 @@
                 tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
-                startCell.textContent = formatStartTime(play.start_time);
+                startCell.textContent = play.start_time || "";
                 tr.appendChild(startCell);
 
                 const compareCell = document.createElement("td");
@@ -951,14 +953,16 @@
 
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
-                    hedgeCell.textContent = play.novig_reverse_price;
+                    const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
+                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_price}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(hedgeCell);
 
                 const bookCell = document.createElement("td");
-                bookCell.textContent = play.book_price;
+                const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
+                bookCell.innerHTML = `<strong>${play.book_price}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(bookCell);
 
                 const hedgeEvCell = document.createElement("td");
