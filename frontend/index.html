@@ -182,6 +182,21 @@
             border: 1px solid #1f2937;
         }
 
+        .team-logo {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+            margin-right: 0.4rem;
+            display: inline-block;
+            object-fit: contain;
+        }
+
+        .team-name-with-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
         .toggle-on {
             background: #16a34a;
             color: #e5e7eb;
@@ -232,10 +247,6 @@
                 <option value="h2h">Moneyline (h2h)</option>
                 <option value="spreads">Spreads</option>
                 <option value="totals">Totals</option>
-                <option value="player_points">Player Points</option>
-                <option value="player_assists">Player Assists</option>
-                <option value="player_rebounds">Player Rebounds</option>
-                <option value="player_points_assists_rebounds">Player Pts+Ast+Reb</option>
             </select>
 
             <label for="book-select">Target book</label>
@@ -243,10 +254,12 @@
                 <option value="draftkings">DraftKings</option>
                 <option value="fanduel">FanDuel</option>
                 <option value="fliff">Fliff</option>
+                <option value="novig">Novig</option>
             </select>
 
             <label for="compare-book-select">Compare against</label>
             <select id="compare-book-select">
+                <option value="novig" selected>Novig</option>
                 <option value="draftkings">DraftKings</option>
                 <option value="fanduel">FanDuel</option>
                 <option value="fliff">Fliff</option>
@@ -282,6 +295,76 @@
             <div class="status-bar" id="status-bar">Ready.</div>
         </section>
 
+        <!-- Best Value Finder Section -->
+        <section class="card" style="margin-top: 1.5rem;">
+            <h2>Best Value Finder (Multi-Sport)</h2>
+            <div class="small-text" style="margin-bottom: 0.75rem;">
+                Find the best +EV bets across multiple sports and markets
+            </div>
+
+            <label>Select Sports (multiple)</label>
+            <div style="margin-bottom: 0.5rem;">
+                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                    <input type="checkbox" class="sport-checkbox" value="basketball_nba" checked />
+                    <span style="margin-left: 0.5rem;">NBA</span>
+                </label>
+                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                    <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" />
+                    <span style="margin-left: 0.5rem;">NFL</span>
+                </label>
+                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                    <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" />
+                    <span style="margin-left: 0.5rem;">NCAAB</span>
+                </label>
+                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                    <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" />
+                    <span style="margin-left: 0.5rem;">NCAAF</span>
+                </label>
+            </div>
+
+            <label>Select Markets (multiple)</label>
+            <div style="margin-bottom: 0.5rem;">
+                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                    <input type="checkbox" class="market-checkbox" value="h2h" checked />
+                    <span style="margin-left: 0.5rem;">Moneyline (h2h)</span>
+                </label>
+                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                    <input type="checkbox" class="market-checkbox" value="spreads" checked />
+                    <span style="margin-left: 0.5rem;">Spreads</span>
+                </label>
+                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                    <input type="checkbox" class="market-checkbox" value="totals" checked />
+                    <span style="margin-left: 0.5rem;">Totals</span>
+                </label>
+            </div>
+
+            <label for="best-target-book-select">Target book</label>
+            <select id="best-target-book-select">
+                <option value="draftkings">DraftKings</option>
+                <option value="fanduel">FanDuel</option>
+                <option value="fliff">Fliff</option>
+                <option value="novig">Novig</option>
+            </select>
+
+            <label for="best-compare-book-select">Compare against</label>
+            <select id="best-compare-book-select">
+                <option value="novig" selected>Novig</option>
+                <option value="draftkings">DraftKings</option>
+                <option value="fanduel">FanDuel</option>
+                <option value="fliff">Fliff</option>
+            </select>
+
+            <label for="best-max-results-input">Max results</label>
+            <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="50" />
+
+            <div style="margin-top: 0.75rem;">
+                <button class="btn btn-primary" id="find-best-btn">Find Best Value Plays</button>
+                <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
+            </div>
+
+            <div class="status-bar" id="best-status-bar">Ready.</div>
+        </section>
+
         <!-- Right: results -->
         <section class="card">
             <h2>Value Plays</h2>
@@ -312,6 +395,33 @@
 
             <div id="sgp-container"></div>
         </section>
+
+        <!-- Best Value Results Section -->
+        <section class="card" id="best-results-section" style="display: none;">
+            <h2>Best Value Plays (All Sports/Markets)</h2>
+            <div class="small-text" id="best-summary-bar"></div>
+            <div class="scroll-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Sport</th>
+                            <th>Market</th>
+                            <th>Outcome (Book)</th>
+                            <th>Matchup</th>
+                            <th>Start Time</th>
+                            <th>Compare Price</th>
+                            <th>Opposite Side</th>
+                            <th>Hedge Price</th>
+                            <th>Book Price</th>
+                            <th>Hedge EV%</th>
+                            <th>EV% (approx)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="best-results-body">
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </main>
 
     <script>
@@ -335,6 +445,155 @@
             } catch (e) {
                 return isoString;
             }
+        }
+
+        function getTeamLogoUrl(teamName, sportKey = null) {
+            if (!teamName) return null;
+            
+            // Team name to ESPN team code mapping
+            const teamMapping = {
+                // NBA
+                "atlanta hawks": "atl",
+                "boston celtics": "bos",
+                "brooklyn nets": "bkn",
+                "charlotte hornets": "cha",
+                "chicago bulls": "chi",
+                "cleveland cavaliers": "cle",
+                "dallas mavericks": "dal",
+                "denver nuggets": "den",
+                "detroit pistons": "det",
+                "golden state warriors": "gs",
+                "houston rockets": "hou",
+                "indiana pacers": "ind",
+                "los angeles clippers": "lac",
+                "los angeles lakers": "lal",
+                "memphis grizzlies": "mem",
+                "miami heat": "mia",
+                "milwaukee bucks": "mil",
+                "minnesota timberwolves": "min",
+                "new orleans pelicans": "no",
+                "new york knicks": "ny",
+                "oklahoma city thunder": "okc",
+                "orlando magic": "orl",
+                "philadelphia 76ers": "phi",
+                "phoenix suns": "phx",
+                "portland trail blazers": "por",
+                "sacramento kings": "sac",
+                "san antonio spurs": "sa",
+                "toronto raptors": "tor",
+                "utah jazz": "utah",
+                "washington wizards": "wsh",
+                // NFL
+                "arizona cardinals": "ari",
+                "atlanta falcons": "atl",
+                "baltimore ravens": "bal",
+                "buffalo bills": "buf",
+                "carolina panthers": "car",
+                "chicago bears": "chi",
+                "cincinnati bengals": "cin",
+                "cleveland browns": "cle",
+                "dallas cowboys": "dal",
+                "denver broncos": "den",
+                "detroit lions": "det",
+                "green bay packers": "gb",
+                "houston texans": "hou",
+                "indianapolis colts": "ind",
+                "jacksonville jaguars": "jax",
+                "kansas city chiefs": "kc",
+                "las vegas raiders": "lv",
+                "los angeles chargers": "lac",
+                "los angeles rams": "lar",
+                "miami dolphins": "mia",
+                "minnesota vikings": "min",
+                "new england patriots": "ne",
+                "new orleans saints": "no",
+                "new york giants": "nyg",
+                "new york jets": "nyj",
+                "philadelphia eagles": "phi",
+                "pittsburgh steelers": "pit",
+                "san francisco 49ers": "sf",
+                "seattle seahawks": "sea",
+                "tampa bay buccaneers": "tb",
+                "tennessee titans": "ten",
+                "washington commanders": "wsh"
+            };
+            
+            const normalized = teamName.toLowerCase().trim();
+            let teamCode = teamMapping[normalized];
+            
+            // If no mapping found, try to extract from common patterns
+            if (!teamCode) {
+                // Try to match partial names
+                for (const [key, code] of Object.entries(teamMapping)) {
+                    if (normalized.includes(key) || key.includes(normalized)) {
+                        teamCode = code;
+                        break;
+                    }
+                }
+            }
+            
+            // Determine sport for ESPN URL
+            let sportPath = "nba";
+            if (sportKey) {
+                if (sportKey.includes("football") || sportKey.includes("nfl") || sportKey.includes("ncaaf")) {
+                    sportPath = "nfl";
+                } else if (sportKey.includes("basketball") || sportKey.includes("nba") || sportKey.includes("ncaab")) {
+                    sportPath = "nba";
+                }
+            }
+            
+            if (teamCode) {
+                return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${teamCode}.png`;
+            }
+            
+            // Fallback: try normalized name
+            const fallback = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${fallback}.png`;
+        }
+
+        function createTeamNameWithLogo(teamName, sportKey = null) {
+            if (!teamName) return document.createTextNode("");
+            
+            const container = document.createElement("span");
+            container.className = "team-name-with-logo";
+            
+            const logo = document.createElement("img");
+            logo.className = "team-logo";
+            logo.src = getTeamLogoUrl(teamName, sportKey);
+            logo.alt = teamName;
+            logo.onerror = function() {
+                // Hide logo if it fails to load
+                this.style.display = "none";
+            };
+            
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = teamName;
+            
+            container.appendChild(logo);
+            container.appendChild(nameSpan);
+            
+            return container;
+        }
+
+        function parseTeamFromOutcome(outcomeName) {
+            // Extract team name from outcome (might include point spread info)
+            // Examples: "New York Knicks", "New York Knicks @ -3.5"
+            if (!outcomeName) return null;
+            
+            // Remove point spread info (everything after @)
+            const parts = outcomeName.split(" @ ");
+            return parts[0].trim();
+        }
+
+        function parseTeamsFromMatchup(matchup) {
+            // Parse "Away Team @ Home Team" format
+            if (!matchup) return { away: null, home: null };
+            
+            const parts = matchup.split(" @ ");
+            if (parts.length === 2) {
+                return { away: parts[0].trim(), home: parts[1].trim() };
+            }
+            return { away: matchup, home: null };
         }
 
 
@@ -379,19 +638,33 @@
                 return;
             }
 
+            const currentSport = document.getElementById("sport-select").value;
             plays.forEach(play => {
                 const tr = document.createElement("tr");
 
                 const outcomeCell = document.createElement("td");
-                let outcomeText = play.outcome_name;
+                const teamName = parseTeamFromOutcome(play.outcome_name);
+                const teamWithLogo = createTeamNameWithLogo(teamName, play.sport_key || currentSport);
+                outcomeCell.appendChild(teamWithLogo);
                 if (play.point !== null && play.point !== undefined) {
-                    outcomeText += " @ " + play.point;
+                    const pointSpan = document.createElement("span");
+                    pointSpan.textContent = " @ " + play.point;
+                    outcomeCell.appendChild(pointSpan);
                 }
-                outcomeCell.textContent = outcomeText;
                 tr.appendChild(outcomeCell);
 
                 const matchupCell = document.createElement("td");
-                matchupCell.textContent = play.matchup || "";
+                const teams = parseTeamsFromMatchup(play.matchup);
+                if (teams.away && teams.home) {
+                    matchupCell.appendChild(createTeamNameWithLogo(teams.away, play.sport_key || currentSport));
+                    const vsSpan = document.createElement("span");
+                    vsSpan.textContent = " @ ";
+                    vsSpan.style.margin = "0 0.3rem";
+                    matchupCell.appendChild(vsSpan);
+                    matchupCell.appendChild(createTeamNameWithLogo(teams.home, play.sport_key || currentSport));
+                } else {
+                    matchupCell.textContent = play.matchup || "";
+                }
                 tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
@@ -404,7 +677,8 @@
 
                 const oppCell = document.createElement("td");
                 if (play.novig_reverse_name) {
-                    oppCell.textContent = play.novig_reverse_name;
+                    const oppTeamName = parseTeamFromOutcome(play.novig_reverse_name);
+                    oppCell.appendChild(createTeamNameWithLogo(oppTeamName, play.sport_key || currentSport));
                 } else {
                     oppCell.innerHTML = '<span class="small-text">-</span>';
                 }
@@ -582,12 +856,198 @@
             renderValueFromState();
         }
 
+        // Best Value Finder Functions
+        function setBestStatus(msg) {
+            document.getElementById("best-status-bar").textContent = msg;
+        }
+
+        function setBestSummary(msg) {
+            document.getElementById("best-summary-bar").textContent = msg;
+        }
+
+        function clearBestResults() {
+            const body = document.getElementById("best-results-body");
+            body.innerHTML = "";
+            document.getElementById("best-results-section").style.display = "none";
+            setBestSummary("");
+        }
+
+        function renderBestValuePlays(data) {
+            const body = document.getElementById("best-results-body");
+            body.innerHTML = "";
+            const section = document.getElementById("best-results-section");
+            section.style.display = "block";
+
+            if (!data || !data.plays || data.plays.length === 0) {
+                body.innerHTML = '<tr><td colspan="11" class="small-text">No value plays found.</td></tr>';
+                return;
+            }
+
+            const sportLabels = {
+                "basketball_nba": "NBA",
+                "americanfootball_nfl": "NFL",
+                "basketball_ncaab": "NCAAB",
+                "americanfootball_ncaaf": "NCAAF"
+            };
+
+            const marketLabels = {
+                "h2h": "Moneyline",
+                "spreads": "Spreads",
+                "totals": "Totals"
+            };
+
+            data.plays.forEach(play => {
+                const tr = document.createElement("tr");
+
+                const sportCell = document.createElement("td");
+                sportCell.textContent = sportLabels[play.sport_key] || play.sport_key;
+                tr.appendChild(sportCell);
+
+                const marketCell = document.createElement("td");
+                marketCell.textContent = marketLabels[play.market] || play.market;
+                tr.appendChild(marketCell);
+
+                const outcomeCell = document.createElement("td");
+                const teamName = parseTeamFromOutcome(play.outcome_name);
+                const teamWithLogo = createTeamNameWithLogo(teamName, play.sport_key || null);
+                outcomeCell.appendChild(teamWithLogo);
+                if (play.point !== null && play.point !== undefined) {
+                    const pointSpan = document.createElement("span");
+                    pointSpan.textContent = " @ " + play.point;
+                    outcomeCell.appendChild(pointSpan);
+                }
+                tr.appendChild(outcomeCell);
+
+                const matchupCell = document.createElement("td");
+                const teams = parseTeamsFromMatchup(play.matchup);
+                if (teams.away && teams.home) {
+                    matchupCell.appendChild(createTeamNameWithLogo(teams.away, play.sport_key || null));
+                    const vsSpan = document.createElement("span");
+                    vsSpan.textContent = " @ ";
+                    vsSpan.style.margin = "0 0.3rem";
+                    matchupCell.appendChild(vsSpan);
+                    matchupCell.appendChild(createTeamNameWithLogo(teams.home, play.sport_key || null));
+                } else {
+                    matchupCell.textContent = play.matchup || "";
+                }
+                tr.appendChild(matchupCell);
+
+                const startCell = document.createElement("td");
+                startCell.textContent = formatStartTime(play.start_time);
+                tr.appendChild(startCell);
+
+                const compareCell = document.createElement("td");
+                compareCell.textContent = play.novig_price;
+                tr.appendChild(compareCell);
+
+                const oppCell = document.createElement("td");
+                if (play.novig_reverse_name) {
+                    const oppTeamName = parseTeamFromOutcome(play.novig_reverse_name);
+                    oppCell.appendChild(createTeamNameWithLogo(oppTeamName, play.sport_key || null));
+                } else {
+                    oppCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(oppCell);
+
+                const hedgeCell = document.createElement("td");
+                if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
+                    hedgeCell.textContent = play.novig_reverse_price;
+                } else {
+                    hedgeCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(hedgeCell);
+
+                const bookCell = document.createElement("td");
+                bookCell.textContent = play.book_price;
+                tr.appendChild(bookCell);
+
+                const hedgeEvCell = document.createElement("td");
+                if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
+                    const hedgeRounded = Math.round(play.arb_margin_percent * 100) / 100;
+                    const hedgeClass = hedgeRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                    hedgeEvCell.innerHTML = `<span class="${hedgeClass}">${hedgeRounded}%</span>`;
+                } else {
+                    hedgeEvCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(hedgeEvCell);
+
+                const evCell = document.createElement("td");
+                const evRounded = Math.round(play.ev_percent * 100) / 100;
+                let badgeClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                evCell.innerHTML = `<span class="${badgeClass}">${evRounded}%</span>`;
+                tr.appendChild(evCell);
+
+                body.appendChild(tr);
+            });
+        }
+
+        async function fetchBestValuePlays() {
+            const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
+            const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
+            const targetBook = document.getElementById("best-target-book-select").value;
+            const compareBook = document.getElementById("best-compare-book-select").value;
+            const maxResults = Number(document.getElementById("best-max-results-input").value) || 50;
+
+            if (sportCheckboxes.length === 0) {
+                setBestStatus("Error: Please select at least one sport.");
+                return;
+            }
+
+            if (marketCheckboxes.length === 0) {
+                setBestStatus("Error: Please select at least one market.");
+                return;
+            }
+
+            if (targetBook === compareBook) {
+                setBestStatus("Error: Target book and comparison book cannot be the same.");
+                return;
+            }
+
+            const sportKeys = Array.from(sportCheckboxes).map(cb => cb.value);
+            const markets = Array.from(marketCheckboxes).map(cb => cb.value);
+
+            setBestStatus("Searching across sports and markets...");
+            clearBestResults();
+
+            try {
+                const res = await fetch("/api/best-value-plays", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_keys: sportKeys,
+                        markets: markets,
+                        target_book: targetBook,
+                        compare_book: compareBook,
+                        max_results: maxResults
+                    }),
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || ("HTTP " + res.status));
+                }
+                const data = await res.json();
+                renderBestValuePlays(data);
+
+                const playsCount = (data.plays || []).length;
+                const compareBookLabel = document.querySelector("#best-compare-book-select option:checked").textContent;
+                setBestSummary(`Found ${playsCount} best value plays across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Hedge EV% (vs ${compareBookLabel}).`);
+                setBestStatus("Done.");
+            } catch (e) {
+                console.error(e);
+                setBestStatus("Error: " + e.message);
+            }
+        }
+
         window.addEventListener("DOMContentLoaded", () => {
             document.getElementById("find-btn").onclick = () => fetchValuePlays(true);
             document.getElementById("clear-btn").onclick = clearResults;
             document.getElementById("start-loop-btn").onclick = startValueLoop;
             document.getElementById("stop-loop-btn").onclick = stopValueLoop;
             document.getElementById("filter-opp-btn").onclick = toggleHedgeFilter;
+            
+            // Best Value Finder buttons
+            document.getElementById("find-best-btn").onclick = fetchBestValuePlays;
+            document.getElementById("clear-best-btn").onclick = clearBestResults;
             
             // Prevent selecting the same book for both target and comparison
             const bookSelect = document.getElementById("book-select");
@@ -603,6 +1063,21 @@
             
             bookSelect.addEventListener("change", validateBookSelection);
             compareBookSelect.addEventListener("change", validateBookSelection);
+
+            // Best value finder book validation
+            const bestTargetBook = document.getElementById("best-target-book-select");
+            const bestCompareBook = document.getElementById("best-compare-book-select");
+            
+            function validateBestBookSelection() {
+                if (bestTargetBook.value === bestCompareBook.value) {
+                    setBestStatus("Error: Target book and comparison book cannot be the same.");
+                    return false;
+                }
+                return true;
+            }
+            
+            bestTargetBook.addEventListener("change", validateBestBookSelection);
+            bestCompareBook.addEventListener("change", validateBestBookSelection);
         });
     </script>
 </body>

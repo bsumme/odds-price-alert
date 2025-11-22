@@ -92,6 +92,47 @@ class ValuePlaysRequest(BaseModel):
     max_results: Optional[int] = None
 
 
+class BestValuePlayOutcome(BaseModel):
+    """Extended value play outcome with sport and market info"""
+    sport_key: str
+    market: str
+    event_id: str
+    matchup: str
+    start_time: Optional[str]
+    outcome_name: str
+    point: Optional[float]
+    novig_price: int
+    novig_reverse_name: Optional[str]
+    novig_reverse_price: Optional[int]
+    book_price: int
+    ev_percent: float
+    hedge_ev_percent: Optional[float] = None
+    is_arbitrage: bool = False
+    arb_margin_percent: Optional[float] = None
+
+
+class BestValuePlaysRequest(BaseModel):
+    """
+    Request body for /api/best-value-plays:
+      - sport_keys: list of sports to search, e.g. ["basketball_nba", "americanfootball_nfl"]
+      - markets: list of markets to search, e.g. ["h2h", "spreads", "totals"]
+      - target_book: e.g. "draftkings"
+      - compare_book: e.g. "novig" (the book to compare against)
+      - max_results: maximum number of results to return
+    """
+    sport_keys: List[str]
+    markets: List[str]
+    target_book: str
+    compare_book: str
+    max_results: Optional[int] = 50
+
+
+class BestValuePlaysResponse(BaseModel):
+    target_book: str
+    compare_book: str
+    plays: List[BestValuePlayOutcome]
+
+
 BOOK_LABELS = {
     "draftkings": "DraftKings",
     "fanduel": "FanDuel",
@@ -285,11 +326,28 @@ def collect_value_plays(
     """
     plays: List[ValuePlayOutcome] = []
 
+    # Filter out live events at the event level
+    now_utc = datetime.now(timezone.utc)
+    
     for event in events:
         home = event.get("home_team")
         away = event.get("away_team")
         start_time = event.get("commence_time")
         event_id = event.get("id", "")
+
+        # Skip events that have already started (live or completed)
+        if start_time:
+            try:
+                event_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                if event_dt <= now_utc:
+                    # Event has started or is live, skip it
+                    continue
+            except Exception:
+                # If we can't parse the time, skip to be safe
+                continue
+        else:
+            # No start time, skip to be safe
+            continue
 
         matchup = f"{away} @ {home}" if home and away else ""
 
@@ -662,21 +720,21 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
 
     raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
 
-    # Filter out games that started a long time ago (keep upcoming / recent only)
+    # Filter out live events and games that have already started
     now_utc = datetime.now(timezone.utc)
-    cutoff = now_utc - timedelta(hours=12)
     filtered_plays: List[ValuePlayOutcome] = []
     for p in raw_plays:
         if not p.start_time:
-            filtered_plays.append(p)
+            # If no start time, exclude it to be safe
             continue
         try:
             dt = datetime.fromisoformat(p.start_time.replace("Z", "+00:00"))
+            # Only include games that haven't started yet (start_time is in the future)
+            if dt > now_utc:
+                filtered_plays.append(p)
         except Exception:
-            filtered_plays.append(p)
+            # If we can't parse the time, exclude it to be safe
             continue
-        if dt >= cutoff:
-            filtered_plays.append(p)
 
     # Convert start_time into an easy-to-read EST string for display
     for p in filtered_plays:
@@ -713,6 +771,118 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         market=market_key,
         plays=top_plays,
         sgp_suggestion=sgp_suggestion,
+    )
+
+
+@app.post("/api/best-value-plays", response_model=BestValuePlaysResponse)
+def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysResponse:
+    """
+    Search across multiple sports and markets to find the best +EV bets by hedge odds.
+    Returns the top value plays sorted by arb_margin_percent (hedge opportunity).
+    """
+    target_book = payload.target_book
+    compare_book = payload.compare_book
+
+    if target_book == compare_book:
+        raise HTTPException(
+            status_code=400,
+            detail="Target book and comparison book cannot be the same.",
+        )
+
+    if not payload.sport_keys or not payload.markets:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one sport and one market must be specified.",
+        )
+
+    try:
+        api_key = get_api_key()
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    bookmaker_keys = [target_book, compare_book]
+    regions = compute_regions_for_books(bookmaker_keys)
+
+    all_plays: List[BestValuePlayOutcome] = []
+
+    # Search across all sport/market combinations
+    for sport_key in payload.sport_keys:
+        for market_key in payload.markets:
+            try:
+                events = fetch_odds(
+                    api_key=api_key,
+                    sport_key=sport_key,
+                    regions=regions,
+                    markets=market_key,
+                    bookmaker_keys=bookmaker_keys,
+                )
+
+                raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
+
+                # Filter out live events and games that have already started
+                now_utc = datetime.now(timezone.utc)
+                filtered_plays: List[ValuePlayOutcome] = []
+                for p in raw_plays:
+                    if not p.start_time:
+                        # If no start time, exclude it to be safe
+                        continue
+                    try:
+                        dt = datetime.fromisoformat(p.start_time.replace("Z", "+00:00"))
+                        # Only include games that haven't started yet (start_time is in the future)
+                        if dt > now_utc:
+                            filtered_plays.append(p)
+                    except Exception:
+                        # If we can't parse the time, exclude it to be safe
+                        continue
+
+                # Convert to BestValuePlayOutcome with sport and market info
+                for p in filtered_plays:
+                    formatted_time = p.start_time
+                    if formatted_time:
+                        formatted_time = format_start_time_est(formatted_time)
+
+                    all_plays.append(
+                        BestValuePlayOutcome(
+                            sport_key=sport_key,
+                            market=market_key,
+                            event_id=p.event_id,
+                            matchup=p.matchup,
+                            start_time=formatted_time,
+                            outcome_name=p.outcome_name,
+                            point=p.point,
+                            novig_price=p.novig_price,
+                            novig_reverse_name=p.novig_reverse_name,
+                            novig_reverse_price=p.novig_reverse_price,
+                            book_price=p.book_price,
+                            ev_percent=p.ev_percent,
+                            hedge_ev_percent=p.hedge_ev_percent,
+                            is_arbitrage=p.is_arbitrage,
+                            arb_margin_percent=p.arb_margin_percent,
+                        )
+                    )
+            except Exception as e:
+                # Log error but continue with other sports/markets
+                print(f"Error processing {sport_key}/{market_key}: {e}")
+                continue
+
+    # Sort by hedge opportunity (arb_margin_percent) descending
+    def hedge_sort_key(play: BestValuePlayOutcome) -> float:
+        if play.arb_margin_percent is not None:
+            return play.arb_margin_percent
+        # No opposite side: effectively no hedge opportunity.
+        return -1_000_000.0 + play.ev_percent
+
+    top_plays = sorted(all_plays, key=hedge_sort_key, reverse=True)
+
+    # Respect max_results if provided
+    max_results = payload.max_results or 50
+    if max_results > 0:
+        top_plays = top_plays[:max_results]
+
+    return BestValuePlaysResponse(
+        target_book=target_book,
+        compare_book=compare_book,
+        plays=top_plays,
     )
 
 
