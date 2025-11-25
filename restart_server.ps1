@@ -13,7 +13,7 @@ Write-Host ""
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
 
-# Step 1: Stop any running processes on port 8000
+# Step 1: Stop any running processes on port 8000 and Python processes using venv
 Write-Host "[1/3] Stopping existing server processes..." -ForegroundColor Yellow
 
 # Kill processes by port 8000 (most reliable method)
@@ -30,10 +30,24 @@ if ($portProcess) {
             Write-Host "  Could not stop process on port 8000 (PID: $pid)" -ForegroundColor Yellow
         }
     }
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
     Write-Host "  [OK] Port 8000 cleared" -ForegroundColor Green
 } else {
     Write-Host "  [OK] Port 8000 is free" -ForegroundColor Green
+}
+
+# Also stop any Python processes that might be using the venv
+$pythonProcs = Get-Process python* -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*$scriptDir\.venv*" }
+if ($pythonProcs) {
+    foreach ($proc in $pythonProcs) {
+        try {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            Write-Host "  Stopped Python process using venv (PID: $($proc.Id))" -ForegroundColor Green
+        } catch {
+            Write-Host "  Could not stop Python process (PID: $($proc.Id))" -ForegroundColor Yellow
+        }
+    }
+    Start-Sleep -Seconds 1
 }
 
 # Step 2: Clear Python cache (quick cleanup)

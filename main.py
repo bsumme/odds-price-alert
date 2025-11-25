@@ -191,8 +191,9 @@ def generate_dummy_odds_data(
     bookmaker_keys: List[str],
 ) -> List[Dict[str, Any]]:
     """
-    Generate dummy/mock odds data for development when API credits are exhausted.
-    Creates realistic-looking events with various odds scenarios.
+    Generate simple dummy/mock odds data for development.
+    Novig always has the best lines (most favorable odds).
+    Other books (DK, FD, Fliff) have worse odds, ensuring no positive EV hedges.
     """
     # Sample team names by sport
     team_pairs = {
@@ -240,35 +241,103 @@ def generate_dummy_odds_data(
         
         event_id = f"dummy_{sport_key}_{i}_{int(now.timestamp())}"
         
+        # Generate base odds for this event (Novig's "true" odds)
+        base_market_odds = {}
+        for market_key in market_list:
+            if market_key == "h2h":
+                # Moneyline: pick realistic odds
+                home_base = random.choice([-150, -120, -110, -105, +105, +110, +120, +150])
+                away_base = random.choice([-150, -120, -110, -105, +105, +110, +120, +150])
+                # Ensure they're somewhat balanced
+                if (home_base < -140 and away_base < -140) or (home_base > +140 and away_base > +140):
+                    if home_base < -140:
+                        away_base = random.choice([+105, +110, +120, +150, +180])
+                    else:
+                        home_base = random.choice([+105, +110, +120, +150, +180])
+                
+                base_market_odds[market_key] = {
+                    "home": home_base,
+                    "away": away_base,
+                }
+            elif market_key == "spreads":
+                spread = random.choice([-3.5, -4.0, -5.5, -6.0, -7.5, 3.5, 4.0, 5.5, 6.0, 7.5])
+                base_market_odds[market_key] = {
+                    "spread": spread,
+                }
+            elif market_key == "totals":
+                total = random.choice([45.5, 46.0, 47.5, 48.0, 220.5, 221.0, 225.5, 230.0])
+                base_market_odds[market_key] = {
+                    "total": total,
+                }
+        
+        # Generate bookmaker data
+        # Simple rule: Novig gets the best odds for each side
+        # Other books get worse odds, ensuring no positive EV hedges
         bookmakers = []
+        common_odds = [-200, -180, -160, -150, -140, -130, -120, -115, -110, -105,
+                      +105, +110, +115, +120, +130, +140, +150, +160, +180, +200, +220, +250]
+        
         for book_key in bookmaker_keys:
+            is_novig = book_key.lower() == "novig"
             markets_data = []
             
             for market_key in market_list:
                 outcomes = []
                 
                 if market_key == "h2h":
-                    # Moneyline: two outcomes
-                    home_odds = random.choice([-150, -120, -110, -105, +105, +110, +120, +150, +180, +200, +250])
-                    away_odds = random.choice([-150, -120, -110, -105, +105, +110, +120, +150, +180, +200, +250])
+                    base_home = base_market_odds[market_key]["home"]
+                    base_away = base_market_odds[market_key]["away"]
+                    
+                    if is_novig:
+                        # Novig: best odds (use base odds directly)
+                        home_odds = base_home
+                        away_odds = base_away
+                    else:
+                        # Other books: worse odds (add juice)
+                        # For positive odds: reduce by 5-10 points
+                        # For negative odds: make more negative by 5-10 points
+                        if base_home > 0:
+                            home_odds = max(base_home - random.choice([5, 10]), 100)
+                        else:
+                            home_odds = base_home - random.choice([5, 10])
+                        
+                        if base_away > 0:
+                            away_odds = max(base_away - random.choice([5, 10]), 100)
+                        else:
+                            away_odds = base_away - random.choice([5, 10])
+                        
+                        # Round to common odds values
+                        home_odds = min(common_odds, key=lambda x: abs(x - home_odds))
+                        away_odds = min(common_odds, key=lambda x: abs(x - away_odds))
+                    
                     outcomes = [
                         {"name": home, "price": home_odds},
                         {"name": away, "price": away_odds},
                     ]
                 elif market_key == "spreads":
-                    # Spreads: two outcomes with points
-                    spread = random.choice([-3.5, -4.0, -5.5, -6.0, -7.5, 3.5, 4.0, 5.5, 6.0, 7.5])
-                    home_odds = random.choice([-110, -105, -115])
-                    away_odds = random.choice([-110, -105, -115])
+                    spread = base_market_odds[market_key]["spread"]
+                    # Novig: -105 (best), others: -110 to -115 (worse)
+                    if is_novig:
+                        home_odds = -105
+                        away_odds = -105
+                    else:
+                        home_odds = random.choice([-110, -115])
+                        away_odds = random.choice([-110, -115])
+                    
                     outcomes = [
                         {"name": home, "price": home_odds, "point": spread},
                         {"name": away, "price": away_odds, "point": -spread},
                     ]
                 elif market_key == "totals":
-                    # Totals: over/under
-                    total = random.choice([45.5, 46.0, 47.5, 48.0, 220.5, 221.0, 225.5, 230.0])
-                    over_odds = random.choice([-110, -105, -115])
-                    under_odds = random.choice([-110, -105, -115])
+                    total = base_market_odds[market_key]["total"]
+                    # Novig: -105 (best), others: -110 to -115 (worse)
+                    if is_novig:
+                        over_odds = -105
+                        under_odds = -105
+                    else:
+                        over_odds = random.choice([-110, -115])
+                        under_odds = random.choice([-110, -115])
+                    
                     outcomes = [
                         {"name": f"Over {total}", "price": over_odds, "point": total},
                         {"name": f"Under {total}", "price": under_odds, "point": total},
@@ -286,6 +355,84 @@ def generate_dummy_odds_data(
                     "title": book_key.title(),
                     "markets": markets_data,
                 })
+        
+        # Post-process: Ensure no positive EV hedges when comparing other books against Novig
+        # For h2h markets, adjust Novig's opposite side if needed to prevent arbitrage
+        if "h2h" in market_list:
+            novig_bookmaker = next((b for b in bookmakers if b["key"].lower() == "novig"), None)
+            other_bookmakers = [b for b in bookmakers if b["key"].lower() != "novig"]
+            
+            if novig_bookmaker and other_bookmakers:
+                novig_market = next((m for m in novig_bookmaker["markets"] if m["key"] == "h2h"), None)
+                if novig_market:
+                    novig_home_outcome = next((o for o in novig_market["outcomes"] if o["name"] == home), None)
+                    novig_away_outcome = next((o for o in novig_market["outcomes"] if o["name"] == away), None)
+                    
+                    if novig_home_outcome and novig_away_outcome:
+                        novig_home_odds = novig_home_outcome["price"]
+                        novig_away_odds = novig_away_outcome["price"]
+                        
+                        # Check each other book and adjust Novig's opposite side if needed
+                        for other_book in other_bookmakers:
+                            other_market = next((m for m in other_book["markets"] if m["key"] == "h2h"), None)
+                            if not other_market:
+                                continue
+                            
+                            other_home_outcome = next((o for o in other_market["outcomes"] if o["name"] == home), None)
+                            other_away_outcome = next((o for o in other_market["outcomes"] if o["name"] == away), None)
+                            
+                            if other_home_outcome and other_away_outcome:
+                                other_home_odds = other_home_outcome["price"]
+                                other_away_odds = other_away_outcome["price"]
+                                
+                                # Check hedge: bet home at other book, hedge away at Novig
+                                dec_other_home = american_to_decimal(other_home_odds)
+                                dec_novig_away = american_to_decimal(novig_away_odds)
+                                inv_sum1 = 1.0 / dec_other_home + 1.0 / dec_novig_away
+                                
+                                # Check hedge: bet away at other book, hedge home at Novig
+                                dec_other_away = american_to_decimal(other_away_odds)
+                                dec_novig_home = american_to_decimal(novig_home_odds)
+                                inv_sum2 = 1.0 / dec_other_away + 1.0 / dec_novig_home
+                                
+                                # If either creates positive EV (inv_sum < 1.0), adjust Novig's odds
+                                if inv_sum1 < 1.0:
+                                    # Need to make Novig's away odds worse (less favorable)
+                                    # Calculate max allowed decimal: dec_novig_away <= 1/(1 - 1/dec_other_home)
+                                    max_dec = 1.0 / (1.0 - 1.0 / dec_other_home) if (1.0 - 1.0 / dec_other_home) > 0 else float('inf')
+                                    if max_dec < float('inf'):
+                                        # Convert back to American odds
+                                        if max_dec >= 2.0:
+                                            max_american = int((max_dec - 1.0) * 100)
+                                        else:
+                                            max_american = int(-100.0 / (max_dec - 1.0))
+                                        
+                                        # Adjust Novig's away odds to be worse (but still best if possible)
+                                        if novig_away_odds > 0:
+                                            novig_away_odds = min(novig_away_odds, max_american)
+                                        else:
+                                            novig_away_odds = max(novig_away_odds, max_american)
+                                        
+                                        # Round to common odds
+                                        novig_away_odds = min(common_odds, key=lambda x: abs(x - novig_away_odds))
+                                        novig_away_outcome["price"] = novig_away_odds
+                                
+                                if inv_sum2 < 1.0:
+                                    # Need to make Novig's home odds worse (less favorable)
+                                    max_dec = 1.0 / (1.0 - 1.0 / dec_other_away) if (1.0 - 1.0 / dec_other_away) > 0 else float('inf')
+                                    if max_dec < float('inf'):
+                                        if max_dec >= 2.0:
+                                            max_american = int((max_dec - 1.0) * 100)
+                                        else:
+                                            max_american = int(-100.0 / (max_dec - 1.0))
+                                        
+                                        if novig_home_odds > 0:
+                                            novig_home_odds = min(novig_home_odds, max_american)
+                                        else:
+                                            novig_home_odds = max(novig_home_odds, max_american)
+                                        
+                                        novig_home_odds = min(common_odds, key=lambda x: abs(x - novig_home_odds))
+                                        novig_home_outcome["price"] = novig_home_odds
         
         events.append({
             "id": event_id,
@@ -597,13 +744,19 @@ def collect_value_plays(
 def format_start_time_est(iso_str: str) -> str:
     """Convert an ISO UTC time string into an easy-to-read EST label.
 
-    Example output: "Thu 11/20 03:30 PM ET".
+    Example output: "Thu, Nov 20, 3:30 PM ET".
     If parsing fails, returns the original string.
     """
     try:
         dt_utc = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
         dt_et = dt_utc.astimezone(ZoneInfo("America/New_York"))
-        return dt_et.strftime("%a %m/%d %I:%M %p ET")
+        # Format: "Thu, Nov 20, 3:30 PM ET" (more readable than "Thu 11/20 03:30 PM ET")
+        # Use %I for hour (01-12) and remove leading zero manually for cross-platform compatibility
+        formatted = dt_et.strftime("%a, %b %d, %I:%M %p ET")
+        # Remove leading zero from hour (e.g., " 03:" -> " 3:")
+        if formatted[8:10] == " 0" and formatted[10].isdigit():
+            formatted = formatted[:8] + " " + formatted[10:]
+        return formatted
     except Exception:
         return iso_str
 
@@ -847,6 +1000,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         regions=regions,
         markets=market_key,
         bookmaker_keys=bookmaker_keys,
+        use_dummy_data=payload.use_dummy_data,
     )
 
     raw_plays = collect_value_plays(events, market_key, target_book, compare_book)

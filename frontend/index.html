@@ -311,13 +311,13 @@
                         <tr>
                             <th>Sport</th>
                             <th>Market</th>
+                            <th>Recommended Bet</th>
                             <th>Outcome (Book)</th>
                             <th>Matchup</th>
                             <th>Start Time</th>
                             <th>Compare Price</th>
                             <th>Opposite Side</th>
                             <th>Hedge Bet (Book)</th>
-                            <th>Value Bet (Book)</th>
                             <th>Hedge EV%</th>
                             <th>EV% (approx)</th>
                         </tr>
@@ -456,6 +456,22 @@
             return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${fallback}.png`;
         }
 
+        function formatAmericanOdds(odds) {
+            /**
+             * Format American odds with "+" prefix for positive values.
+             * Returns the odds as a string with proper formatting.
+             */
+            if (odds === null || odds === undefined) {
+                return "";
+            }
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) {
+                return String(odds);
+            }
+            // Add "+" prefix for positive odds
+            return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+        }
+
         function createTeamNameWithLogo(teamName, sportKey = null) {
             if (!teamName) return document.createTextNode("");
             
@@ -577,7 +593,9 @@
                 tr.appendChild(startCell);
 
                 const compareCell = document.createElement("td");
-                compareCell.textContent = play.novig_price;
+                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
+                const formattedCompareOdds = formatAmericanOdds(play.novig_price);
+                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 tr.appendChild(compareCell);
 
                 const oppCell = document.createElement("td");
@@ -592,7 +610,8 @@
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
                     const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_price}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
+                    const formattedHedgeOdds = formatAmericanOdds(play.novig_reverse_price);
+                    hedgeCell.innerHTML = `<strong>${formattedHedgeOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
@@ -600,7 +619,8 @@
 
                 const bookCell = document.createElement("td");
                 const targetBookLabel = document.querySelector("#book-select option:checked")?.textContent || data.target_book || "Target";
-                bookCell.innerHTML = `<strong>${play.book_price}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
+                const formattedBookOdds = formatAmericanOdds(play.book_price);
+                bookCell.innerHTML = `<strong>${formattedBookOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(bookCell);
 
                 const hedgeEvCell = document.createElement("td");
@@ -650,7 +670,7 @@
                     text += ` @ ${leg.point}`;
                 }
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-                text += ` | Book: ${leg.book_price}, ${compareBookLabel}: ${leg.novig_price}, EV: ${leg.ev_percent}%`;
+                text += ` | Book: ${formatAmericanOdds(leg.book_price)}, ${compareBookLabel}: ${formatAmericanOdds(leg.novig_price)}, EV: ${leg.ev_percent}%`;
                 li.textContent = text;
                 legsList.appendChild(li);
             });
@@ -825,8 +845,20 @@
                 marketCell.textContent = marketLabels[play.market] || play.market;
                 tr.appendChild(marketCell);
 
-                const outcomeCell = document.createElement("td");
+                const bookCell = document.createElement("td");
+                const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
                 const teamName = parseTeamFromOutcome(play.outcome_name);
+                const marketLabel = marketLabels[play.market] || play.market;
+                const formattedOdds = formatAmericanOdds(play.book_price);
+                let betDescription = `${teamName} ${marketLabel === "Moneyline" ? "ML" : marketLabel === "Spreads" ? "Spread" : marketLabel}`;
+                if (play.point !== null && play.point !== undefined) {
+                    betDescription += ` ${play.point > 0 ? "+" : ""}${play.point}`;
+                }
+                betDescription += ` ${formattedOdds} at ${targetBookLabel}`;
+                bookCell.innerHTML = `<strong>${betDescription}</strong>`;
+                tr.appendChild(bookCell);
+
+                const outcomeCell = document.createElement("td");
                 const teamWithLogo = createTeamNameWithLogo(teamName, play.sport_key || null);
                 outcomeCell.appendChild(teamWithLogo);
                 if (play.point !== null && play.point !== undefined) {
@@ -855,7 +887,9 @@
                 tr.appendChild(startCell);
 
                 const compareCell = document.createElement("td");
-                compareCell.textContent = play.novig_price;
+                const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
+                const formattedCompareOdds = formatAmericanOdds(play.novig_price);
+                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 tr.appendChild(compareCell);
 
                 const oppCell = document.createElement("td");
@@ -870,16 +904,12 @@
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
                     const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_price}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
+                    const formattedHedgeOdds = formatAmericanOdds(play.novig_reverse_price);
+                    hedgeCell.innerHTML = `<strong>${formattedHedgeOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(hedgeCell);
-
-                const bookCell = document.createElement("td");
-                const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
-                bookCell.innerHTML = `<strong>${play.book_price}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
-                tr.appendChild(bookCell);
 
                 const hedgeEvCell = document.createElement("td");
                 if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {

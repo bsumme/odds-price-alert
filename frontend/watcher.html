@@ -410,6 +410,22 @@
             }
         }
 
+        function formatAmericanOdds(odds) {
+            /**
+             * Format American odds with "+" prefix for positive values.
+             * Returns the odds as a string with proper formatting.
+             */
+            if (odds === null || odds === undefined) {
+                return "";
+            }
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) {
+                return String(odds);
+            }
+            // Add "+" prefix for positive odds
+            return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+        }
+
         function renderBetList() {
             const listEl = document.getElementById("bet-list");
             listEl.innerHTML = "";

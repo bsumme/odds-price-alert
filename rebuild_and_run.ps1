@@ -18,9 +18,37 @@ Set-Location $scriptDir
 # Step 1: Deactivate and remove existing virtual environment
 Write-Host "[1/6] Checking for existing virtual environment..." -ForegroundColor Yellow
 if (Test-Path ".venv") {
+    Write-Host "  Stopping any Python processes that might be using the venv..." -ForegroundColor Yellow
+    # Try to stop any Python processes that might be locking files
+    Get-Process python* -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*$scriptDir\.venv*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    
     Write-Host "  Removing existing .venv directory..." -ForegroundColor Yellow
-    Remove-Item -Recurse -Force .venv
-    Write-Host "  [OK] Virtual environment removed" -ForegroundColor Green
+    # Try to remove with retry logic
+    $maxRetries = 3
+    $retryCount = 0
+    $removed = $false
+    
+    while ($retryCount -lt $maxRetries -and -not $removed) {
+        try {
+            Remove-Item -Recurse -Force .venv -ErrorAction Stop
+            $removed = $true
+            Write-Host "  [OK] Virtual environment removed" -ForegroundColor Green
+        } catch {
+            $retryCount++
+            if ($retryCount -lt $maxRetries) {
+                Write-Host "  [WARNING] Failed to remove .venv (attempt $retryCount/$maxRetries). Retrying..." -ForegroundColor Yellow
+                # Try to kill any processes that might be locking files
+                Get-Process python* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 2
+            } else {
+                Write-Host "  [ERROR] Could not remove .venv directory after $maxRetries attempts!" -ForegroundColor Red
+                Write-Host "  Please manually close any programs using the .venv folder and try again." -ForegroundColor Red
+                Write-Host "  Or manually delete the .venv folder and run this script again." -ForegroundColor Red
+                exit 1
+            }
+        }
+    }
 } else {
     Write-Host "  [OK] No existing virtual environment found" -ForegroundColor Green
 }
@@ -46,13 +74,36 @@ if ($pycFiles) {
 # Step 3: Create new virtual environment
 Write-Host ""
 Write-Host "[3/6] Creating new virtual environment..." -ForegroundColor Yellow
-python -m venv .venv
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Failed to create virtual environment!" -ForegroundColor Red
-    Write-Host "  Make sure Python is installed and in your PATH" -ForegroundColor Red
-    exit 1
+# Small delay to ensure Windows has released all file handles
+Start-Sleep -Seconds 1
+
+# Try to create venv with retry logic
+$maxRetries = 3
+$retryCount = 0
+$created = $false
+
+while ($retryCount -lt $maxRetries -and -not $created) {
+    try {
+        python -m venv .venv 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            $created = $true
+            Write-Host "  [OK] Virtual environment created" -ForegroundColor Green
+        } else {
+            throw "venv creation failed with exit code $LASTEXITCODE"
+        }
+    } catch {
+        $retryCount++
+        if ($retryCount -lt $maxRetries) {
+            Write-Host "  [WARNING] Failed to create venv (attempt $retryCount/$maxRetries). Retrying..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+        } else {
+            Write-Host "  [ERROR] Failed to create virtual environment after $maxRetries attempts!" -ForegroundColor Red
+            Write-Host "  Make sure Python is installed and in your PATH" -ForegroundColor Red
+            Write-Host "  Also ensure no other processes are using the .venv directory" -ForegroundColor Red
+            exit 1
+        }
+    }
 }
-Write-Host "  [OK] Virtual environment created" -ForegroundColor Green
 
 # Step 4: Activate virtual environment
 Write-Host ""
