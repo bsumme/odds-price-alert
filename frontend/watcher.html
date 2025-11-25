@@ -240,6 +240,91 @@
             overflow-y: auto;
         }
 
+        /* Alert popup styles */
+        .alert-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .alert-popup {
+            background: #020617;
+            border: 2px solid #166534;
+            border-radius: 1rem;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .alert-popup h3 {
+            margin: 0 0 1rem 0;
+            color: #bbf7d0;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .alert-popup .alert-content {
+            color: #e5e7eb;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .alert-popup .alert-detail {
+            background: #0f172a;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin: 0.5rem 0;
+            border-left: 3px solid #166534;
+        }
+
+        .alert-popup .alert-detail strong {
+            color: #bbf7d0;
+        }
+
+        .alert-popup button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 500;
+        }
+
+        .alert-popup button:hover {
+            background: #1d4ed8;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
         @media (max-width: 900px) {
             main {
                 grid-template-columns: minmax(0, 1fr);
@@ -360,6 +445,7 @@
         const STORAGE_KEY = "betWatcherBets";
         let bets = [];
         let pollTimer = null;
+        let alertedHits = new Set(); // Track which hits have already been alerted
 
         // Team lists by sport
         const TEAMS_BY_SPORT = {
@@ -595,6 +681,87 @@
       `;
         }
 
+        function playAlertSound() {
+            // Create a simple beep sound using Web Audio API
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800; // Higher pitch for attention
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+                
+                // Play a second beep after a short delay
+                setTimeout(() => {
+                    const oscillator2 = audioContext.createOscillator();
+                    const gainNode2 = audioContext.createGain();
+                    
+                    oscillator2.connect(gainNode2);
+                    gainNode2.connect(audioContext.destination);
+                    
+                    oscillator2.frequency.value = 1000;
+                    oscillator2.type = 'sine';
+                    
+                    gainNode2.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                    
+                    oscillator2.start(audioContext.currentTime);
+                    oscillator2.stop(audioContext.currentTime + 0.5);
+                }, 200);
+            } catch (e) {
+                console.warn("Could not play alert sound:", e);
+            }
+        }
+
+        function showAlertPopup(alertData) {
+            // Create overlay
+            const overlay = document.createElement("div");
+            overlay.className = "alert-overlay";
+            
+            // Create popup
+            const popup = document.createElement("div");
+            popup.className = "alert-popup";
+            
+            popup.innerHTML = `
+                <h3>🔔 Value Play Alert!</h3>
+                <div class="alert-content">
+                    <div class="alert-detail">
+                        <strong>Team:</strong> ${alertData.team_name}
+                    </div>
+                    <div class="alert-detail">
+                        <strong>Bookmaker:</strong> ${alertData.bookmaker_name}
+                    </div>
+                    <div class="alert-detail">
+                        <strong>Price:</strong> ${formatOdds(alertData.price)} (Target: ${formatOdds(alertData.target_odds)} or better)
+                    </div>
+                    ${alertData.matchup ? `<div class="alert-detail"><strong>Matchup:</strong> ${alertData.matchup}</div>` : ''}
+                </div>
+                <button onclick="this.closest('.alert-overlay').remove()">Got it!</button>
+            `;
+            
+            overlay.appendChild(popup);
+            document.body.appendChild(overlay);
+            
+            // Play sound
+            playAlertSound();
+            
+            // Auto-close after 30 seconds if user doesn't close it
+            setTimeout(() => {
+                if (overlay.parentNode) {
+                    overlay.remove();
+                }
+            }, 30000);
+        }
+
         function renderResults(data) {
             const body = document.getElementById("results-body");
             body.innerHTML = "";
@@ -603,6 +770,9 @@
                 clearResultsTable();
                 return;
             }
+
+            // Track new hits for alerts
+            const newHits = [];
 
             data.bets.forEach((bet, betIndex) => {
                 if (!bet.games || bet.games.length === 0) {
@@ -649,6 +819,19 @@
 
                             if (hit) {
                                 inner += ' <span class="badge badge-hit">HIT</span>';
+                                
+                                // Check if this is a new hit that hasn't been alerted yet
+                                const hitKey = `${bet.team_name}_${name}_${price}_${game.matchup || ''}`;
+                                if (!alertedHits.has(hitKey)) {
+                                    alertedHits.add(hitKey);
+                                    newHits.push({
+                                        team_name: bet.team_name,
+                                        bookmaker_name: name,
+                                        price: price,
+                                        target_odds: bet.target_odds,
+                                        matchup: game.matchup || ""
+                                    });
+                                }
                             }
 
                             const isBest = game.best_bookmaker_key && priceObj.bookmaker_key === game.best_bookmaker_key && game.best_price === price;
@@ -672,6 +855,13 @@
                     body.appendChild(tr);
                 });
             });
+
+            // Show alerts for new hits (only when watcher is running)
+            if (pollTimer && newHits.length > 0) {
+                newHits.forEach(hit => {
+                    showAlertPopup(hit);
+                });
+            }
         }
 
         async function fetchSnapshot() {
@@ -775,6 +965,9 @@
                 clearInterval(pollTimer);
                 pollTimer = null;
             }
+
+            // Clear previous alerts when starting fresh (optional - comment out if you want to keep alerts)
+            // alertedHits.clear();
 
             setStatus("Watching odds...");
             document.getElementById("start-btn").disabled = true;
