@@ -3,11 +3,11 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Value Finder vs Novig</title>
+    <title>Arbitrage Bet Finder</title>
     <style>
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background-color: #111827;
+            background-color: #0f172a;
             color: #e5e7eb;
             margin: 0;
             padding: 0;
@@ -15,12 +15,13 @@
 
         header {
             padding: 1rem 1.5rem;
-            background: #0f172a;
-            border-bottom: 1px solid #1f2937;
+            background: #1e293b;
+            border-bottom: 2px solid #334155;
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
         }
 
         header h1 {
@@ -29,7 +30,7 @@
         }
 
         header nav a {
-            color: #9ca3af;
+            color: #94a3b8;
             text-decoration: none;
             font-size: 0.85rem;
             margin-left: 0.75rem;
@@ -40,8 +41,8 @@
         }
 
         header nav a.active {
-            color: #e5e7eb;
-            font-weight: 500;
+            color: #bbf7d0;
+            font-weight: 600;
         }
 
         main {
@@ -61,11 +62,11 @@
         }
 
         .card {
-            background: #020617;
+            background: #1e293b;
             border-radius: 0.75rem;
-            border: 1px solid #1f2937;
+            border: 1px solid #334155;
             padding: 1rem 1.25rem;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .card h2 {
@@ -79,7 +80,8 @@
             font-size: 0.85rem;
             margin-top: 0.6rem;
             margin-bottom: 0.15rem;
-            color: #9ca3af;
+            color: #cbd5e1;
+            font-weight: 500;
         }
 
         select,
@@ -87,11 +89,23 @@
             width: 100%;
             padding: 0.45rem 0.6rem;
             border-radius: 0.5rem;
-            border: 1px solid #374151;
-            background: #020617;
+            border: 1px solid #475569;
+            background: #0f172a;
             color: #e5e7eb;
             box-sizing: border-box;
             font-size: 0.9rem;
+        }
+
+        select:hover,
+        input[type="number"]:hover {
+            border-color: #64748b;
+        }
+
+        select:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #166534;
+            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.2);
         }
 
         input[type="checkbox"] {
@@ -109,19 +123,31 @@
         }
 
         .btn-primary {
-            background: #2563eb;
-            color: white;
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .btn-primary:hover {
+            background: #15803d;
         }
 
         .btn-secondary {
-            background: #374151;
+            background: #475569;
             color: #e5e7eb;
+        }
+
+        .btn-secondary:hover {
+            background: #64748b;
         }
 
         .btn-link {
             background: transparent;
-            border: 1px solid #374151;
+            border: 1px solid #475569;
             color: #e5e7eb;
+        }
+
+        .btn-link:hover {
+            background: #334155;
         }
 
         .btn:disabled {
@@ -131,7 +157,7 @@
 
         .status-bar {
             font-size: 0.8rem;
-            color: #9ca3af;
+            color: #94a3b8;
             margin-top: 0.5rem;
         }
 
@@ -143,17 +169,19 @@
 
         th,
         td {
-            border-bottom: 1px solid #1f2937;
+            border-bottom: 1px solid #334155;
             padding: 0.4rem 0.5rem;
             text-align: left;
             vertical-align: top;
         }
 
         th {
-            background: #020617;
+            background: #1e293b;
             position: sticky;
             top: 0;
             z-index: 1;
+            font-weight: 600;
+            color: #e5e7eb;
         }
 
         .scroll-container {
@@ -163,7 +191,7 @@
 
         .small-text {
             font-size: 0.75rem;
-            color: #6b7280;
+            color: #94a3b8;
         }
 
         .badge {
@@ -187,8 +215,8 @@
             margin-top: 0.75rem;
             padding: 0.9rem;
             border-radius: 0.5rem;
-            background: #111827;
-            border: 1px solid #1f2937;
+            background: #0f172a;
+            border: 1px solid #334155;
         }
 
         .team-logo {
@@ -207,8 +235,8 @@
         }
 
         .toggle-on {
-            background: #16a34a;
-            color: #e5e7eb;
+            background: #166534;
+            color: #bbf7d0;
             border-color: #15803d;
         }
 
@@ -226,13 +254,13 @@
 <body>
     <header>
         <div>
-            <h1>Value Finder</h1>
+            <h1>Arbitrage Bet Finder</h1>
             <div class="small-text">
-                Compare a book's lines to another book and see the hedgeable opposite side.
+                Find arbitrage betting opportunities by comparing odds across different sportsbooks
             </div>
         </div>
         <nav>
-            <a href="/" class="active">Value Finder</a>
+            <a href="/" class="active">Arbitrage Finder</a>
             <a href="/watcher.html">Watcher</a>
         </nav>
     </header>
@@ -241,9 +269,9 @@
         <!-- Filter Panel -->
         <div class="filter-panel">
             <section class="card">
-                <h2>Value Finder (Multi-Sport)</h2>
+                <h2>Arbitrage Bet Finder</h2>
                 <div class="small-text" style="margin-bottom: 0.75rem;">
-                    Find the best +EV bets across multiple sports and markets
+                    Discover arbitrage opportunities across multiple sports and markets by comparing odds between sportsbooks
                 </div>
 
                 <label>Select Sports (multiple)</label>
@@ -253,15 +281,15 @@
                         <span style="margin-left: 0.5rem;">NBA</span>
                     </label>
                     <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" />
+                        <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" checked />
                         <span style="margin-left: 0.5rem;">NFL</span>
                     </label>
                     <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" />
+                        <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" checked />
                         <span style="margin-left: 0.5rem;">NCAAB</span>
                     </label>
                     <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" />
+                        <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" checked />
                         <span style="margin-left: 0.5rem;">NCAAF</span>
                     </label>
                 </div>
@@ -299,16 +327,16 @@
                 </select>
 
                 <label for="best-max-results-input">Max results</label>
-                <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="50" />
+                <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="10" />
 
-                <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #1f2937; border-radius: 4px;">
+                <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
                     <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
                     <span>Use Dummy Data (for development when API credits are exhausted)</span>
                 </label>
 
                 <div style="margin-top: 0.75rem;">
-                    <button class="btn btn-primary" id="find-best-btn">Find Best Value Plays</button>
-                    <button class="btn btn-secondary" id="profit-boost-btn">Find Profit Boost Plays (+200+)</button>
+                    <button class="btn btn-primary" id="find-best-btn">Find Arbitrage Opportunities</button>
+                    <button class="btn btn-secondary" id="profit-boost-btn">Find High-Odds Arbitrage (+200+)</button>
                     <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
                 </div>
 
@@ -319,7 +347,7 @@
         <!-- Results Panel -->
         <div class="results-panel">
             <section class="card" id="best-results-section" style="display: none;">
-                <h2>Best Value Plays (All Sports/Markets)</h2>
+                <h2>Arbitrage Opportunities (All Sports/Markets)</h2>
                 <div class="small-text" id="best-summary-bar"></div>
                 <div class="scroll-container">
                     <table>
@@ -328,13 +356,12 @@
                                 <th>Sport</th>
                                 <th>Market</th>
                                 <th>Recommended Bet</th>
-                                <th>Outcome (Book)</th>
                                 <th>Matchup</th>
                                 <th>Start Time</th>
                                 <th>Compare Price</th>
                                 <th>Opposite Side</th>
                                 <th>Hedge Bet (Book)</th>
-                                <th>Hedge EV%</th>
+                                <th>Arbitrage Margin</th>
                                 <th>EV% (approx)</th>
                             </tr>
                         </thead>
@@ -437,19 +464,229 @@
                 "seattle seahawks": "sea",
                 "tampa bay buccaneers": "tb",
                 "tennessee titans": "ten",
-                "washington commanders": "wsh"
+                "washington commanders": "wsh",
+                // NCAAB - Major Teams
+                "alabama crimson tide": "333",
+                "arizona wildcats": "12",
+                "arizona state sun devils": "9",
+                "arkansas razorbacks": "8",
+                "auburn tigers": "2",
+                "baylor bears": "239",
+                "butler bulldogs": "2086",
+                "cincinnati bearcats": "2132",
+                "clemson tigers": "228",
+                "colorado buffaloes": "38",
+                "connecticut huskies": "41",
+                "creighton bluejays": "154",
+                "duke blue devils": "150",
+                "florida gators": "57",
+                "florida state seminoles": "52",
+                "georgetown hoyas": "46",
+                "georgia bulldogs": "61",
+                "georgia tech yellow jackets": "59",
+                "gonzaga bulldogs": "2250",
+                "houston cougars": "248",
+                "illinois fighting illini": "356",
+                "indiana hoosiers": "84",
+                "iowa hawkeyes": "2294",
+                "iowa state cyclones": "66",
+                "kansas jayhawks": "2305",
+                "kansas state wildcats": "2306",
+                "kentucky wildcats": "96",
+                "louisville cardinals": "97",
+                "lsu tigers": "99",
+                "marquette golden eagles": "269",
+                "maryland terrapins": "120",
+                "memphis tigers": "235",
+                "michigan state spartans": "127",
+                "michigan wolverines": "130",
+                "miami hurricanes": "2390",
+                "minnesota golden gophers": "135",
+                "mississippi state bulldogs": "344",
+                "missouri tigers": "142",
+                "north carolina tar heels": "153",
+                "north carolina state wolfpack": "152",
+                "northwestern wildcats": "77",
+                "notre dame fighting irish": "87",
+                "ohio state buckeyes": "194",
+                "oklahoma sooners": "201",
+                "oklahoma state cowboys": "197",
+                "oregon ducks": "2483",
+                "oregon state beavers": "204",
+                "penn state nittany lions": "213",
+                "pittsburgh panthers": "221",
+                "purdue boilermakers": "2509",
+                "rutgers scarlet knights": "164",
+                "san diego state aztecs": "21",
+                "south carolina gamecocks": "2579",
+                "stanford cardinal": "24",
+                "syracuse orange": "183",
+                "tcu horned frogs": "2628",
+                "tennessee volunteers": "2633",
+                "texas longhorns": "251",
+                "texas a&m aggies": "245",
+                "texas tech red raiders": "2641",
+                "ucla bruins": "26",
+                "usc trojans": "30",
+                "utah utes": "254",
+                "villanova wildcats": "222",
+                "virginia cavaliers": "258",
+                "virginia tech hokies": "259",
+                "washington huskies": "264",
+                "washington state cougars": "265",
+                "west virginia mountaineers": "277",
+                "wisconsin badgers": "275",
+                "xavier musketeers": "2752",
+                // NCAAF - Major Teams
+                "alabama crimson tide": "333",
+                "arizona wildcats": "12",
+                "arizona state sun devils": "9",
+                "arkansas razorbacks": "8",
+                "auburn tigers": "2",
+                "baylor bears": "239",
+                "boise state broncos": "68",
+                "boston college eagles": "103",
+                "byu cougars": "252",
+                "california golden bears": "25",
+                "central florida knights": "2116",
+                "cincinnati bearcats": "2132",
+                "clemson tigers": "228",
+                "colorado buffaloes": "38",
+                "florida gators": "57",
+                "florida state seminoles": "52",
+                "georgia bulldogs": "61",
+                "georgia tech yellow jackets": "59",
+                "houston cougars": "248",
+                "illinois fighting illini": "356",
+                "iowa hawkeyes": "2294",
+                "iowa state cyclones": "66",
+                "kansas jayhawks": "2305",
+                "kansas state wildcats": "2306",
+                "kentucky wildcats": "96",
+                "louisville cardinals": "97",
+                "lsu tigers": "99",
+                "maryland terrapins": "120",
+                "memphis tigers": "235",
+                "miami hurricanes": "2390",
+                "michigan state spartans": "127",
+                "michigan wolverines": "130",
+                "minnesota golden gophers": "135",
+                "mississippi state bulldogs": "344",
+                "mississippi rebels": "145",
+                "missouri tigers": "142",
+                "nebraska cornhuskers": "158",
+                "north carolina tar heels": "153",
+                "north carolina state wolfpack": "152",
+                "northwestern wildcats": "77",
+                "notre dame fighting irish": "87",
+                "ohio state buckeyes": "194",
+                "oklahoma sooners": "201",
+                "oklahoma state cowboys": "197",
+                "oregon ducks": "2483",
+                "oregon state beavers": "204",
+                "penn state nittany lions": "213",
+                "pittsburgh panthers": "221",
+                "purdue boilermakers": "2509",
+                "rutgers scarlet knights": "164",
+                "south carolina gamecocks": "2579",
+                "stanford cardinal": "24",
+                "tcu horned frogs": "2628",
+                "tennessee volunteers": "2633",
+                "texas longhorns": "251",
+                "texas a&m aggies": "245",
+                "texas tech red raiders": "2641",
+                "tulane green wave": "2655",
+                "ucla bruins": "26",
+                "usc trojans": "30",
+                "utah utes": "254",
+                "virginia cavaliers": "258",
+                "virginia tech hokies": "259",
+                "wake forest demon deacons": "154",
+                "washington huskies": "264",
+                "washington state cougars": "265",
+                "west virginia mountaineers": "277",
+                "wisconsin badgers": "275"
             };
             
-            const normalized = teamName.toLowerCase().trim();
+            // Normalize team name: lowercase, trim, and remove extra spaces
+            const normalized = teamName.toLowerCase().trim().replace(/\s+/g, ' ');
             let teamCode = teamMapping[normalized];
             
             // If no mapping found, try to extract from common patterns
             if (!teamCode) {
-                // Try to match partial names
-                for (const [key, code] of Object.entries(teamMapping)) {
-                    if (normalized.includes(key) || key.includes(normalized)) {
+                // First, try exact matches with common short names and variations
+                const shortNameMapping = {
+                    "kansas": "2305",  // Kansas Jayhawks
+                    "kansas jayhawks": "2305",
+                    "jayhawks": "2305",
+                    "arizona": "12",   // Arizona Wildcats
+                    "arizona wildcats": "12",
+                    "wildcats": "12",  // Could match multiple, but Arizona is most common
+                    "kentucky": "96",   // Kentucky Wildcats
+                    "kentucky wildcats": "96",
+                    "duke": "150",     // Duke Blue Devils
+                    "duke blue devils": "150",
+                    "north carolina": "153",  // North Carolina Tar Heels
+                    "north carolina tar heels": "153",
+                    "tar heels": "153",
+                    "ucla": "26",      // UCLA Bruins
+                    "ucla bruins": "26",
+                    "usc": "30",       // USC Trojans
+                    "usc trojans": "30",
+                    "texas": "251",    // Texas Longhorns
+                    "texas longhorns": "251",
+                    "michigan": "130", // Michigan Wolverines
+                    "michigan wolverines": "130",
+                    "ohio state": "194", // Ohio State Buckeyes
+                    "ohio state buckeyes": "194",
+                    "alabama": "333",   // Alabama Crimson Tide
+                    "alabama crimson tide": "333",
+                    "georgia": "61",    // Georgia Bulldogs
+                    "georgia bulldogs": "61",
+                    "lsu": "99",       // LSU Tigers
+                    "lsu tigers": "99",
+                    "florida": "57",    // Florida Gators
+                    "florida gators": "57",
+                    "tennessee": "2633", // Tennessee Volunteers
+                    "tennessee volunteers": "2633",
+                    "oklahoma": "201",  // Oklahoma Sooners
+                    "oklahoma sooners": "201",
+                    "oregon": "2483",   // Oregon Ducks
+                    "oregon ducks": "2483",
+                    "wisconsin": "275", // Wisconsin Badgers
+                    "wisconsin badgers": "275",
+                    "penn state": "213", // Penn State Nittany Lions
+                    "penn state nittany lions": "213",
+                    "notre dame": "87"  // Notre Dame Fighting Irish
+                };
+                
+                // Check short name mapping
+                for (const [shortName, code] of Object.entries(shortNameMapping)) {
+                    if (normalized === shortName || normalized.startsWith(shortName + " ") || normalized.endsWith(" " + shortName)) {
                         teamCode = code;
                         break;
+                    }
+                }
+                
+                // If still not found, try to match partial names (improved logic)
+                if (!teamCode) {
+                    // Extract first significant word (skip common words like "the", "at", etc.)
+                    const words = normalized.split(/\s+/);
+                    const firstWord = words.length > 0 ? words[0] : normalized;
+                    const secondWord = words.length > 1 ? words[1] : null;
+                    
+                    for (const [key, code] of Object.entries(teamMapping)) {
+                        // Check if normalized name is contained in key or vice versa
+                        // Also check if key starts with normalized (e.g., "kansas" matches "kansas jayhawks")
+                        if (normalized === key || 
+                            key.startsWith(normalized + " ") || 
+                            normalized.startsWith(key + " ") ||
+                            key.startsWith(firstWord + " ") ||
+                            (normalized.length >= 3 && key.includes(normalized)) ||
+                            (key.length >= 3 && normalized.includes(key))) {
+                            teamCode = code;
+                            break;
+                        }
                     }
                 }
             }
@@ -457,9 +694,11 @@
             // Determine sport for ESPN URL
             let sportPath = "nba";
             if (sportKey) {
-                if (sportKey.includes("football") || sportKey.includes("nfl") || sportKey.includes("ncaaf")) {
+                if (sportKey.includes("ncaaf") || sportKey.includes("ncaab")) {
+                    sportPath = "ncaa";
+                } else if (sportKey.includes("football") || sportKey.includes("nfl")) {
                     sportPath = "nfl";
-                } else if (sportKey.includes("basketball") || sportKey.includes("nba") || sportKey.includes("ncaab")) {
+                } else if (sportKey.includes("basketball") || sportKey.includes("nba")) {
                     sportPath = "nba";
                 }
             }
@@ -557,7 +796,7 @@
 
             if (!data || !data.plays || data.plays.length === 0) {
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-                body.innerHTML = `<tr><td colspan="9" class="small-text">No value plays found (maybe market is empty or ${compareBookLabel} not available).</td></tr>`;
+                body.innerHTML = `<tr><td colspan="9" class="small-text">No arbitrage opportunities found (maybe market is empty or ${compareBookLabel} not available).</td></tr>`;
                 return;
             }
 
@@ -722,7 +961,7 @@
                 // Don't wipe lastValueData instantly; let new data overwrite.
                 setSummary("");
             }
-            setStatus("Fetching value plays...");
+            setStatus("Fetching arbitrage opportunities...");
             try {
                 const res = await fetch("/api/value-plays", {
                     method: "POST",
@@ -746,7 +985,7 @@
 
                 const playsCount = (data.plays || []).length;
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked").textContent;
-                setSummary(`Showing top ${playsCount} raw value plays for ${book} in market "${market}" vs ${compareBookLabel}. Filter: ${filterHedgeOnly ? "Hedgeable only" : "All"}.`);
+                setSummary(`Showing top ${playsCount} arbitrage opportunities for ${book} in market "${market}" vs ${compareBookLabel}. Filter: ${filterHedgeOnly ? "Hedgeable only" : "All"}.`);
                 const bookLabel = document.querySelector("#book-select option:checked").textContent;
                 renderSGP(data.sgp_suggestion, bookLabel);
                 setStatus("Done.");
@@ -766,7 +1005,7 @@
                 valuePollTimer = null;
             }
 
-            setStatus("Watching value plays...");
+            setStatus("Watching for arbitrage opportunities...");
             document.getElementById("start-loop-btn").disabled = true;
             document.getElementById("find-btn").disabled = true;
             document.getElementById("stop-loop-btn").disabled = false;
@@ -800,7 +1039,7 @@
             renderValueFromState();
         }
 
-        // Best Value Finder Functions
+        // Arbitrage Finder Functions
         function setBestStatus(msg) {
             document.getElementById("best-status-bar").textContent = msg;
         }
@@ -823,17 +1062,17 @@
             section.style.display = "block";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="11" class="small-text">No value plays found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="10" class="small-text">No arbitrage opportunities found.</td></tr>';
                 return;
             }
 
             let plays = data.plays;
             
-            // Filter for profit boost plays (+200 to +300, and above +300)
+            // Filter for high-odds arbitrage opportunities (+200 to +300, and above +300)
             if (profitBoostOnly) {
                 plays = plays.filter(p => p.book_price >= 200);
                 if (plays.length === 0) {
-                    body.innerHTML = '<tr><td colspan="11" class="small-text">No profit boost plays found (+200 odds and above).</td></tr>';
+                    body.innerHTML = '<tr><td colspan="10" class="small-text">No high-odds arbitrage opportunities found (+200 odds and above).</td></tr>';
                     return;
                 }
             }
@@ -864,39 +1103,61 @@
 
                 const bookCell = document.createElement("td");
                 const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
-                const teamName = parseTeamFromOutcome(play.outcome_name);
+                let teamName = parseTeamFromOutcome(play.outcome_name);
                 const marketLabel = marketLabels[play.market] || play.market;
                 const formattedOdds = formatAmericanOdds(play.book_price);
-                let betDescription = `${teamName} ${marketLabel === "Moneyline" ? "ML" : marketLabel === "Spreads" ? "Spread" : marketLabel}`;
-                if (play.point !== null && play.point !== undefined) {
-                    betDescription += ` ${play.point > 0 ? "+" : ""}${play.point}`;
+                
+                // For totals markets, extract team from matchup since outcome is "Over" or "Under"
+                let logoTeamName = teamName;
+                if (play.market === "totals" && play.matchup) {
+                    const teams = parseTeamsFromMatchup(play.matchup);
+                    // Use the first team (away team) for the logo
+                    logoTeamName = teams.away || teams.home || null;
                 }
-                betDescription += ` ${formattedOdds} at ${targetBookLabel}`;
-                bookCell.innerHTML = `<strong>${betDescription}</strong>`;
+                
+                // Create container for recommended bet with logo
+                const betContainer = document.createElement("div");
+                betContainer.style.display = "flex";
+                betContainer.style.alignItems = "center";
+                betContainer.style.gap = "0.4rem";
+                
+                // Add logo if we have a team name
+                if (logoTeamName) {
+                    const logo = document.createElement("img");
+                    logo.className = "team-logo";
+                    logo.src = getTeamLogoUrl(logoTeamName, play.sport_key || null);
+                    logo.alt = logoTeamName;
+                    logo.onerror = function() {
+                        this.style.display = "none";
+                    };
+                    betContainer.appendChild(logo);
+                }
+                
+                // Add bet description
+                const betText = document.createElement("span");
+                let betDescription = "";
+                if (play.market === "totals") {
+                    // For totals, use the outcome name (which already includes the point like "Over 221.0")
+                    betDescription = `${play.outcome_name || "Total"}`;
+                    // Add matchup teams to the description
+                    if (play.matchup) {
+                        betDescription += ` - ${play.matchup}`;
+                    }
+                } else {
+                    // For other markets, use team name
+                    betDescription = `${teamName || ""} ${marketLabel === "Moneyline" ? "ML" : marketLabel === "Spreads" ? "Spread" : marketLabel}`;
+                    if (play.point !== null && play.point !== undefined) {
+                        betDescription += ` ${play.point > 0 ? "+" : ""}${play.point}`;
+                    }
+                }
+                betText.innerHTML = `<strong>${betDescription} ${formattedOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
+                betContainer.appendChild(betText);
+                
+                bookCell.appendChild(betContainer);
                 tr.appendChild(bookCell);
 
-                const outcomeCell = document.createElement("td");
-                const teamWithLogo = createTeamNameWithLogo(teamName, play.sport_key || null);
-                outcomeCell.appendChild(teamWithLogo);
-                if (play.point !== null && play.point !== undefined) {
-                    const pointSpan = document.createElement("span");
-                    pointSpan.textContent = " @ " + play.point;
-                    outcomeCell.appendChild(pointSpan);
-                }
-                tr.appendChild(outcomeCell);
-
                 const matchupCell = document.createElement("td");
-                const teams = parseTeamsFromMatchup(play.matchup);
-                if (teams.away && teams.home) {
-                    matchupCell.appendChild(createTeamNameWithLogo(teams.away, play.sport_key || null));
-                    const vsSpan = document.createElement("span");
-                    vsSpan.textContent = " @ ";
-                    vsSpan.style.margin = "0 0.3rem";
-                    matchupCell.appendChild(vsSpan);
-                    matchupCell.appendChild(createTeamNameWithLogo(teams.home, play.sport_key || null));
-                } else {
-                    matchupCell.textContent = play.matchup || "";
-                }
+                matchupCell.textContent = play.matchup || "";
                 tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
@@ -911,8 +1172,7 @@
 
                 const oppCell = document.createElement("td");
                 if (play.novig_reverse_name) {
-                    const oppTeamName = parseTeamFromOutcome(play.novig_reverse_name);
-                    oppCell.appendChild(createTeamNameWithLogo(oppTeamName, play.sport_key || null));
+                    oppCell.textContent = play.novig_reverse_name;
                 } else {
                     oppCell.innerHTML = '<span class="small-text">-</span>';
                 }
@@ -976,9 +1236,9 @@
             const sportKeys = Array.from(sportCheckboxes).map(cb => cb.value);
             const markets = Array.from(marketCheckboxes).map(cb => cb.value);
 
-            setBestStatus(profitBoostOnly ? "Searching for profit boost plays (+200 odds and above)..." : "Searching across sports and markets...");
+            setBestStatus(profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...");
             if (useDummyData) {
-                setBestStatus((profitBoostOnly ? "Searching for profit boost plays (+200 odds and above)..." : "Searching across sports and markets...") + " [DUMMY DATA MODE]");
+                setBestStatus((profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...") + " [DUMMY DATA MODE]");
             }
             clearBestResults();
 
@@ -1009,9 +1269,9 @@
                 }
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked").textContent;
                 if (profitBoostOnly) {
-                    setBestSummary(`Found ${playsCount} profit boost plays (+200 to +300+ odds) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Hedge EV% (vs ${compareBookLabel}).`);
+                    setBestSummary(`Found ${playsCount} high-odds arbitrage opportunities (+200 to +300+ odds) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 } else {
-                    setBestSummary(`Found ${playsCount} best value plays across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Hedge EV% (vs ${compareBookLabel}).`);
+                    setBestSummary(`Found ${playsCount} arbitrage opportunities across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 }
                 setBestStatus("Done.");
             } catch (e) {
@@ -1033,12 +1293,12 @@
                 localStorage.setItem("useDummyData", e.target.checked ? "true" : "false");
             });
             
-            // Best Value Finder buttons
+            // Arbitrage Finder buttons
             document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays(false);
             document.getElementById("profit-boost-btn").onclick = () => fetchBestValuePlays(true);
             document.getElementById("clear-best-btn").onclick = clearBestResults;
 
-            // Best value finder book validation
+            // Arbitrage finder book validation
             const bestTargetBook = document.getElementById("best-target-book-select");
             const bestCompareBook = document.getElementById("best-compare-book-select");
             
