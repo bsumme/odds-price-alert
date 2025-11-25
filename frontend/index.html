@@ -46,8 +46,18 @@
 
         main {
             padding: 1.5rem;
-            max-width: 1400px;
+            max-width: 1800px;
             margin: 0 auto;
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1200px) {
+            main {
+                grid-template-columns: 1fr;
+            }
         }
 
         .card {
@@ -202,10 +212,13 @@
             border-color: #15803d;
         }
 
-        @media (max-width: 900px) {
-            main {
-                grid-template-columns: minmax(0, 1fr);
-            }
+        .filter-panel {
+            position: sticky;
+            top: 1.5rem;
+        }
+
+        .results-panel {
+            min-width: 0;
         }
     </style>
 </head>
@@ -225,108 +238,112 @@
     </header>
 
     <main>
-        <!-- Best Value Finder Section -->
-        <section class="card">
-            <h2>Value Finder (Multi-Sport)</h2>
-            <div class="small-text" style="margin-bottom: 0.75rem;">
-                Find the best +EV bets across multiple sports and markets
-            </div>
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <section class="card">
+                <h2>Value Finder (Multi-Sport)</h2>
+                <div class="small-text" style="margin-bottom: 0.75rem;">
+                    Find the best +EV bets across multiple sports and markets
+                </div>
 
-            <label>Select Sports (multiple)</label>
-            <div style="margin-bottom: 0.5rem;">
-                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                    <input type="checkbox" class="sport-checkbox" value="basketball_nba" checked />
-                    <span style="margin-left: 0.5rem;">NBA</span>
+                <label>Select Sports (multiple)</label>
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                        <input type="checkbox" class="sport-checkbox" value="basketball_nba" checked />
+                        <span style="margin-left: 0.5rem;">NBA</span>
+                    </label>
+                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                        <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" />
+                        <span style="margin-left: 0.5rem;">NFL</span>
+                    </label>
+                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                        <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" />
+                        <span style="margin-left: 0.5rem;">NCAAB</span>
+                    </label>
+                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                        <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" />
+                        <span style="margin-left: 0.5rem;">NCAAF</span>
+                    </label>
+                </div>
+
+                <label>Select Markets (multiple)</label>
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                        <input type="checkbox" class="market-checkbox" value="h2h" checked />
+                        <span style="margin-left: 0.5rem;">Moneyline (h2h)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                        <input type="checkbox" class="market-checkbox" value="spreads" checked />
+                        <span style="margin-left: 0.5rem;">Spreads</span>
+                    </label>
+                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                        <input type="checkbox" class="market-checkbox" value="totals" checked />
+                        <span style="margin-left: 0.5rem;">Totals</span>
+                    </label>
+                </div>
+
+                <label for="best-target-book-select">Target book</label>
+                <select id="best-target-book-select">
+                    <option value="draftkings">DraftKings</option>
+                    <option value="fanduel">FanDuel</option>
+                    <option value="fliff">Fliff</option>
+                    <option value="novig">Novig</option>
+                </select>
+
+                <label for="best-compare-book-select">Compare against</label>
+                <select id="best-compare-book-select">
+                    <option value="novig" selected>Novig</option>
+                    <option value="draftkings">DraftKings</option>
+                    <option value="fanduel">FanDuel</option>
+                    <option value="fliff">Fliff</option>
+                </select>
+
+                <label for="best-max-results-input">Max results</label>
+                <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="50" />
+
+                <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #1f2937; border-radius: 4px;">
+                    <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
+                    <span>Use Dummy Data (for development when API credits are exhausted)</span>
                 </label>
-                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                    <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" />
-                    <span style="margin-left: 0.5rem;">NFL</span>
-                </label>
-                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                    <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" />
-                    <span style="margin-left: 0.5rem;">NCAAB</span>
-                </label>
-                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                    <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" />
-                    <span style="margin-left: 0.5rem;">NCAAF</span>
-                </label>
-            </div>
 
-            <label>Select Markets (multiple)</label>
-            <div style="margin-bottom: 0.5rem;">
-                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                    <input type="checkbox" class="market-checkbox" value="h2h" checked />
-                    <span style="margin-left: 0.5rem;">Moneyline (h2h)</span>
-                </label>
-                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                    <input type="checkbox" class="market-checkbox" value="spreads" checked />
-                    <span style="margin-left: 0.5rem;">Spreads</span>
-                </label>
-                <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                    <input type="checkbox" class="market-checkbox" value="totals" checked />
-                    <span style="margin-left: 0.5rem;">Totals</span>
-                </label>
-            </div>
+                <div style="margin-top: 0.75rem;">
+                    <button class="btn btn-primary" id="find-best-btn">Find Best Value Plays</button>
+                    <button class="btn btn-secondary" id="profit-boost-btn">Find Profit Boost Plays (+200+)</button>
+                    <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
+                </div>
 
-            <label for="best-target-book-select">Target book</label>
-            <select id="best-target-book-select">
-                <option value="draftkings">DraftKings</option>
-                <option value="fanduel">FanDuel</option>
-                <option value="fliff">Fliff</option>
-                <option value="novig">Novig</option>
-            </select>
+                <div class="status-bar" id="best-status-bar">Ready.</div>
+            </section>
+        </div>
 
-            <label for="best-compare-book-select">Compare against</label>
-            <select id="best-compare-book-select">
-                <option value="novig" selected>Novig</option>
-                <option value="draftkings">DraftKings</option>
-                <option value="fanduel">FanDuel</option>
-                <option value="fliff">Fliff</option>
-            </select>
-
-            <label for="best-max-results-input">Max results</label>
-            <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="50" />
-
-            <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #1f2937; border-radius: 4px;">
-                <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
-                <span>Use Dummy Data (for development when API credits are exhausted)</span>
-            </label>
-
-            <div style="margin-top: 0.75rem;">
-                <button class="btn btn-primary" id="find-best-btn">Find Best Value Plays</button>
-                <button class="btn btn-secondary" id="profit-boost-btn">Find Profit Boost Plays (+200+)</button>
-                <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
-            </div>
-
-            <div class="status-bar" id="best-status-bar">Ready.</div>
-        </section>
-
-        <!-- Best Value Results Section -->
-        <section class="card" id="best-results-section" style="display: none;">
-            <h2>Best Value Plays (All Sports/Markets)</h2>
-            <div class="small-text" id="best-summary-bar"></div>
-            <div class="scroll-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Sport</th>
-                            <th>Market</th>
-                            <th>Recommended Bet</th>
-                            <th>Outcome (Book)</th>
-                            <th>Matchup</th>
-                            <th>Start Time</th>
-                            <th>Compare Price</th>
-                            <th>Opposite Side</th>
-                            <th>Hedge Bet (Book)</th>
-                            <th>Hedge EV%</th>
-                            <th>EV% (approx)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="best-results-body">
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        <!-- Results Panel -->
+        <div class="results-panel">
+            <section class="card" id="best-results-section" style="display: none;">
+                <h2>Best Value Plays (All Sports/Markets)</h2>
+                <div class="small-text" id="best-summary-bar"></div>
+                <div class="scroll-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Sport</th>
+                                <th>Market</th>
+                                <th>Recommended Bet</th>
+                                <th>Outcome (Book)</th>
+                                <th>Matchup</th>
+                                <th>Start Time</th>
+                                <th>Compare Price</th>
+                                <th>Opposite Side</th>
+                                <th>Hedge Bet (Book)</th>
+                                <th>Hedge EV%</th>
+                                <th>EV% (approx)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="best-results-body">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
     </main>
 
     <script>
@@ -589,7 +606,7 @@
                 tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
-                startCell.textContent = play.start_time || "";
+                startCell.textContent = formatStartTime(play.start_time);
                 tr.appendChild(startCell);
 
                 const compareCell = document.createElement("td");
@@ -883,7 +900,7 @@
                 tr.appendChild(matchupCell);
 
                 const startCell = document.createElement("td");
-                startCell.textContent = play.start_time || "";
+                startCell.textContent = formatStartTime(play.start_time);
                 tr.appendChild(startCell);
 
                 const compareCell = document.createElement("td");
