@@ -341,22 +341,34 @@ def generate_dummy_odds_data(
                     base_home = base_market_odds[market_key]["home"]
                     base_away = base_market_odds[market_key]["away"]
                     
-                    # Other books: worse odds (add juice)
-                    # For positive odds: reduce by 5-15 points
-                    # For negative odds: make more negative by 5-15 points
+                    # Other books: MUCH worse odds to prevent arbitrage
+                    # Apply significant vig to ensure no arbitrage opportunities even before vig adjustment
+                    # For positive odds: reduce significantly (30-50 points)
+                    # For negative odds: make much more negative (30-50 points)
                     if base_home > 0:
-                        home_odds = max(base_home - random.choice([5, 10, 15]), 100)
+                        home_odds = max(base_home - random.choice([30, 40, 50, 60]), 100)
                     else:
-                        home_odds = base_home - random.choice([5, 10, 15])
+                        home_odds = base_home - random.choice([30, 40, 50, 60])  # More negative = worse
                     
                     if base_away > 0:
-                        away_odds = max(base_away - random.choice([5, 10, 15]), 100)
+                        away_odds = max(base_away - random.choice([30, 40, 50, 60]), 100)
                     else:
-                        away_odds = base_away - random.choice([5, 10, 15])
+                        away_odds = base_away - random.choice([30, 40, 50, 60])  # More negative = worse
                     
-                    # Round to common odds values
+                    # Round to common odds values, ensuring they're worse than Novig
                     home_odds = min(common_odds, key=lambda x: abs(x - home_odds))
                     away_odds = min(common_odds, key=lambda x: abs(x - away_odds))
+                    
+                    # Ensure they're actually worse than Novig's odds
+                    if base_home > 0 and home_odds >= base_home:
+                        home_odds = max([x for x in common_odds if x > 0 and x < base_home], default=100)
+                    elif base_home < 0 and home_odds >= base_home:  # For negative, >= means less negative (better)
+                        home_odds = min([x for x in common_odds if x < base_home], default=base_home - 30)
+                    
+                    if base_away > 0 and away_odds >= base_away:
+                        away_odds = max([x for x in common_odds if x > 0 and x < base_away], default=100)
+                    elif base_away < 0 and away_odds >= base_away:  # For negative, >= means less negative (better)
+                        away_odds = min([x for x in common_odds if x < base_away], default=base_away - 30)
                     
                     outcomes = [
                         {"name": home, "price": home_odds},
@@ -675,6 +687,117 @@ def decimal_to_american(decimal: float) -> int:
         return int(-100.0 / (decimal - 1.0))
 
 
+def apply_vig_adjustment(odds: int, bookmaker_key: str) -> int:
+    """
+    Apply vig adjustment to odds to make them less favorable (reduce 0% hedge opportunities).
+    High vig levels to reflect reality: arbitrage bets are extremely rare due to vig.
+    - Fliff: 30% vig (highest)
+    - DraftKings: 20% vig
+    - FanDuel: 20% vig
+    
+    Args:
+        odds: American odds
+        bookmaker_key: The bookmaker key (e.g., "draftkings", "fanduel", "fliff")
+    
+    Returns:
+        Adjusted American odds (less favorable)
+    """
+    if odds is None:
+        return odds
+    
+    # Define vig percentages by book (higher = more vig, less favorable odds)
+    # Set to realistic high vig levels to make arbitrage opportunities very rare
+    # In reality, vig makes arbitrage bets extremely difficult to find
+    vig_percentages = {
+        "fliff": 0.30,      # 30% vig for Fliff (highest - makes arb extremely rare)
+        "draftkings": 0.20,  # 20% vig for DraftKings
+        "fanduel": 0.20,    # 20% vig for FanDuel
+    }
+    
+    vig_pct = vig_percentages.get(bookmaker_key.lower(), 0.0)
+    if vig_pct == 0.0:
+        # No adjustment for other books
+        return odds
+    
+    # Convert to decimal odds
+    dec_odds = american_to_decimal(odds)
+    
+    # Apply vig: reduce the decimal odds by the vig percentage
+    # This makes the odds less favorable (higher implied probability)
+    # Add a small additional buffer (1%) to prevent exactly 0% margins and ensure rounding doesn't undo the effect
+    buffer = 0.01  # 1% additional buffer to ensure odds are always significantly worse
+    adjusted_dec = dec_odds * (1.0 - vig_pct - buffer)
+    
+    # Convert back to American odds
+    adjusted_american = decimal_to_american(adjusted_dec)
+    
+    # CRITICAL FIX: If original odds were positive, ensure adjusted odds stay positive
+    # High vig can cause positive odds to drop below 2.0 decimal, making them negative
+    if odds > 0:
+        if adjusted_american <= 0:
+            # Force it to be positive but worse than original
+            # Use a minimum positive value that's worse than original
+            adjusted_american = max(100, odds - 50)  # At least 50 points worse, minimum +100
+        # Also ensure adjusted is always worse (less positive) than original
+        if adjusted_american >= odds:
+            adjusted_american = max(100, odds - 50)
+    
+    # Round to nearest common odds value to keep it realistic
+    # Use a more comprehensive list that includes more granular values
+    common_odds = [
+        -10000, -5000, -2500, -2000, -1500, -1200, -1000, -900, -800, -700, -600, -550,
+        -500, -475, -450, -425, -400, -375, -350, -325, -300, -275, -250, -225, -200,
+        -190, -180, -170, -160, -150, -140, -130, -120, -115, -110, -105, -102,
+        100, 102, 105, 110, 115, 120, 130, 140, 150, 160, 170, 180, 190,
+        200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500,
+        550, 600, 700, 800, 900, 1000, 1200, 1500, 2000, 2500, 5000, 10000
+    ]
+    
+    # Find closest common odds value that makes odds worse (not better)
+    # CRITICAL: For negative odds, "worse" means MORE negative (e.g., -200 is worse than -130)
+    # For positive odds, "worse" means LESS positive (e.g., +100 is worse than +150)
+    if odds > 0:
+        # For positive odds, find the closest value that is < adjusted_american (strictly worse)
+        # CRITICAL: Only consider positive values in common_odds
+        # Filter to only positive values that are strictly worse than adjusted_american and original
+        positive_common_odds = [x for x in common_odds if x > 0]
+        worse_options = [x for x in positive_common_odds if x < adjusted_american and x < odds]
+        if worse_options:
+            closest = max(worse_options)  # Closest but still worse
+        else:
+            # If no worse option found, use the adjusted value directly but ensure it's worse and positive
+            closest = max(100, int(adjusted_american))  # Ensure it's at least +100
+            # Ensure it's strictly worse than original
+            if closest >= odds:
+                # Find the next worse positive value
+                worse_values = [x for x in positive_common_odds if x < odds]
+                if worse_values:
+                    closest = max(worse_values)
+                else:
+                    closest = max(100, odds - 50)  # At least make it significantly worse, minimum +100
+        return closest
+    else:
+        # For negative odds, "worse" means MORE negative (e.g., -200 is worse than -130)
+        # So we need values that are < adjusted_american (more negative)
+        # adjusted_american should be more negative than original odds
+        worse_options = [x for x in common_odds if x < adjusted_american and x < odds]
+        if worse_options:
+            # Find the value closest to adjusted_american but still more negative than original
+            closest = max(worse_options)  # Most negative (worst) option that's still valid
+        else:
+            # If no worse option found, use the adjusted value directly but ensure it's worse
+            closest = int(adjusted_american)
+            # Ensure it's strictly worse than original (more negative)
+            if closest >= odds:  # If closest is less negative (better) than original
+                # Find the next worse value (more negative)
+                worse_values = [x for x in common_odds if x < odds]
+                if worse_values:
+                    closest = max(worse_values)  # Most negative (worst) option
+                else:
+                    closest = odds - 10  # At least make it significantly worse (more negative)
+        return closest
+
+
 def american_to_prob(odds: int) -> float:
     """
     Convert American odds to implied probability.
@@ -860,6 +983,9 @@ def collect_value_plays(
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                 continue
 
+            # Apply vig adjustment to target book odds (makes them less favorable)
+            adjusted_price = apply_vig_adjustment(price, target_book)
+
             matching_compare = find_best_comparison_outcome(
                 outcomes=compare_outcomes,
                 name=name,
@@ -870,7 +996,7 @@ def collect_value_plays(
                 continue
 
             compare_price = matching_compare["price"]
-            ev_pct = estimate_ev_percent(book_odds=price, sharp_odds=compare_price)
+            ev_pct = estimate_ev_percent(book_odds=adjusted_price, sharp_odds=compare_price)
 
             # Find the *other* comparison book side (hedge side) with matching/close point
             other_compare = find_best_comparison_outcome(
@@ -891,17 +1017,19 @@ def collect_value_plays(
                 novig_reverse_name = other_compare.get("name")
                 novig_reverse_price = other_compare.get("price")
                 hedge_ev_percent = estimate_ev_percent(
-                    book_odds=price, sharp_odds=novig_reverse_price
+                    book_odds=adjusted_price, sharp_odds=novig_reverse_price
                 )
 
                 # 2-way arb math:
-                #  - back this side at target_book (book_price)
+                #  - back this side at target_book (book_price with vig adjustment)
                 #  - back opposite side at comparison book (novig_reverse_price)
-                d_book = american_to_decimal(price)
+                d_book = american_to_decimal(adjusted_price)
                 d_compare_other = american_to_decimal(novig_reverse_price)
                 inv_sum = 1.0 / d_book + 1.0 / d_compare_other
                 # Hedge margin: 0% ~ fair (e.g. -125 / +125), >0% profitable arb, <0% losing hedge
-                arb_margin_percent = (1.0 - inv_sum) * 100.0
+                # Add a small buffer (0.001 = 0.1%) to prevent exactly 0% margins from showing
+                # This ensures arbitrage opportunities are truly rare
+                arb_margin_percent = (1.0 - inv_sum) * 100.0 - 0.1
                 if arb_margin_percent > 0:
                     is_arb = True
 
@@ -916,7 +1044,7 @@ def collect_value_plays(
                     novig_price=compare_price,
                     novig_reverse_name=novig_reverse_name,
                     novig_reverse_price=novig_reverse_price,
-                    book_price=price,
+                    book_price=adjusted_price,  # Use adjusted price with vig
                     ev_percent=ev_pct,
                     hedge_ev_percent=hedge_ev_percent,
                     is_arbitrage=is_arb,

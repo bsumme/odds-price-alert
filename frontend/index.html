@@ -340,6 +340,20 @@
                     <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
                 </div>
 
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155;">
+                    <h3 style="margin-top: 0; font-size: 1rem; color: #bbf7d0;">🔔 Hedge Watcher</h3>
+                    <div class="small-text" style="margin-bottom: 0.75rem;">
+                        Continuously monitor for hedge opportunities (arbitrage margin ≥ 0%). Alerts will appear when new hedge plays are found.
+                    </div>
+                    <label for="watcher-interval-input">Check interval (seconds)</label>
+                    <input id="watcher-interval-input" type="number" min="30" max="300" step="10" value="60" />
+                    <div style="margin-top: 0.75rem;">
+                        <button class="btn btn-primary" id="start-watcher-btn">Start Watcher</button>
+                        <button class="btn btn-secondary" id="stop-watcher-btn" disabled>Stop Watcher</button>
+                    </div>
+                    <div class="status-bar" id="watcher-status-bar" style="margin-top: 0.5rem;">Watcher stopped.</div>
+                </div>
+
                 <div class="status-bar" id="best-status-bar">Ready.</div>
             </section>
         </div>
@@ -354,15 +368,12 @@
                         <thead>
                             <tr>
                                 <th>Sport</th>
-                                <th>Market</th>
                                 <th>Recommended Bet</th>
                                 <th>Matchup</th>
                                 <th>Start Time</th>
                                 <th>Compare Price</th>
-                                <th>Opposite Side</th>
-                                <th>Hedge Bet (Book)</th>
+                                <th>Hedge Bet</th>
                                 <th>Arbitrage Margin</th>
-                                <th>EV% (approx)</th>
                             </tr>
                         </thead>
                         <tbody id="best-results-body">
@@ -377,6 +388,9 @@
         let valuePollTimer = null;
         let lastValueData = null;
         let filterHedgeOnly = false;
+        let watcherTimer = null;
+        let lastBestValueData = null;
+        let alertedPlayIds = new Set(); // Track plays we've already alerted on
 
         function formatStartTime(isoString) {
             if (!isoString) return "";
@@ -1055,24 +1069,39 @@
             setBestSummary("");
         }
 
-        function renderBestValuePlays(data, profitBoostOnly = false) {
+        function renderBestValuePlays(data, profitBoostOnly = false, hedgeOnly = false) {
             const body = document.getElementById("best-results-body");
             body.innerHTML = "";
             const section = document.getElementById("best-results-section");
             section.style.display = "block";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="10" class="small-text">No arbitrage opportunities found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="7" class="small-text">No arbitrage opportunities found.</td></tr>';
                 return;
             }
 
             let plays = data.plays;
             
+            // Filter for hedge opportunities only (arb_margin_percent >= 0) when watcher is running
+            if (hedgeOnly) {
+                plays = plays.filter(p => 
+                    p.arb_margin_percent !== null && 
+                    p.arb_margin_percent !== undefined && 
+                    p.arb_margin_percent >= 0 &&
+                    p.novig_reverse_price !== null &&
+                    p.novig_reverse_price !== undefined
+                );
+                if (plays.length === 0) {
+                    body.innerHTML = '<tr><td colspan="7" class="small-text">No hedge opportunities found (arbitrage margin ≥ 0%).</td></tr>';
+                    return;
+                }
+            }
+            
             // Filter for high-odds arbitrage opportunities (+200 to +300, and above +300)
             if (profitBoostOnly) {
                 plays = plays.filter(p => p.book_price >= 200);
                 if (plays.length === 0) {
-                    body.innerHTML = '<tr><td colspan="10" class="small-text">No high-odds arbitrage opportunities found (+200 odds and above).</td></tr>';
+                    body.innerHTML = '<tr><td colspan="7" class="small-text">No high-odds arbitrage opportunities found (+200 odds and above).</td></tr>';
                     return;
                 }
             }
@@ -1096,10 +1125,6 @@
                 const sportCell = document.createElement("td");
                 sportCell.textContent = sportLabels[play.sport_key] || play.sport_key;
                 tr.appendChild(sportCell);
-
-                const marketCell = document.createElement("td");
-                marketCell.textContent = marketLabels[play.market] || play.market;
-                tr.appendChild(marketCell);
 
                 const bookCell = document.createElement("td");
                 const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
@@ -1170,19 +1195,34 @@
                 compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 tr.appendChild(compareCell);
 
-                const oppCell = document.createElement("td");
-                if (play.novig_reverse_name) {
-                    oppCell.textContent = play.novig_reverse_name;
-                } else {
-                    oppCell.innerHTML = '<span class="small-text">-</span>';
-                }
-                tr.appendChild(oppCell);
-
                 const hedgeCell = document.createElement("td");
-                if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
+                if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined && play.novig_reverse_name) {
                     const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
                     const formattedHedgeOdds = formatAmericanOdds(play.novig_reverse_price);
-                    hedgeCell.innerHTML = `<strong>${formattedHedgeOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
+                    
+                    // Parse the opposite side name to format it properly
+                    let oppositeTeamName = parseTeamFromOutcome(play.novig_reverse_name);
+                    const marketLabel = marketLabels[play.market] || play.market;
+                    
+                    // Format the opposite side bet description
+                    let hedgeDescription = "";
+                    if (play.market === "totals") {
+                        // For totals, use the outcome name directly (e.g., "Over 221.0" or "Under 221.0")
+                        hedgeDescription = play.novig_reverse_name;
+                    } else if (play.market === "spreads") {
+                        // For spreads, format as "Team Spread +/-X"
+                        hedgeDescription = `${oppositeTeamName || ""} ${marketLabel === "Spreads" ? "Spread" : marketLabel}`;
+                        if (play.point !== null && play.point !== undefined) {
+                            // For spreads, the opposite side has the opposite point
+                            const oppositePoint = -play.point;
+                            hedgeDescription += ` ${oppositePoint > 0 ? "+" : ""}${oppositePoint}`;
+                        }
+                    } else {
+                        // For moneylines, format as "Team ML"
+                        hedgeDescription = `${oppositeTeamName || ""} ML`;
+                    }
+                    
+                    hedgeCell.innerHTML = `<strong>${hedgeDescription} ${formattedHedgeOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
@@ -1198,17 +1238,81 @@
                 }
                 tr.appendChild(hedgeEvCell);
 
-                const evCell = document.createElement("td");
-                const evRounded = Math.round(play.ev_percent * 100) / 100;
-                let badgeClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
-                evCell.innerHTML = `<span class="${badgeClass}">${evRounded}%</span>`;
-                tr.appendChild(evCell);
-
                 body.appendChild(tr);
             });
         }
 
-        let lastBestValueData = null;
+        // Request browser notification permission
+        async function requestNotificationPermission() {
+            if ("Notification" in window && Notification.permission === "default") {
+                await Notification.requestPermission();
+            }
+        }
+
+        // Show browser notification for hedge opportunities
+        function showHedgeAlert(play) {
+            if (!("Notification" in window)) {
+                console.log("Browser does not support notifications");
+                return;
+            }
+
+            if (Notification.permission !== "granted") {
+                return;
+            }
+
+            const sportLabels = {
+                "basketball_nba": "NBA",
+                "americanfootball_nfl": "NFL",
+                "basketball_ncaab": "NCAAB",
+                "americanfootball_ncaaf": "NCAAF"
+            };
+
+            const sportLabel = sportLabels[play.sport_key] || play.sport_key;
+            const teamName = parseTeamFromOutcome(play.outcome_name);
+            const margin = Math.round(play.arb_margin_percent * 100) / 100;
+            const bookOdds = formatAmericanOdds(play.book_price);
+            const hedgeOdds = play.novig_reverse_price ? formatAmericanOdds(play.novig_reverse_price) : "N/A";
+
+            const notification = new Notification(`Hedge Opportunity Found! (${margin}%)`, {
+                body: `${sportLabel}: ${teamName} ${bookOdds} vs Hedge ${hedgeOdds}\n${play.matchup || ""}`,
+                icon: getTeamLogoUrl(teamName, play.sport_key) || undefined,
+                tag: `hedge-${play.event_id}-${play.outcome_name}`, // Prevent duplicate notifications
+                requireInteraction: true
+            });
+
+            notification.onclick = () => {
+                window.focus();
+                notification.close();
+            };
+        }
+
+        // Generate unique ID for a play to track alerts
+        function getPlayId(play) {
+            return `${play.event_id}-${play.outcome_name}-${play.book_price}-${play.novig_reverse_price}`;
+        }
+
+        // Check for new hedge opportunities and alert
+        function checkForHedgeAlerts(plays) {
+            if (!plays || plays.length === 0) return;
+
+            plays.forEach(play => {
+                // Only alert for plays with arbitrage margin >= 0
+                if (play.arb_margin_percent !== null && 
+                    play.arb_margin_percent !== undefined && 
+                    play.arb_margin_percent >= 0 &&
+                    play.novig_reverse_price !== null &&
+                    play.novig_reverse_price !== undefined) {
+                    
+                    const playId = getPlayId(play);
+                    
+                    // Only alert if we haven't seen this play before
+                    if (!alertedPlayIds.has(playId)) {
+                        alertedPlayIds.add(playId);
+                        showHedgeAlert(play);
+                    }
+                }
+            });
+        }
 
         async function fetchBestValuePlays(profitBoostOnly = false) {
             const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
@@ -1235,14 +1339,27 @@
 
             const sportKeys = Array.from(sportCheckboxes).map(cb => cb.value);
             const markets = Array.from(marketCheckboxes).map(cb => cb.value);
+            const isWatcherRunning = watcherTimer !== null;
 
-            setBestStatus(profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...");
-            if (useDummyData) {
-                setBestStatus((profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...") + " [DUMMY DATA MODE]");
+            // Only clear results if watcher is not running (to avoid flickering during updates)
+            if (!isWatcherRunning) {
+                clearBestResults();
             }
-            clearBestResults();
+            
+            if (isWatcherRunning) {
+                setBestStatus("Watcher: Checking for hedge opportunities...");
+            } else {
+                setBestStatus(profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...");
+            }
+            if (useDummyData) {
+                setBestStatus((isWatcherRunning ? "Watcher: Checking for hedge opportunities..." : (profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...")) + " [DUMMY DATA MODE]");
+            }
 
             try {
+                // When watcher is running, we can request fewer results since we only care about hedge opportunities
+                // The API already sorts by arb_margin_percent, so top results are most likely to be hedge opportunities
+                const requestMaxResults = isWatcherRunning ? maxResults : maxResults * 2;
+                
                 const res = await fetch("/api/best-value-plays", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1251,7 +1368,7 @@
                         markets: markets,
                         target_book: targetBook,
                         compare_book: compareBook,
-                        max_results: maxResults * 2,  // Get more results to filter from
+                        max_results: requestMaxResults,
                         use_dummy_data: useDummyData
                     }),
                 });
@@ -1261,19 +1378,53 @@
                 }
                 const data = await res.json();
                 lastBestValueData = data;
-                renderBestValuePlays(data, profitBoostOnly);
+                
+                // If watcher is running, filter to show only hedge opportunities
+                renderBestValuePlays(data, profitBoostOnly, isWatcherRunning);
+
+                // Check for hedge alerts if watcher is running
+                if (isWatcherRunning) {
+                    const hedgePlays = (data.plays || []).filter(p => 
+                        p.arb_margin_percent !== null && 
+                        p.arb_margin_percent !== undefined && 
+                        p.arb_margin_percent >= 0 &&
+                        p.novig_reverse_price !== null &&
+                        p.novig_reverse_price !== undefined
+                    );
+                    checkForHedgeAlerts(data.plays);
+                    
+                    const watcherStatusBar = document.getElementById("watcher-status-bar");
+                    const intervalVal = Number(document.getElementById("watcher-interval-input").value) || 60;
+                    const newAlerts = hedgePlays.filter(p => !alertedPlayIds.has(getPlayId(p))).length;
+                    if (newAlerts > 0) {
+                        watcherStatusBar.textContent = `🔔 Found ${hedgePlays.length} hedge opportunities (${newAlerts} new alerts!). Next check in ${intervalVal}s...`;
+                    } else {
+                        watcherStatusBar.textContent = `Watching... Found ${hedgePlays.length} hedge opportunities. Next check in ${intervalVal}s...`;
+                    }
+                }
 
                 let playsCount = (data.plays || []).length;
-                if (profitBoostOnly) {
+                if (isWatcherRunning) {
+                    // Count only hedge opportunities when watcher is running
+                    playsCount = data.plays.filter(p => 
+                        p.arb_margin_percent !== null && 
+                        p.arb_margin_percent !== undefined && 
+                        p.arb_margin_percent >= 0 &&
+                        p.novig_reverse_price !== null &&
+                        p.novig_reverse_price !== undefined
+                    ).length;
+                } else if (profitBoostOnly) {
                     playsCount = data.plays.filter(p => p.book_price >= 200).length;
                 }
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked").textContent;
-                if (profitBoostOnly) {
+                if (isWatcherRunning) {
+                    setBestSummary(`Hedge Watcher: Showing ${playsCount} hedge opportunities (arbitrage margin ≥ 0%) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
+                } else if (profitBoostOnly) {
                     setBestSummary(`Found ${playsCount} high-odds arbitrage opportunities (+200 to +300+ odds) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 } else {
                     setBestSummary(`Found ${playsCount} arbitrage opportunities across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 }
-                setBestStatus("Done.");
+                setBestStatus(isWatcherRunning ? "Watcher: Updated." : "Done.");
             } catch (e) {
                 console.error(e);
                 setBestStatus("Error: " + e.message);
@@ -1312,6 +1463,82 @@
             
             bestTargetBook.addEventListener("change", validateBestBookSelection);
             bestCompareBook.addEventListener("change", validateBestBookSelection);
+
+            // Watcher functionality
+            const watcherIntervalInput = document.getElementById("watcher-interval-input");
+            const startWatcherBtn = document.getElementById("start-watcher-btn");
+            const stopWatcherBtn = document.getElementById("stop-watcher-btn");
+            const watcherStatusBar = document.getElementById("watcher-status-bar");
+
+            // Request notification permission on page load
+            requestNotificationPermission();
+
+            function startWatcher() {
+                const intervalVal = Number(watcherIntervalInput.value) || 60;
+                const intervalMs = Math.max(intervalVal, 30) * 1000; // min 30 seconds
+
+                if (watcherTimer) {
+                    clearInterval(watcherTimer);
+                    watcherTimer = null;
+                }
+
+                // Validate book selection
+                if (!validateBestBookSelection()) {
+                    return;
+                }
+
+                // Clear previous alerts when starting fresh
+                alertedPlayIds.clear();
+
+                watcherStatusBar.textContent = `Starting watcher... Checking for hedge opportunities every ${intervalVal}s...`;
+                startWatcherBtn.disabled = true;
+                stopWatcherBtn.disabled = false;
+                document.getElementById("find-best-btn").disabled = true;
+                document.getElementById("profit-boost-btn").disabled = true;
+
+                // Show results section
+                document.getElementById("best-results-section").style.display = "block";
+
+                // Initial fetch
+                fetchBestValuePlays(false);
+
+                // Set up polling with error handling
+                watcherTimer = setInterval(async () => {
+                    try {
+                        await fetchBestValuePlays(false);
+                    } catch (error) {
+                        console.error("Watcher error:", error);
+                        watcherStatusBar.textContent = `Error: ${error.message}. Retrying in ${intervalVal}s...`;
+                    }
+                }, intervalMs);
+            }
+
+            function stopWatcher() {
+                if (watcherTimer) {
+                    clearInterval(watcherTimer);
+                    watcherTimer = null;
+                }
+                watcherStatusBar.textContent = "Watcher stopped.";
+                startWatcherBtn.disabled = false;
+                stopWatcherBtn.disabled = true;
+                document.getElementById("find-best-btn").disabled = false;
+                document.getElementById("profit-boost-btn").disabled = false;
+                
+                // Re-render results without hedge filter when watcher stops
+                if (lastBestValueData) {
+                    renderBestValuePlays(lastBestValueData, false, false);
+                }
+            }
+
+            startWatcherBtn.onclick = startWatcher;
+            stopWatcherBtn.onclick = stopWatcher;
+
+            // Clean up on page unload
+            window.addEventListener("beforeunload", () => {
+                if (watcherTimer) {
+                    clearInterval(watcherTimer);
+                }
+            });
         });
     </script>
 </body>
