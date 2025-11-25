@@ -135,6 +135,46 @@
             text-align: center;
             padding: 2rem;
         }
+
+        .filter-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #0f172a;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+        }
+
+        .filter-controls label {
+            display: block;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        .filter-controls select {
+            width: 100%;
+            padding: 0.45rem 0.6rem;
+            border-radius: 0.5rem;
+            border: 1px solid #475569;
+            background: #1e293b;
+            color: #e5e7eb;
+            box-sizing: border-box;
+            font-size: 0.9rem;
+        }
+
+        .filter-controls select:hover {
+            border-color: #64748b;
+        }
+
+        .filter-controls select:focus {
+            outline: none;
+            border-color: #166534;
+            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.2);
+        }
     </style>
 </head>
 
@@ -168,6 +208,32 @@
     <main>
         <div class="card">
             <h2>Live Odds Widgets</h2>
+            
+            <!-- Filter Controls -->
+            <div class="filter-controls">
+                <div>
+                    <label for="sport-filter">Filter by Sport</label>
+                    <select id="sport-filter">
+                        <option value="all">All Sports</option>
+                        <option value="americanfootball_nfl">NFL</option>
+                        <option value="basketball_nba">NBA</option>
+                        <option value="basketball_ncaab">NCAAB</option>
+                        <option value="americanfootball_ncaaf">NCAAF</option>
+                        <option value="baseball_mlb">MLB</option>
+                        <option value="icehockey_nhl">NHL</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="bookmaker-filter">Filter by Bookmaker</label>
+                    <select id="bookmaker-filter">
+                        <option value="all">All Bookmakers</option>
+                        <option value="draftkings">DraftKings</option>
+                        <option value="fanduel">FanDuel</option>
+                        <option value="novig">Novig</option>
+                    </select>
+                </div>
+            </div>
+
             <div id="widgets-container" class="loading">Loading widgets...</div>
         </div>
     </main>
@@ -196,18 +262,36 @@
             return `${baseUrl}?${params.toString()}`;
         }
 
-        // Widget configurations
+        // Widget configurations - includes Novig
         const widgetConfigs = [
             { sport: 'americanfootball_nfl', bookmaker: 'draftkings', label: 'NFL - DraftKings' },
             { sport: 'americanfootball_nfl', bookmaker: 'fanduel', label: 'NFL - FanDuel' },
+            { sport: 'americanfootball_nfl', bookmaker: 'novig', label: 'NFL - Novig' },
             { sport: 'basketball_nba', bookmaker: 'draftkings', label: 'NBA - DraftKings' },
             { sport: 'basketball_nba', bookmaker: 'fanduel', label: 'NBA - FanDuel' },
+            { sport: 'basketball_nba', bookmaker: 'novig', label: 'NBA - Novig' },
             { sport: 'basketball_ncaab', bookmaker: 'draftkings', label: 'NCAAB - DraftKings' },
             { sport: 'basketball_ncaab', bookmaker: 'fanduel', label: 'NCAAB - FanDuel' },
+            { sport: 'basketball_ncaab', bookmaker: 'novig', label: 'NCAAB - Novig' },
             { sport: 'americanfootball_ncaaf', bookmaker: 'draftkings', label: 'NCAAF - DraftKings' },
+            { sport: 'americanfootball_ncaaf', bookmaker: 'novig', label: 'NCAAF - Novig' },
             { sport: 'baseball_mlb', bookmaker: 'draftkings', label: 'MLB - DraftKings' },
+            { sport: 'baseball_mlb', bookmaker: 'novig', label: 'MLB - Novig' },
             { sport: 'icehockey_nhl', bookmaker: 'draftkings', label: 'NHL - DraftKings' },
+            { sport: 'icehockey_nhl', bookmaker: 'novig', label: 'NHL - Novig' },
         ];
+
+        // Filter widgets based on selected sport and bookmaker
+        function getFilteredWidgets() {
+            const selectedSport = document.getElementById('sport-filter').value;
+            const selectedBookmaker = document.getElementById('bookmaker-filter').value;
+            
+            return widgetConfigs.filter(config => {
+                const sportMatch = selectedSport === 'all' || config.sport === selectedSport;
+                const bookmakerMatch = selectedBookmaker === 'all' || config.bookmaker === selectedBookmaker;
+                return sportMatch && bookmakerMatch;
+            });
+        }
 
         // Load and display widgets
         function loadWidgets() {
@@ -235,11 +319,24 @@
             // Get odds format preference
             const oddsFormat = document.querySelector('input[name="odds-format"]:checked')?.value || 'american';
 
+            // Get filtered widgets
+            const filteredWidgets = getFilteredWidgets();
+
+            if (filteredWidgets.length === 0) {
+                container.innerHTML = `
+                    <div class="error-message">
+                        No widgets match the selected filters.
+                    </div>
+                `;
+                return;
+            }
+
             // Create widgets grid
             const widgetsGrid = document.createElement('div');
             widgetsGrid.className = 'widgets-grid';
 
-            widgetConfigs.forEach(config => {
+            // Display filtered widgets
+            filteredWidgets.forEach(config => {
                 const widgetContainer = document.createElement('div');
                 widgetContainer.className = 'widget-container';
                 
@@ -259,9 +356,13 @@
             container.appendChild(widgetsGrid);
         }
 
-        // Reload widgets when odds format changes
+        // Reload widgets when filters or odds format changes
         document.addEventListener('DOMContentLoaded', () => {
             loadWidgets();
+            
+            // Listen for filter changes
+            document.getElementById('sport-filter').addEventListener('change', loadWidgets);
+            document.getElementById('bookmaker-filter').addEventListener('change', loadWidgets);
             
             // Listen for odds format changes
             document.querySelectorAll('input[name="odds-format"]').forEach(radio => {

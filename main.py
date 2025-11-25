@@ -1844,6 +1844,66 @@ def get_widget_display_url():
     return {"url": display_url}
 
 
+@app.get("/api/check-active-odds")
+def check_active_odds(sport: str, bookmaker: str):
+    """
+    Check if there are active odds available for a given sport and bookmaker.
+    Returns True if there are upcoming events with odds from the bookmaker.
+    """
+    try:
+        api_key = get_api_key()
+    except RuntimeError:
+        # If API key not available, return False to hide widget
+        return {"has_active_odds": False}
+    
+    # Determine region based on bookmaker
+    if bookmaker.lower() == "novig":
+        regions = "us_ex"
+    elif bookmaker.lower() == "fliff":
+        regions = "us2"
+    else:
+        regions = "us"
+    
+    try:
+        events = fetch_odds(
+            api_key=api_key,
+            sport_key=sport,
+            regions=regions,
+            markets="h2h",
+            bookmaker_keys=[bookmaker],
+            use_dummy_data=False,
+        )
+        
+        # Check if there are any events with odds from this bookmaker
+        now_utc = datetime.now(timezone.utc)
+        has_active = False
+        
+        for event in events:
+            # Check if event has this bookmaker
+            for bookmaker_data in event.get("bookmakers", []):
+                if bookmaker_data.get("key", "").lower() == bookmaker.lower():
+                    # Check if event is in the future
+                    start_time = event.get("commence_time")
+                    if start_time:
+                        try:
+                            event_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                            if event_dt > now_utc:
+                                has_active = True
+                                break
+                        except Exception:
+                            pass
+                if has_active:
+                    break
+            if has_active:
+                break
+        
+        return {"has_active_odds": has_active}
+    except Exception as e:
+        # On error, return False to hide widget
+        print(f"Error checking active odds for {sport}/{bookmaker}: {e}")
+        return {"has_active_odds": False}
+
+
 @app.get("/api/widget-url")
 def generate_widget_url(
     sport: str,
