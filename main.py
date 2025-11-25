@@ -140,6 +140,26 @@ class BestValuePlaysResponse(BaseModel):
     plays: List[BestValuePlayOutcome]
 
 
+class PlayerPropsRequest(BaseModel):
+    """
+    Request body for /api/player-props:
+      - sport_key: e.g. "basketball_nba" or "americanfootball_nfl"
+      - team: team name to filter by (optional, can be None to search all teams)
+      - player_name: player name to filter by (optional, can be None to search all players)
+      - market: player prop market like "player_points", "player_assists", "player_rebounds", etc.
+      - target_book: e.g. "draftkings"
+      - compare_book: e.g. "novig" (the book to compare against)
+      - use_dummy_data: if True, use mock data instead of real API calls
+    """
+    sport_key: str
+    team: Optional[str] = None
+    player_name: Optional[str] = None
+    market: str
+    target_book: str
+    compare_book: str
+    use_dummy_data: bool = False
+
+
 BOOK_LABELS = {
     "draftkings": "DraftKings",
     "fanduel": "FanDuel",
@@ -157,6 +177,11 @@ def get_api_key() -> str:
             "Set it in Windows Environment Variables and restart."
         )
     return api_key
+
+
+def get_widget_api_key() -> Optional[str]:
+    """Get the widget API key from environment variable. Returns None if not set."""
+    return os.getenv("THE_ODDS_WIDGET_API_KEY")
 
 
 def pretty_book_label(book_key: str) -> str:
@@ -311,6 +336,10 @@ def generate_dummy_odds_data(
                         {"name": f"Over {total}", "price": -105, "point": total},
                         {"name": f"Under {total}", "price": -105, "point": total},
                     ]
+                elif market_key.startswith("player_"):
+                    # Player props: generate Over/Under outcomes for a random player
+                    # This will be handled in the extended dummy data function
+                    pass
                 
                 if outcomes:
                     markets_data.append({
@@ -394,6 +423,10 @@ def generate_dummy_odds_data(
                         {"name": f"Over {total}", "price": over_odds, "point": total},
                         {"name": f"Under {total}", "price": under_odds, "point": total},
                     ]
+                elif market_key.startswith("player_"):
+                    # Player props: generate Over/Under outcomes for a random player
+                    # This will be handled in the extended dummy data function
+                    pass
                 
                 if outcomes:
                     markets_data.append({
@@ -630,6 +663,145 @@ def generate_dummy_odds_data(
             "commence_time": commence_time,
             "bookmakers": bookmakers,
         })
+    
+    return events
+
+
+def generate_dummy_player_props_data(
+    sport_key: str,
+    market: str,
+    team: Optional[str],
+    player_name: Optional[str],
+    bookmaker_keys: List[str],
+) -> List[Dict[str, Any]]:
+    """
+    Generate dummy player props data for development.
+    """
+    # Sample players by sport and team
+    nba_players = {
+        "Lakers": ["LeBron James", "Anthony Davis", "D'Angelo Russell", "Austin Reaves"],
+        "Warriors": ["Stephen Curry", "Klay Thompson", "Draymond Green", "Andrew Wiggins"],
+        "Celtics": ["Jayson Tatum", "Jaylen Brown", "Kristaps Porzingis", "Derrick White"],
+        "Heat": ["Jimmy Butler", "Bam Adebayo", "Tyler Herro", "Duncan Robinson"],
+        "Nuggets": ["Nikola Jokic", "Jamal Murray", "Michael Porter Jr.", "Aaron Gordon"],
+        "Suns": ["Devin Booker", "Kevin Durant", "Bradley Beal", "Jusuf Nurkic"],
+        "Bucks": ["Giannis Antetokounmpo", "Damian Lillard", "Khris Middleton", "Brook Lopez"],
+        "76ers": ["Joel Embiid", "Tyrese Maxey", "Tobias Harris", "James Harden"],
+        "Mavericks": ["Luka Doncic", "Kyrie Irving", "Tim Hardaway Jr.", "Grant Williams"],
+        "Clippers": ["Kawhi Leonard", "Paul George", "James Harden", "Russell Westbrook"],
+    }
+    
+    nfl_players = {
+        "Chiefs": ["Patrick Mahomes", "Travis Kelce", "Isiah Pacheco", "Rashee Rice"],
+        "Bills": ["Josh Allen", "Stefon Diggs", "James Cook", "Dawson Knox"],
+        "49ers": ["Brock Purdy", "Christian McCaffrey", "Deebo Samuel", "George Kittle"],
+        "Cowboys": ["Dak Prescott", "CeeDee Lamb", "Tony Pollard", "Jake Ferguson"],
+        "Ravens": ["Lamar Jackson", "Mark Andrews", "Gus Edwards", "Zay Flowers"],
+        "Bengals": ["Joe Burrow", "Ja'Marr Chase", "Joe Mixon", "Tee Higgins"],
+        "Dolphins": ["Tua Tagovailoa", "Tyreek Hill", "Raheem Mostert", "Jaylen Waddle"],
+        "Jets": ["Aaron Rodgers", "Breece Hall", "Garrett Wilson", "Tyler Conklin"],
+        "Eagles": ["Jalen Hurts", "A.J. Brown", "D'Andre Swift", "DeVonta Smith"],
+        "Giants": ["Daniel Jones", "Saquon Barkley", "Darius Slayton", "Darren Waller"],
+    }
+    
+    player_map = nba_players if sport_key == "basketball_nba" else nfl_players
+    
+    # Determine which teams and players to use
+    if team and team in player_map:
+        teams_to_use = [team]
+    else:
+        teams_to_use = list(player_map.keys())[:3]  # Use first 3 teams
+    
+    # Market-specific point ranges
+    point_ranges = {
+        "player_points": (20.5, 35.5) if sport_key == "basketball_nba" else (50.5, 300.5),
+        "player_assists": (5.5, 12.5),
+        "player_rebounds": (8.5, 15.5),
+        "player_reception_yards": (50.5, 120.5),
+        "player_passing_yards": (200.5, 350.5),
+        "player_rushing_yards": (50.5, 120.5),
+        "player_touchdowns": (0.5, 2.5),
+    }
+    
+    default_range = (20.5, 35.5)
+    point_range = point_ranges.get(market, default_range)
+    
+    now = datetime.now(timezone.utc)
+    events = []
+    common_odds = [-200, -180, -160, -150, -140, -130, -120, -115, -110, -105,
+                  +105, +110, +115, +120, +130, +140, +150, +160, +180, +200, +220, +250]
+    
+    for team_name in teams_to_use:
+        players = player_map[team_name]
+        
+        # Filter by player_name if specified
+        if player_name:
+            players = [p for p in players if player_name.lower() in p.lower()]
+            if not players:
+                continue
+        
+        # Generate event for each player (up to 2 players per team)
+        for player in players[:2]:
+            hours_ahead = random.randint(24, 168)
+            commence_time = (now + timedelta(hours=hours_ahead)).isoformat().replace("+00:00", "Z")
+            event_id = f"dummy_{sport_key}_{team_name}_{player}_{int(now.timestamp())}"
+            
+            # Generate point line
+            point = round(random.uniform(point_range[0], point_range[1]) * 2) / 2  # Round to 0.5
+            
+            # Generate opponent team (simplified)
+            opponent = random.choice([t for t in player_map.keys() if t != team_name])
+            home_team = random.choice([team_name, opponent])
+            away_team = opponent if home_team == team_name else team_name
+            
+            bookmakers = []
+            
+            # Generate Novig odds first (best)
+            for book_key in bookmaker_keys:
+                if book_key.lower() == "novig":
+                    over_odds = -105
+                    under_odds = -105
+                    bookmakers.append({
+                        "key": book_key,
+                        "title": book_key.title(),
+                        "markets": [{
+                            "key": market,
+                            "outcomes": [
+                                {"name": "Over", "description": player, "price": over_odds, "point": point},
+                                {"name": "Under", "description": player, "price": under_odds, "point": point},
+                            ]
+                        }]
+                    })
+                    break
+            
+            # Generate other books' odds (worse)
+            for book_key in bookmaker_keys:
+                if book_key.lower() == "novig":
+                    continue
+                
+                over_odds = random.choice([-110, -115])
+                under_odds = random.choice([-110, -115])
+                
+                bookmakers.append({
+                    "key": book_key,
+                    "title": book_key.title(),
+                    "markets": [{
+                        "key": market,
+                        "outcomes": [
+                            {"name": "Over", "description": player, "price": over_odds, "point": point},
+                            {"name": "Under", "description": player, "price": under_odds, "point": point},
+                        ]
+                    }]
+                })
+            
+            events.append({
+                "id": event_id,
+                "sport_key": sport_key,
+                "home_team": home_team,
+                "away_team": away_team,
+                "commence_time": commence_time,
+                "bookmakers": bookmakers,
+            })
     
     return events
 
@@ -953,22 +1125,24 @@ def collect_value_plays(
         if not compare_market or not book_market:
             continue
 
-        # Allow 0.5-point flex for both spreads and totals (Odds API sometimes
+        # Allow 0.5-point flex for spreads, totals, and player props (Odds API sometimes
         # differs by 0.5 between books).
-        allow_half_point_flex = market_key in ("totals", "spreads")
+        is_player_prop = market_key.startswith("player_")
+        allow_half_point_flex = market_key in ("totals", "spreads") or is_player_prop
 
         compare_outcomes: List[Dict[str, Any]] = []
         for o in compare_market.get("outcomes", []):
             name = o.get("name")
             price = o.get("price")
             point = o.get("point", None)
+            description = o.get("description", None)  # For player props, this is the player name
             if name is None or price is None:
                 continue
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                 # Skip absurd values like -100000
                 continue
             compare_outcomes.append(
-                {"name": name, "price": price, "point": point}
+                {"name": name, "price": price, "point": point, "description": description}
             )
 
         if not compare_outcomes:
@@ -978,6 +1152,7 @@ def collect_value_plays(
             name = o.get("name")
             price = o.get("price")
             point = o.get("point", None)
+            description = o.get("description", None)  # For player props, this is the player name
             if name is None or price is None:
                 continue
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
@@ -986,12 +1161,27 @@ def collect_value_plays(
             # Apply vig adjustment to target book odds (makes them less favorable)
             adjusted_price = apply_vig_adjustment(price, target_book)
 
-            matching_compare = find_best_comparison_outcome(
-                outcomes=compare_outcomes,
-                name=name,
-                point=point,
-                allow_half_point_flex=allow_half_point_flex,
-            )
+            # For player props, match by name, description (player), and point
+            matching_compare = None
+            if is_player_prop and description:
+                # Find matching outcome with same name, description, and point
+                for comp_outcome in compare_outcomes:
+                    comp_name = comp_outcome.get("name")
+                    comp_desc = comp_outcome.get("description")
+                    comp_point = comp_outcome.get("point", None)
+                    if (comp_name == name and 
+                        comp_desc and description and 
+                        comp_desc.lower() == description.lower() and
+                        points_match(point, comp_point, allow_half_point_flex)):
+                        matching_compare = comp_outcome
+                        break
+            else:
+                matching_compare = find_best_comparison_outcome(
+                    outcomes=compare_outcomes,
+                    name=name,
+                    point=point,
+                    allow_half_point_flex=allow_half_point_flex,
+                )
             if matching_compare is None:
                 continue
 
@@ -999,13 +1189,28 @@ def collect_value_plays(
             ev_pct = estimate_ev_percent(book_odds=adjusted_price, sharp_odds=compare_price)
 
             # Find the *other* comparison book side (hedge side) with matching/close point
-            other_compare = find_best_comparison_outcome(
-                outcomes=compare_outcomes,
-                name=name,
-                point=point,
-                allow_half_point_flex=allow_half_point_flex,
-                opposite=True,
-            )
+            other_compare = None
+            if is_player_prop and description:
+                # For player props, find opposite side (Over -> Under or vice versa) with same player and point
+                opposite_name = "Under" if name == "Over" else "Over"
+                for comp_outcome in compare_outcomes:
+                    comp_name = comp_outcome.get("name")
+                    comp_desc = comp_outcome.get("description")
+                    comp_point = comp_outcome.get("point", None)
+                    if (comp_name == opposite_name and 
+                        comp_desc and description and 
+                        comp_desc.lower() == description.lower() and
+                        points_match(point, comp_point, allow_half_point_flex)):
+                        other_compare = comp_outcome
+                        break
+            else:
+                other_compare = find_best_comparison_outcome(
+                    outcomes=compare_outcomes,
+                    name=name,
+                    point=point,
+                    allow_half_point_flex=allow_half_point_flex,
+                    opposite=True,
+                )
 
             novig_reverse_name: Optional[str] = None
             novig_reverse_price: Optional[int] = None
@@ -1034,15 +1239,25 @@ def collect_value_plays(
                     is_arb = True
 
 
+            # For player props, include player name in outcome_name
+            outcome_display_name = name
+            if is_player_prop and description:
+                outcome_display_name = f"{description} {name}"
+            
+            reverse_display_name = novig_reverse_name
+            if is_player_prop and other_compare and other_compare.get("description"):
+                reverse_desc = other_compare.get("description")
+                reverse_display_name = f"{reverse_desc} {novig_reverse_name}" if novig_reverse_name else None
+
             plays.append(
                 ValuePlayOutcome(
                     event_id=event_id,
                     matchup=matchup,
                     start_time=start_time,
-                    outcome_name=name,
+                    outcome_name=outcome_display_name,
                     point=point,
                     novig_price=compare_price,
-                    novig_reverse_name=novig_reverse_name,
+                    novig_reverse_name=reverse_display_name,
                     novig_reverse_price=novig_reverse_price,
                     book_price=adjusted_price,  # Use adjusted price with vig
                     ev_percent=ev_pct,
@@ -1485,6 +1700,172 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
         compare_book=compare_book,
         plays=top_plays,
     )
+
+
+@app.post("/api/player-props", response_model=ValuePlaysResponse)
+def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
+    """
+    Get player prop value plays for a specific sport, team, player, and market.
+    Filters events to only include those matching the specified team and player.
+    """
+    target_book = payload.target_book
+    compare_book = payload.compare_book
+    market_key = payload.market
+
+    if target_book == compare_book:
+        raise HTTPException(
+            status_code=400,
+            detail="Target book and comparison book cannot be the same.",
+        )
+
+    api_key = ""
+    if not payload.use_dummy_data:
+        try:
+            api_key = get_api_key()
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    bookmaker_keys = [target_book, compare_book]
+    regions = compute_regions_for_books(bookmaker_keys)
+
+    if payload.use_dummy_data:
+        events = generate_dummy_player_props_data(
+            sport_key=payload.sport_key,
+            market=market_key,
+            team=payload.team,
+            player_name=payload.player_name,
+            bookmaker_keys=bookmaker_keys,
+        )
+    else:
+        # Fetch real odds from API
+        events = fetch_odds(
+            api_key=api_key,
+            sport_key=payload.sport_key,
+            regions=regions,
+            markets=market_key,
+            bookmaker_keys=bookmaker_keys,
+            use_dummy_data=False,
+        )
+        
+        # Filter by team if specified
+        if payload.team:
+            events = [
+                e for e in events
+                if payload.team in (e.get("home_team", ""), e.get("away_team", ""))
+            ]
+        
+        # Filter by player name if specified
+        if payload.player_name:
+            filtered_events = []
+            for event in events:
+                for bookmaker in event.get("bookmakers", []):
+                    for market in bookmaker.get("markets", []):
+                        if market.get("key") == market_key:
+                            for outcome in market.get("outcomes", []):
+                                description = outcome.get("description", "")
+                                if payload.player_name.lower() in description.lower():
+                                    filtered_events.append(event)
+                                    break
+                            if event in filtered_events:
+                                break
+                    if event in filtered_events:
+                        break
+            events = filtered_events
+
+    raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
+    
+    # Filter by player name in outcomes if specified
+    if payload.player_name:
+        raw_plays = [
+            p for p in raw_plays
+            if payload.player_name.lower() in p.outcome_name.lower()
+        ]
+
+    # Filter out live events and games that have already started
+    now_utc = datetime.now(timezone.utc)
+    filtered_plays: List[ValuePlayOutcome] = []
+    for p in raw_plays:
+        if not p.start_time:
+            continue
+        try:
+            dt = datetime.fromisoformat(p.start_time.replace("Z", "+00:00"))
+            if dt > now_utc:
+                filtered_plays.append(p)
+        except Exception:
+            continue
+
+    # Convert start_time into an easy-to-read EST string for display
+    for p in filtered_plays:
+        if p.start_time:
+            p.start_time = format_start_time_est(p.start_time)
+
+    # Sort by EV percent descending
+    def ev_sort_key(play: ValuePlayOutcome) -> float:
+        if play.arb_margin_percent is not None:
+            return play.arb_margin_percent
+        return -1_000_000.0 + play.ev_percent
+
+    top_plays = sorted(filtered_plays, key=ev_sort_key, reverse=True)
+
+    return ValuePlaysResponse(
+        target_book=target_book,
+        compare_book=compare_book,
+        market=market_key,
+        plays=top_plays,
+        sgp_suggestion=None,
+    )
+
+
+@app.get("/api/widget-key")
+def get_widget_key():
+    """
+    Get the widget API key from environment variable.
+    Returns the key if set, or null if not configured.
+    """
+    key = get_widget_api_key()
+    return {"key": key}
+
+
+@app.get("/api/widget-url")
+def generate_widget_url(
+    sport: str,
+    bookmaker: str,
+    odds_format: str = "american",
+    markets: str = "h2h,spreads,totals",
+    market_names: Optional[str] = None,
+):
+    """
+    Generate a widget URL with the access key embedded.
+    
+    Parameters:
+    - sport: Sport key (e.g., "americanfootball_nfl")
+    - bookmaker: Bookmaker key (e.g., "draftkings")
+    - odds_format: "american" or "decimal" (default: "american")
+    - markets: Comma-separated markets (default: "h2h,spreads,totals")
+    - market_names: Optional comma-separated market:label pairs (e.g., "h2h:Moneyline,spreads:Spread")
+    """
+    widget_key = get_widget_api_key()
+    if not widget_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Widget API key not configured. Set THE_ODDS_WIDGET_API_KEY environment variable.",
+        )
+    
+    base_url = f"https://widget.the-odds-api.com/v1/sports/{sport}/events/"
+    params = {
+        "accessKey": widget_key,
+        "bookmakerKeys": bookmaker,
+        "oddsFormat": odds_format,
+        "markets": markets,
+    }
+    
+    if market_names:
+        params["marketNames"] = market_names
+    
+    query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+    widget_url = f"{base_url}?{query_string}"
+    
+    return {"url": widget_url}
 
 
 # Static frontend (index.html, value.html, etc. under ./frontend)

@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Player Props Value Finder</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #0f172a;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            padding: 1rem 1.5rem;
+            background: #1e293b;
+            border-bottom: 2px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        header nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin-left: 0.75rem;
+        }
+
+        header nav a:hover {
+            color: #e5e7eb;
+        }
+
+        header nav a.active {
+            color: #bbf7d0;
+            font-weight: 600;
+        }
+
+        .odds-format-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: 1rem;
+            padding: 0.5rem 0.75rem;
+            background: #1e293b;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+        }
+
+        .odds-format-toggle label {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            margin: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .odds-format-toggle input[type="radio"] {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        main {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            margin-top: 0.6rem;
+            margin-bottom: 0.15rem;
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        select,
+        input[type="number"] {
+            width: 100%;
+            padding: 0.45rem 0.6rem;
+            border-radius: 0.5rem;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #e5e7eb;
+            box-sizing: border-box;
+            font-size: 0.9rem;
+        }
+
+        select:hover,
+        input[type="number"]:hover {
+            border-color: #64748b;
+        }
+
+        select:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #166534;
+            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.2);
+        }
+
+        input[type="checkbox"] {
+            margin-right: 0.35rem;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .btn-primary {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .btn-primary:hover {
+            background: #15803d;
+        }
+
+        .btn-secondary {
+            background: #475569;
+            color: #e5e7eb;
+        }
+
+        .btn-secondary:hover {
+            background: #64748b;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .status-bar {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 0.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #334155;
+            padding: 0.4rem 0.5rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #1e293b;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            font-weight: 600;
+            color: #e5e7eb;
+        }
+
+        .scroll-container {
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        .small-text {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        .badge {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 0.1rem 0.45rem;
+            font-size: 0.7rem;
+        }
+
+        .badge-positive {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .badge-negative {
+            background: #7f1d1d;
+            color: #fecaca;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div>
+            <h1>Player Props Value Finder</h1>
+            <div class="small-text">
+                Find value plays for player props by comparing odds across sportsbooks
+            </div>
+        </div>
+        <nav>
+            <a href="/index.html">Arbitrage Finder</a>
+            <a href="/value.html">Value Finder</a>
+            <a href="/watcher.html">Watcher</a>
+            <a href="/playerprops.html" class="active">Player Props</a>
+            <a href="/widgets.html">Widgets</a>
+            <div class="odds-format-toggle">
+                <label>
+                    <input type="radio" name="odds-format" value="american" checked />
+                    <span>American</span>
+                </label>
+                <label>
+                    <input type="radio" name="odds-format" value="decimal" />
+                    <span>Decimal</span>
+                </label>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Left: controls -->
+        <section class="card">
+            <h2>Find Player Prop Value Plays</h2>
+
+            <label for="sport-select">Sport</label>
+            <select id="sport-select">
+                <option value="basketball_nba">NBA</option>
+                <option value="americanfootball_nfl">NFL</option>
+            </select>
+
+            <label for="team-select">Team (optional - leave blank for all teams)</label>
+            <select id="team-select">
+                <option value="">All Teams</option>
+            </select>
+
+            <label for="player-select">Player (optional - leave blank for all players)</label>
+            <select id="player-select">
+                <option value="">All Players</option>
+            </select>
+
+            <label for="market-select">Market</label>
+            <select id="market-select">
+                <option value="player_points">Player Points</option>
+                <option value="player_assists">Player Assists (NBA only)</option>
+                <option value="player_rebounds">Player Rebounds (NBA only)</option>
+                <option value="player_reception_yards">Reception Yards (NFL only)</option>
+                <option value="player_passing_yards">Passing Yards (NFL only)</option>
+                <option value="player_rushing_yards">Rushing Yards (NFL only)</option>
+                <option value="player_touchdowns">Touchdowns (NFL only)</option>
+            </select>
+
+            <label for="target-book-select">Target book</label>
+            <select id="target-book-select">
+                <option value="draftkings">DraftKings</option>
+                <option value="fanduel">FanDuel</option>
+                <option value="fliff">Fliff</option>
+                <option value="novig">Novig</option>
+            </select>
+
+            <label for="compare-book-select">Compare against</label>
+            <select id="compare-book-select">
+                <option value="novig" selected>Novig</option>
+                <option value="draftkings">DraftKings</option>
+                <option value="fanduel">FanDuel</option>
+                <option value="fliff">Fliff</option>
+            </select>
+
+            <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
+                <span>Use Dummy Data</span>
+            </label>
+
+            <div style="margin-top: 0.75rem;">
+                <button class="btn btn-primary" id="find-btn">Search</button>
+                <button class="btn btn-secondary" id="clear-btn">Clear</button>
+            </div>
+
+            <div class="status-bar" id="status-bar">Ready.</div>
+        </section>
+
+        <!-- Right: results -->
+        <section class="card">
+            <h2>Player Prop Value Plays</h2>
+            <div class="small-text" id="summary-bar"></div>
+            <div class="scroll-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Player & Prop</th>
+                            <th>Matchup</th>
+                            <th>Start Time</th>
+                            <th>Line</th>
+                            <th>Target Book</th>
+                            <th>Compare Book</th>
+                            <th>Hedge Bet</th>
+                            <th>Arbitrage Margin</th>
+                            <th>EV%</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body">
+                        <tr>
+                            <td colspan="9" class="small-text">No results yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Team and player data
+        const teamData = {
+            basketball_nba: {
+                "Lakers": ["LeBron James", "Anthony Davis", "D'Angelo Russell", "Austin Reaves"],
+                "Warriors": ["Stephen Curry", "Klay Thompson", "Draymond Green", "Andrew Wiggins"],
+                "Celtics": ["Jayson Tatum", "Jaylen Brown", "Kristaps Porzingis", "Derrick White"],
+                "Heat": ["Jimmy Butler", "Bam Adebayo", "Tyler Herro", "Duncan Robinson"],
+                "Nuggets": ["Nikola Jokic", "Jamal Murray", "Michael Porter Jr.", "Aaron Gordon"],
+                "Suns": ["Devin Booker", "Kevin Durant", "Bradley Beal", "Jusuf Nurkic"],
+                "Bucks": ["Giannis Antetokounmpo", "Damian Lillard", "Khris Middleton", "Brook Lopez"],
+                "76ers": ["Joel Embiid", "Tyrese Maxey", "Tobias Harris", "James Harden"],
+                "Mavericks": ["Luka Doncic", "Kyrie Irving", "Tim Hardaway Jr.", "Grant Williams"],
+                "Clippers": ["Kawhi Leonard", "Paul George", "James Harden", "Russell Westbrook"],
+            },
+            americanfootball_nfl: {
+                "Chiefs": ["Patrick Mahomes", "Travis Kelce", "Isiah Pacheco", "Rashee Rice"],
+                "Bills": ["Josh Allen", "Stefon Diggs", "James Cook", "Dawson Knox"],
+                "49ers": ["Brock Purdy", "Christian McCaffrey", "Deebo Samuel", "George Kittle"],
+                "Cowboys": ["Dak Prescott", "CeeDee Lamb", "Tony Pollard", "Jake Ferguson"],
+                "Ravens": ["Lamar Jackson", "Mark Andrews", "Gus Edwards", "Zay Flowers"],
+                "Bengals": ["Joe Burrow", "Ja'Marr Chase", "Joe Mixon", "Tee Higgins"],
+                "Dolphins": ["Tua Tagovailoa", "Tyreek Hill", "Raheem Mostert", "Jaylen Waddle"],
+                "Jets": ["Aaron Rodgers", "Breece Hall", "Garrett Wilson", "Tyler Conklin"],
+                "Eagles": ["Jalen Hurts", "A.J. Brown", "D'Andre Swift", "DeVonta Smith"],
+                "Giants": ["Daniel Jones", "Saquon Barkley", "Darius Slayton", "Darren Waller"],
+            }
+        };
+
+        function updateTeamDropdown() {
+            const sport = document.getElementById("sport-select").value;
+            const teamSelect = document.getElementById("team-select");
+            const playerSelect = document.getElementById("player-select");
+            
+            // Clear existing options except "All Teams"
+            teamSelect.innerHTML = '<option value="">All Teams</option>';
+            playerSelect.innerHTML = '<option value="">All Players</option>';
+            
+            // Add teams for selected sport
+            const teams = Object.keys(teamData[sport] || {});
+            teams.forEach(team => {
+                const option = document.createElement("option");
+                option.value = team;
+                option.textContent = team;
+                teamSelect.appendChild(option);
+            });
+            
+            // Update players when team changes
+            updatePlayerDropdown();
+        }
+
+        function updatePlayerDropdown() {
+            const sport = document.getElementById("sport-select").value;
+            const team = document.getElementById("team-select").value;
+            const playerSelect = document.getElementById("player-select");
+            
+            // Clear existing options except "All Players"
+            playerSelect.innerHTML = '<option value="">All Players</option>';
+            
+            if (team && teamData[sport] && teamData[sport][team]) {
+                const players = teamData[sport][team];
+                players.forEach(player => {
+                    const option = document.createElement("option");
+                    option.value = player;
+                    option.textContent = player;
+                    playerSelect.appendChild(option);
+                });
+            }
+        }
+
+        function setStatus(msg) {
+            document.getElementById("status-bar").textContent = msg;
+        }
+
+        function setSummary(msg) {
+            document.getElementById("summary-bar").textContent = msg;
+        }
+
+        function clearResults() {
+            const body = document.getElementById("results-body");
+            body.innerHTML = '<tr><td colspan="9" class="small-text">No results yet.</td></tr>';
+            setSummary("");
+        }
+
+        // Odds format conversion functions
+        function americanToDecimal(odds) {
+            if (odds === null || odds === undefined) return null;
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) return null;
+            if (numOdds > 0) {
+                return 1.0 + numOdds / 100.0;
+            } else {
+                return 1.0 + 100.0 / Math.abs(numOdds);
+            }
+        }
+
+        function getOddsFormat() {
+            return localStorage.getItem("oddsFormat") || "american";
+        }
+
+        function setOddsFormat(format) {
+            localStorage.setItem("oddsFormat", format);
+            if (lastData) {
+                renderResults(lastData);
+            }
+        }
+
+        function formatOdds(odds) {
+            if (odds === null || odds === undefined) {
+                return "";
+            }
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) {
+                return String(odds);
+            }
+            
+            const format = getOddsFormat();
+            if (format === "decimal") {
+                const decimal = americanToDecimal(numOdds);
+                return decimal ? decimal.toFixed(2) : String(odds);
+            } else {
+                return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+            }
+        }
+
+        let lastData = null;
+
+        function renderResults(data) {
+            const body = document.getElementById("results-body");
+            body.innerHTML = "";
+
+            if (!data || !data.plays || data.plays.length === 0) {
+                body.innerHTML = '<tr><td colspan="9" class="small-text">No player prop value plays found.</td></tr>';
+                return;
+            }
+
+            data.plays.forEach(play => {
+                const tr = document.createElement("tr");
+
+                const playerCell = document.createElement("td");
+                playerCell.textContent = play.outcome_name || "";
+                tr.appendChild(playerCell);
+
+                const matchupCell = document.createElement("td");
+                matchupCell.textContent = play.matchup || "";
+                tr.appendChild(matchupCell);
+
+                const startCell = document.createElement("td");
+                startCell.textContent = play.start_time || "";
+                tr.appendChild(startCell);
+
+                const lineCell = document.createElement("td");
+                lineCell.textContent = play.point !== null && play.point !== undefined ? play.point : "-";
+                tr.appendChild(lineCell);
+
+                const targetCell = document.createElement("td");
+                const targetBookLabel = document.querySelector("#target-book-select option:checked")?.textContent || data.target_book || "Target";
+                const formattedTargetOdds = formatOdds(play.book_price);
+                targetCell.innerHTML = `<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
+                tr.appendChild(targetCell);
+
+                const compareCell = document.createElement("td");
+                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
+                const formattedCompareOdds = formatOdds(play.novig_price);
+                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
+                tr.appendChild(compareCell);
+
+                const hedgeCell = document.createElement("td");
+                if (play.novig_reverse_name && play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
+                    const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
+                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name} ${formattedHedgeOdds}</strong>`;
+                } else {
+                    hedgeCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(hedgeCell);
+
+                const arbCell = document.createElement("td");
+                if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
+                    const arbRounded = Math.round(play.arb_margin_percent * 100) / 100;
+                    const arbClass = arbRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                    arbCell.innerHTML = `<span class="${arbClass}">${arbRounded}%</span>`;
+                } else {
+                    arbCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(arbCell);
+
+                const evCell = document.createElement("td");
+                const evRounded = Math.round(play.ev_percent * 100) / 100;
+                const evClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                evCell.innerHTML = `<span class="${evClass}">${evRounded}%</span>`;
+                tr.appendChild(evCell);
+
+                body.appendChild(tr);
+            });
+        }
+
+        async function fetchPlayerProps() {
+            const sport = document.getElementById("sport-select").value;
+            const team = document.getElementById("team-select").value || null;
+            const player = document.getElementById("player-select").value || null;
+            const market = document.getElementById("market-select").value;
+            const targetBook = document.getElementById("target-book-select").value;
+            const compareBook = document.getElementById("compare-book-select").value;
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+
+            if (targetBook === compareBook) {
+                setStatus("Error: Target book and comparison book cannot be the same.");
+                return;
+            }
+
+            setStatus("Fetching player prop value plays...");
+            try {
+                const res = await fetch("/api/player-props", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_key: sport,
+                        team: team,
+                        player_name: player,
+                        market: market,
+                        target_book: targetBook,
+                        compare_book: compareBook,
+                        use_dummy_data: useDummyData
+                    }),
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || ("HTTP " + res.status));
+                }
+                const data = await res.json();
+                lastData = data;
+                renderResults(data);
+                
+                const playsCount = (data.plays || []).length;
+                const compareBookLabel = document.querySelector("#compare-book-select option:checked").textContent;
+                setSummary(`Found ${playsCount} player prop value plays. Target: ${targetBook}, Compare: ${compareBookLabel}.`);
+                setStatus("Done.");
+            } catch (e) {
+                console.error(e);
+                setStatus("Error: " + e.message);
+            }
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            // Load and setup odds format toggle
+            const savedFormat = localStorage.getItem("oddsFormat") || "american";
+            const formatRadios = document.querySelectorAll('input[name="odds-format"]');
+            formatRadios.forEach(radio => {
+                if (radio.value === savedFormat) {
+                    radio.checked = true;
+                }
+                radio.addEventListener("change", (e) => {
+                    if (e.target.checked) {
+                        setOddsFormat(e.target.value);
+                    }
+                });
+            });
+
+            // Initialize team dropdown
+            updateTeamDropdown();
+            
+            // Update teams when sport changes
+            document.getElementById("sport-select").addEventListener("change", () => {
+                updateTeamDropdown();
+            });
+            
+            // Update players when team changes
+            document.getElementById("team-select").addEventListener("change", updatePlayerDropdown);
+
+            // Buttons
+            document.getElementById("find-btn").onclick = fetchPlayerProps;
+            document.getElementById("clear-btn").onclick = clearResults;
+
+            // Book validation
+            const targetBook = document.getElementById("target-book-select");
+            const compareBook = document.getElementById("compare-book-select");
+            
+            function validateBookSelection() {
+                if (targetBook.value === compareBook.value) {
+                    setStatus("Error: Target book and comparison book cannot be the same.");
+                    return false;
+                }
+                return true;
+            }
+            
+            targetBook.addEventListener("change", validateBookSelection);
+            compareBook.addEventListener("change", validateBookSelection);
+        });
+    </script>
+</body>
+
+</html>
+

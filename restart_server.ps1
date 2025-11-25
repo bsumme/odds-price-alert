@@ -65,20 +65,34 @@ if ($cacheDirs) {
 Write-Host ""
 Write-Host "[3/3] Starting server..." -ForegroundColor Yellow
 
-# Check if virtual environment exists
+# Check if virtual environment exists and is valid
 if (-not (Test-Path ".venv")) {
     Write-Host "  [ERROR] Virtual environment not found!" -ForegroundColor Red
     Write-Host "  Run rebuild_and_run.ps1 first to create the virtual environment." -ForegroundColor Yellow
     exit 1
 }
 
-# Activate virtual environment
-& .\.venv\Scripts\Activate.ps1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Failed to activate virtual environment!" -ForegroundColor Red
+# Check if activation script exists
+if (-not (Test-Path ".venv\Scripts\Activate.ps1")) {
+    Write-Host "  [ERROR] Virtual environment is incomplete or corrupted!" -ForegroundColor Red
+    Write-Host "  The .venv directory exists but Activate.ps1 is missing." -ForegroundColor Yellow
+    Write-Host "  Run rebuild_and_run.ps1 to recreate the virtual environment." -ForegroundColor Yellow
     exit 1
 }
-Write-Host "  [OK] Virtual environment activated" -ForegroundColor Green
+
+# Activate virtual environment
+try {
+    & .\.venv\Scripts\Activate.ps1
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
+        throw "Activation failed with exit code $LASTEXITCODE"
+    }
+    Write-Host "  [OK] Virtual environment activated" -ForegroundColor Green
+} catch {
+    Write-Host "  [ERROR] Failed to activate virtual environment!" -ForegroundColor Red
+    Write-Host "  Error: $_" -ForegroundColor Red
+    Write-Host "  Try running rebuild_and_run.ps1 to recreate the virtual environment." -ForegroundColor Yellow
+    exit 1
+}
 
 # Check for API key
 $apiKey = [Environment]::GetEnvironmentVariable("THE_ODDS_API_KEY", "User")
