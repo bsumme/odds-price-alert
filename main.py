@@ -1,4 +1,5 @@
 import os
+import random
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Set, Optional
 
@@ -38,6 +39,7 @@ class BetRequest(BaseModel):
 
 class OddsRequest(BaseModel):
     bets: List[BetRequest]
+    use_dummy_data: bool = False
 
 
 class SingleBetOdds(BaseModel):
@@ -70,6 +72,7 @@ class ValuePlayOutcome(BaseModel):
 
 class ValuePlaysResponse(BaseModel):
     target_book: str
+    compare_book: str
     market: str
     plays: List[ValuePlayOutcome]
     sgp_suggestion: Optional[Dict[str, Any]] = None  # holds 3-leg SGP suggestion if requested
@@ -83,12 +86,14 @@ class ValuePlaysRequest(BaseModel):
       - compare_book: e.g. "fanduel" (the book to compare against)
       - market: "h2h", "spreads", "totals", or "player_points"
       - include_sgp: whether to build a naive 3-leg parlay from the top plays
+      - use_dummy_data: if True, use mock data instead of real API calls
     """
     sport_key: str
     target_book: str
     compare_book: str
     market: str
     include_sgp: bool = False
+    use_dummy_data: bool = False
     max_results: Optional[int] = None
 
 
@@ -119,12 +124,14 @@ class BestValuePlaysRequest(BaseModel):
       - target_book: e.g. "draftkings"
       - compare_book: e.g. "novig" (the book to compare against)
       - max_results: maximum number of results to return
+      - use_dummy_data: if True, use mock data instead of real API calls
     """
     sport_keys: List[str]
     markets: List[str]
     target_book: str
     compare_book: str
     max_results: Optional[int] = 50
+    use_dummy_data: bool = False
 
 
 class BestValuePlaysResponse(BaseModel):
@@ -178,16 +185,135 @@ def compute_regions_for_books(bookmaker_keys: List[str]) -> str:
     return ",".join(sorted(regions))
 
 
+def generate_dummy_odds_data(
+    sport_key: str,
+    markets: str,
+    bookmaker_keys: List[str],
+) -> List[Dict[str, Any]]:
+    """
+    Generate dummy/mock odds data for development when API credits are exhausted.
+    Creates realistic-looking events with various odds scenarios.
+    """
+    # Sample team names by sport
+    team_pairs = {
+        "basketball_nba": [
+            ("Lakers", "Warriors"),
+            ("Celtics", "Heat"),
+            ("Nuggets", "Suns"),
+            ("Bucks", "76ers"),
+            ("Mavericks", "Clippers"),
+        ],
+        "americanfootball_nfl": [
+            ("Chiefs", "Bills"),
+            ("49ers", "Cowboys"),
+            ("Ravens", "Bengals"),
+            ("Dolphins", "Jets"),
+            ("Eagles", "Giants"),
+        ],
+        "basketball_ncaab": [
+            ("Duke", "UNC"),
+            ("Kentucky", "Kansas"),
+            ("UCLA", "Arizona"),
+            ("Gonzaga", "Baylor"),
+            ("Michigan State", "Indiana"),
+        ],
+        "americanfootball_ncaaf": [
+            ("Alabama", "Georgia"),
+            ("Ohio State", "Michigan"),
+            ("Clemson", "Florida State"),
+            ("Texas", "Oklahoma"),
+            ("USC", "Oregon"),
+        ],
+    }
+    
+    teams = team_pairs.get(sport_key, [("Team A", "Team B"), ("Team C", "Team D")])
+    market_list = markets.split(",") if "," in markets else [markets]
+    
+    # Generate future start times (next 1-7 days)
+    now = datetime.now(timezone.utc)
+    events = []
+    
+    for i, (away, home) in enumerate(teams[:5]):  # Generate 5 events
+        # Random future time between 1-7 days from now
+        hours_ahead = random.randint(24, 168)
+        commence_time = (now + timedelta(hours=hours_ahead)).isoformat().replace("+00:00", "Z")
+        
+        event_id = f"dummy_{sport_key}_{i}_{int(now.timestamp())}"
+        
+        bookmakers = []
+        for book_key in bookmaker_keys:
+            markets_data = []
+            
+            for market_key in market_list:
+                outcomes = []
+                
+                if market_key == "h2h":
+                    # Moneyline: two outcomes
+                    home_odds = random.choice([-150, -120, -110, -105, +105, +110, +120, +150, +180, +200, +250])
+                    away_odds = random.choice([-150, -120, -110, -105, +105, +110, +120, +150, +180, +200, +250])
+                    outcomes = [
+                        {"name": home, "price": home_odds},
+                        {"name": away, "price": away_odds},
+                    ]
+                elif market_key == "spreads":
+                    # Spreads: two outcomes with points
+                    spread = random.choice([-3.5, -4.0, -5.5, -6.0, -7.5, 3.5, 4.0, 5.5, 6.0, 7.5])
+                    home_odds = random.choice([-110, -105, -115])
+                    away_odds = random.choice([-110, -105, -115])
+                    outcomes = [
+                        {"name": home, "price": home_odds, "point": spread},
+                        {"name": away, "price": away_odds, "point": -spread},
+                    ]
+                elif market_key == "totals":
+                    # Totals: over/under
+                    total = random.choice([45.5, 46.0, 47.5, 48.0, 220.5, 221.0, 225.5, 230.0])
+                    over_odds = random.choice([-110, -105, -115])
+                    under_odds = random.choice([-110, -105, -115])
+                    outcomes = [
+                        {"name": f"Over {total}", "price": over_odds, "point": total},
+                        {"name": f"Under {total}", "price": under_odds, "point": total},
+                    ]
+                
+                if outcomes:
+                    markets_data.append({
+                        "key": market_key,
+                        "outcomes": outcomes,
+                    })
+            
+            if markets_data:
+                bookmakers.append({
+                    "key": book_key,
+                    "title": book_key.title(),
+                    "markets": markets_data,
+                })
+        
+        events.append({
+            "id": event_id,
+            "sport_key": sport_key,
+            "home_team": home,
+            "away_team": away,
+            "commence_time": commence_time,
+            "bookmakers": bookmakers,
+        })
+    
+    return events
+
+
 def fetch_odds(
     api_key: str,
     sport_key: str,
     regions: str,
     markets: str,
     bookmaker_keys: List[str],
+    use_dummy_data: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Core call to /v4/sports/{sport_key}/odds.
+    If use_dummy_data is True, returns mock data instead of calling the API.
     """
+    if use_dummy_data:
+        return generate_dummy_odds_data(sport_key, markets, bookmaker_keys)
+    
     params = {
         "apiKey": api_key,
         "regions": regions,
@@ -558,10 +684,12 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
     if not payload.bets:
         raise HTTPException(status_code=400, detail="No bets provided")
 
-    try:
-        api_key = get_api_key()
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    api_key = ""
+    if not payload.use_dummy_data:
+        try:
+            api_key = get_api_key()
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     all_book_keys: Set[str] = set()
     for bet in payload.bets:
@@ -588,6 +716,7 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
             regions=regions,
             markets=",".join(markets),
             bookmaker_keys=bookmaker_keys,
+            use_dummy_data=payload.use_dummy_data,
         )
 
         for bet in bets_for_sport:
@@ -702,10 +831,12 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
             detail="Target book and comparison book cannot be the same.",
         )
 
-    try:
-        api_key = get_api_key()
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    api_key = ""
+    if not payload.use_dummy_data:
+        try:
+            api_key = get_api_key()
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     bookmaker_keys = [target_book, compare_book]
     regions = compute_regions_for_books(bookmaker_keys)
@@ -768,6 +899,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
 
     return ValuePlaysResponse(
         target_book=target_book,
+        compare_book=compare_book,
         market=market_key,
         plays=top_plays,
         sgp_suggestion=sgp_suggestion,
@@ -815,6 +947,7 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
                     regions=regions,
                     markets=market_key,
                     bookmaker_keys=bookmaker_keys,
+                    use_dummy_data=payload.use_dummy_data,
                 )
 
                 raw_plays = collect_value_plays(events, market_key, target_book, compare_book)

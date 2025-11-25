@@ -46,9 +46,8 @@
 
         main {
             padding: 1.5rem;
-            display: grid;
-            grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
-            gap: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
         }
 
         .card {
@@ -226,78 +225,9 @@
     </header>
 
     <main>
-        <!-- Left: controls -->
-        <section class="card">
-            <h2>Find Value Plays</h2>
-
-            <button class="btn btn-link" style="margin-bottom: 0.5rem;" onclick="window.location.href='/watcher.html'">
-                ⇄ Switch to Watcher (Team Alerts)
-            </button>
-
-            <label for="sport-select">Sport</label>
-            <select id="sport-select">
-                <option value="basketball_nba">NBA</option>
-                <option value="americanfootball_nfl">NFL</option>
-                <option value="basketball_ncaab">NCAAB</option>
-                <option value="americanfootball_ncaaf">NCAAF</option>
-            </select>
-
-            <label for="market-select">Market</label>
-            <select id="market-select">
-                <option value="h2h">Moneyline (h2h)</option>
-                <option value="spreads">Spreads</option>
-                <option value="totals">Totals</option>
-            </select>
-
-            <label for="book-select">Target book</label>
-            <select id="book-select">
-                <option value="draftkings">DraftKings</option>
-                <option value="fanduel">FanDuel</option>
-                <option value="fliff">Fliff</option>
-                <option value="novig">Novig</option>
-            </select>
-
-            <label for="compare-book-select">Compare against</label>
-            <select id="compare-book-select">
-                <option value="novig" selected>Novig</option>
-                <option value="draftkings">DraftKings</option>
-                <option value="fanduel">FanDuel</option>
-                <option value="fliff">Fliff</option>
-            </select>
-
-            <label for="max-results-input">Max value plays to show</label>
-            <input id="max-results-input" type="number" min="5" max="100" step="5" value="7" />
-
-            <label>
-                <input type="checkbox" id="sgp-checkbox" />
-                Suggest high-EV 3-leg parlay (cross-game) from top edges
-            </label>
-
-            <label for="interval-input">Polling interval (seconds)</label>
-            <input id="interval-input" type="number" min="15" step="15" value="60" />
-
-            <div style="margin-top: 0.5rem;">
-                <button class="btn btn-primary" id="find-btn">One-time search</button>
-                <button class="btn btn-secondary" id="start-loop-btn">Start watching</button>
-                <button class="btn btn-secondary" id="stop-loop-btn" disabled>Stop</button>
-                <button class="btn btn-secondary" id="clear-btn">Clear results</button>
-            </div>
-
-            <div style="margin-top: 0.5rem;">
-                <button class="btn btn-secondary" id="filter-opp-btn">
-                    Filter: Hedgeable Only (OFF)
-                </button>
-                <div class="small-text">
-                    Hedgeable = Comparison book has a posted opposite side you could potentially hedge with.
-                </div>
-            </div>
-
-            <div class="status-bar" id="status-bar">Ready.</div>
-        </section>
-
         <!-- Best Value Finder Section -->
-        <section class="card" style="margin-top: 1.5rem;">
-            <h2>Best Value Finder (Multi-Sport)</h2>
+        <section class="card">
+            <h2>Value Finder (Multi-Sport)</h2>
             <div class="small-text" style="margin-bottom: 0.75rem;">
                 Find the best +EV bets across multiple sports and markets
             </div>
@@ -357,43 +287,18 @@
             <label for="best-max-results-input">Max results</label>
             <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="50" />
 
+            <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #1f2937; border-radius: 4px;">
+                <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
+                <span>Use Dummy Data (for development when API credits are exhausted)</span>
+            </label>
+
             <div style="margin-top: 0.75rem;">
                 <button class="btn btn-primary" id="find-best-btn">Find Best Value Plays</button>
+                <button class="btn btn-secondary" id="profit-boost-btn">Find Profit Boost Plays (+200+)</button>
                 <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
             </div>
 
             <div class="status-bar" id="best-status-bar">Ready.</div>
-        </section>
-
-        <!-- Right: results -->
-        <section class="card">
-            <h2>Value Plays</h2>
-            <div class="small-text" id="summary-bar"></div>
-            <div class="scroll-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Outcome (Book)</th>
-                            <th>Matchup</th>
-                            <th>Start Time</th>
-                            <th>Compare Price</th>
-                            <th>Opposite Side</th>
-                            <th>Hedge Bet (Book)</th>
-                            <th>Value Bet (Book)</th>
-                            <th>Hedge EV%</th>
-                            <th>EV% (approx)</th>
-                        </tr>
-
-                    </thead>
-                    <tbody id="results-body">
-                        <tr>
-                            <td colspan="9" class="small-text">No results yet.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div id="sgp-container"></div>
         </section>
 
         <!-- Best Value Results Section -->
@@ -874,7 +779,7 @@
             setBestSummary("");
         }
 
-        function renderBestValuePlays(data) {
+        function renderBestValuePlays(data, profitBoostOnly = false) {
             const body = document.getElementById("best-results-body");
             body.innerHTML = "";
             const section = document.getElementById("best-results-section");
@@ -883,6 +788,17 @@
             if (!data || !data.plays || data.plays.length === 0) {
                 body.innerHTML = '<tr><td colspan="11" class="small-text">No value plays found.</td></tr>';
                 return;
+            }
+
+            let plays = data.plays;
+            
+            // Filter for profit boost plays (+200 to +300, and above +300)
+            if (profitBoostOnly) {
+                plays = plays.filter(p => p.book_price >= 200);
+                if (plays.length === 0) {
+                    body.innerHTML = '<tr><td colspan="11" class="small-text">No profit boost plays found (+200 odds and above).</td></tr>';
+                    return;
+                }
             }
 
             const sportLabels = {
@@ -898,7 +814,7 @@
                 "totals": "Totals"
             };
 
-            data.plays.forEach(play => {
+            plays.forEach(play => {
                 const tr = document.createElement("tr");
 
                 const sportCell = document.createElement("td");
@@ -985,12 +901,15 @@
             });
         }
 
-        async function fetchBestValuePlays() {
+        let lastBestValueData = null;
+
+        async function fetchBestValuePlays(profitBoostOnly = false) {
             const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
             const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
             const targetBook = document.getElementById("best-target-book-select").value;
             const compareBook = document.getElementById("best-compare-book-select").value;
             const maxResults = Number(document.getElementById("best-max-results-input").value) || 50;
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
 
             if (sportCheckboxes.length === 0) {
                 setBestStatus("Error: Please select at least one sport.");
@@ -1010,7 +929,10 @@
             const sportKeys = Array.from(sportCheckboxes).map(cb => cb.value);
             const markets = Array.from(marketCheckboxes).map(cb => cb.value);
 
-            setBestStatus("Searching across sports and markets...");
+            setBestStatus(profitBoostOnly ? "Searching for profit boost plays (+200 odds and above)..." : "Searching across sports and markets...");
+            if (useDummyData) {
+                setBestStatus((profitBoostOnly ? "Searching for profit boost plays (+200 odds and above)..." : "Searching across sports and markets...") + " [DUMMY DATA MODE]");
+            }
             clearBestResults();
 
             try {
@@ -1022,7 +944,8 @@
                         markets: markets,
                         target_book: targetBook,
                         compare_book: compareBook,
-                        max_results: maxResults
+                        max_results: maxResults * 2,  // Get more results to filter from
+                        use_dummy_data: useDummyData
                     }),
                 });
                 if (!res.ok) {
@@ -1030,11 +953,19 @@
                     throw new Error(text || ("HTTP " + res.status));
                 }
                 const data = await res.json();
-                renderBestValuePlays(data);
+                lastBestValueData = data;
+                renderBestValuePlays(data, profitBoostOnly);
 
-                const playsCount = (data.plays || []).length;
+                let playsCount = (data.plays || []).length;
+                if (profitBoostOnly) {
+                    playsCount = data.plays.filter(p => p.book_price >= 200).length;
+                }
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked").textContent;
-                setBestSummary(`Found ${playsCount} best value plays across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Hedge EV% (vs ${compareBookLabel}).`);
+                if (profitBoostOnly) {
+                    setBestSummary(`Found ${playsCount} profit boost plays (+200 to +300+ odds) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Hedge EV% (vs ${compareBookLabel}).`);
+                } else {
+                    setBestSummary(`Found ${playsCount} best value plays across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Hedge EV% (vs ${compareBookLabel}).`);
+                }
                 setBestStatus("Done.");
             } catch (e) {
                 console.error(e);
@@ -1043,30 +974,22 @@
         }
 
         window.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("find-btn").onclick = () => fetchValuePlays(true);
-            document.getElementById("clear-btn").onclick = clearResults;
-            document.getElementById("start-loop-btn").onclick = startValueLoop;
-            document.getElementById("stop-loop-btn").onclick = stopValueLoop;
-            document.getElementById("filter-opp-btn").onclick = toggleHedgeFilter;
-            
-            // Best Value Finder buttons
-            document.getElementById("find-best-btn").onclick = fetchBestValuePlays;
-            document.getElementById("clear-best-btn").onclick = clearBestResults;
-            
-            // Prevent selecting the same book for both target and comparison
-            const bookSelect = document.getElementById("book-select");
-            const compareBookSelect = document.getElementById("compare-book-select");
-            
-            function validateBookSelection() {
-                if (bookSelect.value === compareBookSelect.value) {
-                    setStatus("Error: Target book and comparison book cannot be the same.");
-                    return false;
-                }
-                return true;
+            // Load dummy data setting from localStorage
+            const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
+            const savedDummyData = localStorage.getItem("useDummyData");
+            if (savedDummyData === "true") {
+                dummyDataCheckbox.checked = true;
             }
             
-            bookSelect.addEventListener("change", validateBookSelection);
-            compareBookSelect.addEventListener("change", validateBookSelection);
+            // Save dummy data setting to localStorage when changed
+            dummyDataCheckbox.addEventListener("change", (e) => {
+                localStorage.setItem("useDummyData", e.target.checked ? "true" : "false");
+            });
+            
+            // Best Value Finder buttons
+            document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays(false);
+            document.getElementById("profit-boost-btn").onclick = () => fetchBestValuePlays(true);
+            document.getElementById("clear-best-btn").onclick = clearBestResults;
 
             // Best value finder book validation
             const bestTargetBook = document.getElementById("best-target-book-select");

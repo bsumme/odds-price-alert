@@ -245,8 +245,18 @@
                 ⇄ Switch to Value Finder (Home)
             </button>
 
-            <label for="team-input">Team name</label>
-            <input id="team-input" type="text" placeholder="e.g. New York Knicks" />
+            <label for="sport-select">Sport</label>
+            <select id="sport-select">
+                <option value="basketball_nba">NBA</option>
+                <option value="americanfootball_nfl">NFL</option>
+                <option value="basketball_ncaab">NCAAB</option>
+                <option value="americanfootball_ncaaf">NCAAF</option>
+            </select>
+
+            <label for="team-select">Team name</label>
+            <select id="team-select">
+                <option value="">Select a sport first</option>
+            </select>
 
             <label for="odds-input">Target odds (“or better”)</label>
             <input id="odds-input" type="text" placeholder="-290 or +120" />
@@ -312,6 +322,65 @@
         let bets = [];
         let pollTimer = null;
 
+        // Team lists by sport
+        const TEAMS_BY_SPORT = {
+            "basketball_nba": [
+                "Atlanta Hawks", "Boston Celtics", "Brooklyn Nets", "Charlotte Hornets", "Chicago Bulls",
+                "Cleveland Cavaliers", "Dallas Mavericks", "Denver Nuggets", "Detroit Pistons", "Golden State Warriors",
+                "Houston Rockets", "Indiana Pacers", "LA Clippers", "Los Angeles Lakers", "Memphis Grizzlies",
+                "Miami Heat", "Milwaukee Bucks", "Minnesota Timberwolves", "New Orleans Pelicans", "New York Knicks",
+                "Oklahoma City Thunder", "Orlando Magic", "Philadelphia 76ers", "Phoenix Suns", "Portland Trail Blazers",
+                "Sacramento Kings", "San Antonio Spurs", "Toronto Raptors", "Utah Jazz", "Washington Wizards"
+            ],
+            "americanfootball_nfl": [
+                "Arizona Cardinals", "Atlanta Falcons", "Baltimore Ravens", "Buffalo Bills", "Carolina Panthers",
+                "Chicago Bears", "Cincinnati Bengals", "Cleveland Browns", "Dallas Cowboys", "Denver Broncos",
+                "Detroit Lions", "Green Bay Packers", "Houston Texans", "Indianapolis Colts", "Jacksonville Jaguars",
+                "Kansas City Chiefs", "Las Vegas Raiders", "Los Angeles Chargers", "Los Angeles Rams", "Miami Dolphins",
+                "Minnesota Vikings", "New England Patriots", "New Orleans Saints", "New York Giants", "New York Jets",
+                "Philadelphia Eagles", "Pittsburgh Steelers", "San Francisco 49ers", "Seattle Seahawks", "Tampa Bay Buccaneers",
+                "Tennessee Titans", "Washington Commanders"
+            ],
+            "basketball_ncaab": [
+                "Alabama", "Arizona", "Arkansas", "Auburn", "Baylor", "Butler", "Cincinnati", "Clemson", "Connecticut", "Creighton",
+                "Duke", "Florida", "Florida State", "Gonzaga", "Houston", "Illinois", "Indiana", "Iowa", "Iowa State", "Kansas",
+                "Kansas State", "Kentucky", "Louisville", "LSU", "Marquette", "Maryland", "Memphis", "Miami", "Michigan", "Michigan State",
+                "Missouri", "NC State", "North Carolina", "Notre Dame", "Ohio State", "Oklahoma", "Oklahoma State", "Oregon", "Penn State", "Purdue",
+                "San Diego State", "Seton Hall", "South Carolina", "St. John's", "Syracuse", "TCU", "Tennessee", "Texas", "Texas A&M", "UCLA",
+                "USC", "Villanova", "Virginia", "Wake Forest", "Washington", "West Virginia", "Wisconsin", "Xavier"
+            ],
+            "americanfootball_ncaaf": [
+                "Alabama", "Arizona", "Arizona State", "Arkansas", "Auburn", "Baylor", "Boston College", "BYU", "California", "Clemson",
+                "Colorado", "Duke", "Florida", "Florida State", "Georgia", "Georgia Tech", "Illinois", "Indiana", "Iowa", "Iowa State",
+                "Kansas", "Kansas State", "Kentucky", "Louisville", "LSU", "Maryland", "Miami", "Michigan", "Michigan State", "Minnesota",
+                "Mississippi State", "Missouri", "NC State", "Nebraska", "North Carolina", "Northwestern", "Notre Dame", "Ohio State", "Oklahoma", "Oklahoma State",
+                "Ole Miss", "Oregon", "Oregon State", "Penn State", "Pittsburgh", "Purdue", "Rutgers", "South Carolina", "Stanford", "Syracuse",
+                "TCU", "Tennessee", "Texas", "Texas A&M", "Texas Tech", "UCLA", "USC", "Utah", "Vanderbilt", "Virginia",
+                "Virginia Tech", "Wake Forest", "Washington", "Washington State", "West Virginia", "Wisconsin"
+            ]
+        };
+
+        function populateTeamDropdown() {
+            const sportSelect = document.getElementById("sport-select");
+            const teamSelect = document.getElementById("team-select");
+            const selectedSport = sportSelect.value;
+            
+            teamSelect.innerHTML = "";
+            
+            if (!selectedSport) {
+                teamSelect.innerHTML = '<option value="">Select a sport first</option>';
+                return;
+            }
+            
+            const teams = TEAMS_BY_SPORT[selectedSport] || [];
+            teams.forEach(team => {
+                const option = document.createElement("option");
+                option.value = team;
+                option.textContent = team;
+                teamSelect.appendChild(option);
+            });
+        }
+
         function parseOdds(value) {
             if (!value) return null;
             value = value.trim();
@@ -348,12 +417,21 @@
                 listEl.innerHTML = '<div class="small-text">No bets configured yet.</div>';
                 return;
             }
+            
+            const sportLabels = {
+                "basketball_nba": "NBA",
+                "americanfootball_nfl": "NFL",
+                "basketball_ncaab": "NCAAB",
+                "americanfootball_ncaaf": "NCAAF"
+            };
+            
             bets.forEach((bet, idx) => {
                 const div = document.createElement("div");
                 div.className = "bet-item";
                 const booksLabel = bet.bookmaker_keys.join(", ");
+                const sportLabel = sportLabels[bet.sport_key] || bet.sport_key || "Unknown";
                 div.innerHTML = `
-          <span>[${idx + 1}] <strong>${bet.team_name}</strong> @ ${booksLabel} (target ${bet.target_odds} or better)</span>
+          <span>[${idx + 1}] <strong>${bet.team_name}</strong> (${sportLabel}) @ ${booksLabel} (target ${bet.target_odds} or better)</span>
           <button class="btn btn-secondary btn-sm" data-idx="${idx}">Remove</button>
         `;
                 const btn = div.querySelector("button");
@@ -367,11 +445,19 @@
         }
 
         function addBetFromForm() {
-            const teamInput = document.getElementById("team-input");
+            const sportSelect = document.getElementById("sport-select");
+            const teamSelect = document.getElementById("team-select");
             const oddsInput = document.getElementById("odds-input");
-            const team = teamInput.value.trim();
+            
+            const sportKey = sportSelect.value;
+            if (!sportKey) {
+                alert("Please select a sport.");
+                return;
+            }
+            
+            const team = teamSelect.value;
             if (!team) {
-                alert("Please enter a team name.");
+                alert("Please select a team.");
                 return;
             }
 
@@ -389,6 +475,7 @@
             }
 
             bets.push({
+                sport_key: sportKey,
                 team_name: team,
                 target_odds: parsedOdds,
                 bookmaker_keys,
@@ -397,7 +484,6 @@
             saveBetsToStorage();
             renderBetList();
 
-            teamInput.value = "";
             oddsInput.value = "";
         }
 
@@ -504,17 +590,78 @@
             }
             setStatus("Fetching snapshot...");
             try {
+                // Convert watcher bets to API BetRequest format
+                const apiBets = bets.map(bet => ({
+                    sport_key: bet.sport_key || "basketball_nba", // fallback for old bets
+                    market: "h2h", // watcher uses moneyline by default
+                    team: bet.team_name,
+                    point: null,
+                    bookmaker_keys: bet.bookmaker_keys
+                }));
+                
                 const response = await fetch("/api/odds", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ bets, sport_key: "basketball_nba" }),
+                    body: JSON.stringify({ bets: apiBets }),
                 });
                 if (!response.ok) {
                     const text = await response.text();
                     throw new Error(text || ("HTTP " + response.status));
                 }
-                const data = await response.json();
-                renderResults(data);
+                const apiData = await response.json();
+                
+                // Transform API response to match renderResults expected format
+                const transformedData = {
+                    bets: bets.map((watcherBet, idx) => {
+                        const apiBet = apiData.bets.find(b => b.team === watcherBet.team_name);
+                        if (!apiBet) {
+                            return {
+                                team_name: watcherBet.team_name,
+                                target_odds: watcherBet.target_odds,
+                                games: []
+                            };
+                        }
+                        
+                        // Find best price (convert American to decimal for comparison)
+                        const validPrices = apiBet.prices.filter(p => p.price !== null && p.price !== undefined);
+                        let bestPrice = null;
+                        let bestBook = null;
+                        if (validPrices.length > 0) {
+                            const best = validPrices.reduce((best, curr) => {
+                                // Convert American odds to decimal
+                                const bestDecimal = best.price > 0 
+                                    ? (best.price / 100) + 1 
+                                    : (100 / Math.abs(best.price)) + 1;
+                                const currDecimal = curr.price > 0
+                                    ? (curr.price / 100) + 1
+                                    : (100 / Math.abs(curr.price)) + 1;
+                                // Higher decimal odds = better price
+                                return currDecimal > bestDecimal ? curr : best;
+                            });
+                            bestPrice = best.price;
+                            bestBook = best.bookmaker_key;
+                        }
+                        
+                        return {
+                            team_name: watcherBet.team_name,
+                            target_odds: watcherBet.target_odds,
+                            games: [{
+                                matchup: `${watcherBet.team_name} (${apiBet.sport_key})`,
+                                start_time: "",
+                                prices: apiBet.prices.map(p => ({
+                                    bookmaker_key: p.bookmaker_key,
+                                    bookmaker_name: p.bookmaker_name,
+                                    price: p.price
+                                })),
+                                best_bookmaker_key: bestBook,
+                                best_price: bestPrice,
+                                best_bookmaker_name: apiBet.prices.find(p => p.bookmaker_key === bestBook)?.bookmaker_name || null
+                            }]
+                        };
+                    })
+                };
+                
+                renderResults(transformedData);
                 setLastUpdated();
                 setStatus("Snapshot fetched.");
             } catch (e) {
@@ -570,6 +717,12 @@
         window.addEventListener("DOMContentLoaded", () => {
             loadBetsFromStorage();
             renderBetList();
+
+            // Initialize team dropdown based on default sport selection
+            populateTeamDropdown();
+            
+            // Update team dropdown when sport changes
+            document.getElementById("sport-select").addEventListener("change", populateTeamDropdown);
 
             document.getElementById("add-bet-btn").onclick = addBetFromForm;
             document.getElementById("clear-bets-btn").onclick = clearBets;
