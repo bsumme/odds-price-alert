@@ -1826,6 +1826,24 @@ def get_widget_key():
     return {"key": key}
 
 
+@app.get("/api/widget-display-url")
+def get_widget_display_url():
+    """
+    Get the URL for the widget display page with the widget API key included.
+    Returns the URL if the key is configured, otherwise returns an error.
+    """
+    widget_key = get_widget_api_key()
+    if not widget_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Widget API key not configured. Set THE_ODDS_WIDGET_API_KEY environment variable.",
+        )
+    
+    # Return URL with widget key as query parameter
+    display_url = f"/widget-display.html?key={widget_key}"
+    return {"url": display_url}
+
+
 @app.get("/api/widget-url")
 def generate_widget_url(
     sport: str,

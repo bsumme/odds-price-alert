@@ -81,190 +81,53 @@
             background: #1e293b;
             border-radius: 0.75rem;
             border: 1px solid #334155;
-            padding: 1rem 1.25rem;
+            padding: 2rem;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
             margin-bottom: 1.5rem;
+            text-align: center;
         }
 
         .card h2 {
             margin-top: 0;
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
-        }
-
-        label {
-            display: block;
-            font-size: 0.85rem;
-            margin-top: 0.6rem;
-            margin-bottom: 0.15rem;
-            color: #cbd5e1;
-            font-weight: 500;
-        }
-
-        select,
-        input[type="text"],
-        input[type="number"] {
-            width: 100%;
-            padding: 0.45rem 0.6rem;
-            border-radius: 0.5rem;
-            border: 1px solid #475569;
-            background: #0f172a;
-            color: #e5e7eb;
-            box-sizing: border-box;
-            font-size: 0.9rem;
-        }
-
-        select:hover,
-        input:hover {
-            border-color: #64748b;
-        }
-
-        select:focus,
-        input:focus {
-            outline: none;
-            border-color: #166534;
-            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.2);
-        }
-
-        input[type="checkbox"] {
-            margin-right: 0.35rem;
-        }
-
-        .btn {
-            border: none;
-            border-radius: 0.5rem;
-            padding: 0.5rem 0.9rem;
-            font-size: 0.9rem;
-            cursor: pointer;
-            margin-right: 0.5rem;
-            margin-top: 0.75rem;
-        }
-
-        .btn-primary {
-            background: #166534;
-            color: #bbf7d0;
-        }
-
-        .btn-primary:hover {
-            background: #15803d;
-        }
-
-        .btn-secondary {
-            background: #475569;
-            color: #e5e7eb;
-        }
-
-        .btn-secondary:hover {
-            background: #64748b;
-        }
-
-        .small-text {
-            font-size: 0.75rem;
-            color: #94a3b8;
-        }
-
-        .widget-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-        }
-
-        .widget-wrapper {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            position: relative;
-        }
-
-        .widget-wrapper h3 {
-            margin-top: 0;
-            margin-bottom: 0.5rem;
-            font-size: 0.95rem;
-            color: #bbf7d0;
-        }
-
-        .widget-wrapper iframe {
-            width: 100%;
-            border: 1px solid #334155;
-            border-radius: 0.25rem;
-            background: #fff;
-        }
-
-        .widget-controls {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
+            font-size: 1.5rem;
             margin-bottom: 1rem;
+            color: #bbf7d0;
         }
 
-        .info-box {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-left: 3px solid #166534;
-            border-radius: 0.5rem;
-            padding: 1rem;
+        .card p {
+            font-size: 1rem;
+            color: #cbd5e1;
             margin-bottom: 1.5rem;
         }
 
-        .info-box h3 {
-            margin-top: 0;
+        .widget-link {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: #166534;
             color: #bbf7d0;
-            font-size: 1rem;
-        }
-
-        .info-box code {
-            background: #1e293b;
-            padding: 0.2rem 0.4rem;
-            border-radius: 0.25rem;
-            font-size: 0.85rem;
-            color: #bbf7d0;
-        }
-
-        .code-block {
-            background: #0f172a;
-            border: 1px solid #334155;
+            text-decoration: none;
             border-radius: 0.5rem;
-            padding: 1rem;
-            margin-top: 0.5rem;
-            overflow-x: auto;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: background 0.2s;
+            margin-top: 1rem;
         }
 
-        .code-block code {
-            color: #cbd5e1;
-            font-size: 0.8rem;
-            white-space: pre;
-            display: block;
+        .widget-link:hover {
+            background: #15803d;
         }
 
-        .checkbox-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            margin-top: 0.5rem;
-        }
-
-        .checkbox-group label {
-            display: flex;
-            align-items: center;
-            margin-top: 0;
-            font-weight: normal;
-        }
-
-        .status-bar {
-            font-size: 0.8rem;
-            color: #94a3b8;
-            margin-top: 0.5rem;
-        }
-
-        .warning {
+        .error-message {
             color: #fecaca;
             background: #7f1d1d;
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            margin-top: 0.5rem;
-            font-size: 0.85rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .loading {
+            color: #94a3b8;
+            font-size: 0.9rem;
         }
     </style>
 </head>
@@ -273,8 +136,8 @@
     <header>
         <div>
             <h1>Odds Widgets</h1>
-            <div class="small-text">
-                Display live odds widgets from The Odds API on your site
+            <div class="small-text" style="color: #94a3b8; font-size: 0.75rem;">
+                Display live odds widgets from The Odds API
             </div>
         </div>
         <nav>
@@ -297,401 +160,45 @@
     </header>
 
     <main>
-        <!-- Info Box -->
-        <div class="info-box">
-            <h3>📋 Getting Started with Odds Widgets</h3>
-            <p class="small-text">
-                To use the Odds API widgets, you need a widget access key from 
-                <a href="https://the-odds-api.com/accounts/" target="_blank" style="color: #bbf7d0;">The Odds API accounts page</a>.
-                Widget access keys start with <code>wk_</code>.
-            </p>
-            <p class="small-text" style="margin-top: 0.5rem;">
-                <strong>Option 1 (Recommended):</strong> Set the <code>THE_ODDS_WIDGET_API_KEY</code> environment variable on your server. 
-                The widget key will be automatically loaded when you visit this page.
-            </p>
-            <p class="small-text" style="margin-top: 0.5rem;">
-                <strong>Option 2:</strong> Enter your widget access key manually in the field below. It will be stored locally in your browser.
-            </p>
-            <p class="small-text" style="margin-top: 0.5rem;">
-                <strong>Note:</strong> Each widget load costs 1 usage quota. Make sure you have sufficient quota in your subscription.
-            </p>
-        </div>
-
-        <!-- Configuration Panel -->
         <div class="card">
-            <h2>Widget Configuration</h2>
-            
-            <label for="access-key-input">Widget Access Key (starts with wk_)</label>
-            <input type="text" id="access-key-input" placeholder="wk_abcdef01234567890123456789012345" />
-            <div class="small-text" style="margin-top: 0.25rem;">
-                Your widget access key from The Odds API. 
-                <span id="key-source-text">If not set via THE_ODDS_WIDGET_API_KEY environment variable, enter it here and it will be stored locally in your browser.</span>
-            </div>
-
-            <div class="widget-controls">
-                <div>
-                    <label for="sport-select">Sport</label>
-                    <select id="sport-select">
-                        <option value="americanfootball_nfl">NFL</option>
-                        <option value="basketball_nba">NBA</option>
-                        <option value="basketball_ncaab">NCAAB</option>
-                        <option value="americanfootball_ncaaf">NCAAF</option>
-                        <option value="baseball_mlb">MLB</option>
-                        <option value="icehockey_nhl">NHL</option>
-                        <option value="soccer_epl">Premier League</option>
-                        <option value="soccer_usa_mls">MLS</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label for="bookmaker-select">Bookmaker</label>
-                    <select id="bookmaker-select">
-                        <option value="draftkings">DraftKings</option>
-                        <option value="fanduel">FanDuel</option>
-                        <option value="betmgm">BetMGM</option>
-                        <option value="caesars">Caesars</option>
-                        <option value="pointsbet">PointsBet</option>
-                        <option value="barstool">Barstool</option>
-                        <option value="unibet">Unibet</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label for="odds-format-select">Odds Format</label>
-                    <select id="odds-format-select">
-                        <option value="american">American</option>
-                        <option value="decimal">Decimal</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label>Markets</label>
-                    <div class="checkbox-group">
-                        <label>
-                            <input type="checkbox" class="market-checkbox" value="h2h" checked />
-                            <span>Moneyline (h2h)</span>
-                        </label>
-                        <label>
-                            <input type="checkbox" class="market-checkbox" value="spreads" checked />
-                            <span>Spreads</span>
-                        </label>
-                        <label>
-                            <input type="checkbox" class="market-checkbox" value="totals" checked />
-                            <span>Totals</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div style="margin-top: 1rem;">
-                <button class="btn btn-primary" id="add-widget-btn">Add Widget</button>
-                <button class="btn btn-secondary" id="clear-widgets-btn">Clear All Widgets</button>
-            </div>
-
-            <div class="status-bar" id="status-bar">Ready. Configure and add widgets to display them below.</div>
-        </div>
-
-        <!-- Widget Display Area -->
-        <div class="card" id="widgets-card" style="display: none;">
-            <h2>Active Widgets</h2>
-            <div class="widget-container" id="widget-container"></div>
-        </div>
-
-        <!-- Code Examples -->
-        <div class="card">
-            <h2>📝 HTML Code for Your Widget</h2>
-            <p class="small-text">
-                Copy the HTML code below to embed this widget on your website. Replace <code>YOUR_ACCESS_KEY</code> with your actual widget access key.
-            </p>
-            <div class="code-block">
-                <code id="widget-code">Configure a widget above to see the HTML code here.</code>
-            </div>
-            <button class="btn btn-secondary" id="copy-code-btn" style="margin-top: 0.5rem;">Copy Code</button>
+            <h2>Odds Widgets</h2>
+            <p>View live odds widgets displaying Moneyline, Spreads, and Totals</p>
+            <div id="link-container" class="loading">Loading widget link...</div>
         </div>
     </main>
 
     <script>
-        let serverWidgetKey = null;
-        let useServerKey = false;
-
-        // Load widget key from backend
-        async function loadWidgetKeyFromServer() {
+        async function loadWidgetLink() {
+            const container = document.getElementById('link-container');
+            
             try {
-                const response = await fetch('/api/widget-key');
+                const response = await fetch('/api/widget-display-url');
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.key) {
-                        serverWidgetKey = data.key;
-                        useServerKey = true;
-                        document.getElementById('access-key-input').value = data.key;
-                        document.getElementById('access-key-input').disabled = true;
-                        document.getElementById('access-key-input').style.background = '#1e293b';
-                        document.getElementById('access-key-input').style.cursor = 'not-allowed';
-                        document.getElementById('key-source-text').textContent = 'Loaded from THE_ODDS_WIDGET_API_KEY environment variable.';
-                        setStatus('Widget key loaded from server environment variable.');
-                        return true;
-                    }
+                    container.innerHTML = `
+                        <a href="${data.url}" class="widget-link">
+                            View Odds Widgets
+                        </a>
+                    `;
+                } else {
+                    const error = await response.json();
+                    container.innerHTML = `
+                        <div class="error-message">
+                            Error: ${error.detail || 'Failed to load widget configuration. Please ensure THE_ODDS_WIDGET_API_KEY is set in your environment variables.'}
+                        </div>
+                    `;
                 }
             } catch (error) {
-                console.log('Could not load widget key from server:', error);
-            }
-            return false;
-        }
-
-        // Load access key from localStorage (fallback)
-        function loadAccessKey() {
-            const saved = localStorage.getItem('oddsWidgetAccessKey');
-            if (saved && !useServerKey) {
-                document.getElementById('access-key-input').value = saved;
+                container.innerHTML = `
+                    <div class="error-message">
+                        Error: Failed to connect to server. Please try again later.
+                    </div>
+                `;
             }
         }
 
-        // Save access key to localStorage (only if not using server key)
-        function saveAccessKey() {
-            if (!useServerKey) {
-                const key = document.getElementById('access-key-input').value.trim();
-                if (key) {
-                    localStorage.setItem('oddsWidgetAccessKey', key);
-                }
-            }
-        }
-
-        // Generate widget URL (using server endpoint if available, otherwise client-side)
-        async function generateWidgetUrl() {
-            const sport = document.getElementById('sport-select').value;
-            const bookmaker = document.getElementById('bookmaker-select').value;
-            const oddsFormat = document.getElementById('odds-format-select').value;
-            const markets = Array.from(document.querySelectorAll('.market-checkbox:checked'))
-                .map(cb => cb.value)
-                .join(',');
-
-            if (markets.length === 0) {
-                setStatus('Error: Please select at least one market.');
-                return null;
-            }
-
-            // If using server key, generate URL via API
-            if (useServerKey && serverWidgetKey) {
-                try {
-                    // Build market names for better display
-                    const marketNames = [];
-                    if (markets.includes('h2h')) {
-                        marketNames.push('h2h:Moneyline');
-                    }
-                    if (markets.includes('spreads')) {
-                        marketNames.push('spreads:Spread');
-                    }
-                    if (markets.includes('totals')) {
-                        marketNames.push('totals:Total');
-                    }
-
-                    const params = new URLSearchParams({
-                        sport: sport,
-                        bookmaker: bookmaker,
-                        odds_format: oddsFormat,
-                        markets: markets
-                    });
-                    if (marketNames.length > 0) {
-                        params.append('market_names', marketNames.join(','));
-                    }
-
-                    const response = await fetch(`/api/widget-url?${params.toString()}`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        return data.url;
-                    } else {
-                        const error = await response.json();
-                        setStatus(`Error: ${error.detail || 'Failed to generate widget URL'}`);
-                        return null;
-                    }
-                } catch (error) {
-                    setStatus(`Error: ${error.message}`);
-                    return null;
-                }
-            }
-
-            // Fallback to client-side generation
-            const accessKey = document.getElementById('access-key-input').value.trim();
-            if (!accessKey) {
-                setStatus('Error: Please enter your widget access key or configure THE_ODDS_WIDGET_API_KEY environment variable.');
-                return null;
-            }
-
-            if (!accessKey.startsWith('wk_')) {
-                setStatus('Warning: Access key should start with "wk_". Make sure you\'re using a widget access key, not an API key.');
-            }
-
-            // Build market names for better display
-            const marketNames = [];
-            if (markets.includes('h2h')) {
-                marketNames.push('h2h:Moneyline');
-            }
-            if (markets.includes('spreads')) {
-                marketNames.push('spreads:Spread');
-            }
-            if (markets.includes('totals')) {
-                marketNames.push('totals:Total');
-            }
-
-            const baseUrl = `https://widget.the-odds-api.com/v1/sports/${sport}/events/`;
-            const params = new URLSearchParams({
-                accessKey: accessKey,
-                bookmakerKeys: bookmaker,
-                oddsFormat: oddsFormat,
-                markets: markets
-            });
-
-            if (marketNames.length > 0) {
-                params.append('marketNames', marketNames.join(','));
-            }
-
-            return `${baseUrl}?${params.toString()}`;
-        }
-
-        // Generate HTML code for widget
-        async function generateWidgetHTML() {
-            const url = await generateWidgetUrl();
-            if (!url) return '';
-
-            return `<iframe
-    src="${url}"
-    style="width: 350px; height: 500px; border: 1px solid grey;"
-></iframe>`;
-        }
-
-        // Add widget to display
-        async function addWidget() {
-            const url = await generateWidgetUrl();
-            if (!url) return;
-
-            saveAccessKey();
-
-            const sport = document.getElementById('sport-select').value;
-            const bookmaker = document.getElementById('bookmaker-select').value;
-            const sportLabels = {
-                'americanfootball_nfl': 'NFL',
-                'basketball_nba': 'NBA',
-                'basketball_ncaab': 'NCAAB',
-                'americanfootball_ncaaf': 'NCAAF',
-                'baseball_mlb': 'MLB',
-                'icehockey_nhl': 'NHL',
-                'soccer_epl': 'Premier League',
-                'soccer_usa_mls': 'MLS'
-            };
-            const bookmakerLabels = {
-                'draftkings': 'DraftKings',
-                'fanduel': 'FanDuel',
-                'betmgm': 'BetMGM',
-                'caesars': 'Caesars',
-                'pointsbet': 'PointsBet',
-                'barstool': 'Barstool',
-                'unibet': 'Unibet'
-            };
-
-            const container = document.getElementById('widget-container');
-            const widgetWrapper = document.createElement('div');
-            widgetWrapper.className = 'widget-wrapper';
-            
-            const title = document.createElement('h3');
-            title.textContent = `${sportLabels[sport] || sport} - ${bookmakerLabels[bookmaker] || bookmaker}`;
-            widgetWrapper.appendChild(title);
-
-            const iframe = document.createElement('iframe');
-            iframe.src = url;
-            iframe.style.width = '100%';
-            iframe.style.height = '500px';
-            iframe.style.border = '1px solid #334155';
-            iframe.style.borderRadius = '0.25rem';
-            iframe.style.background = '#fff';
-            widgetWrapper.appendChild(iframe);
-
-            container.appendChild(widgetWrapper);
-
-            // Show widgets card
-            document.getElementById('widgets-card').style.display = 'block';
-
-            // Update code display
-            updateCodeDisplay();
-
-            setStatus(`Widget added successfully!`);
-        }
-
-        // Clear all widgets
-        function clearWidgets() {
-            document.getElementById('widget-container').innerHTML = '';
-            document.getElementById('widgets-card').style.display = 'none';
-            updateCodeDisplay();
-            setStatus('All widgets cleared.');
-        }
-
-        // Update code display
-        async function updateCodeDisplay() {
-            const code = await generateWidgetHTML();
-            document.getElementById('widget-code').textContent = code || 'Configure a widget above to see the HTML code here.';
-        }
-
-        // Copy code to clipboard
-        async function copyCode() {
-            const code = await generateWidgetHTML();
-            if (!code || code === 'Configure a widget above to see the HTML code here.') {
-                setStatus('Error: No widget code to copy. Please configure and add a widget first.');
-                return;
-            }
-
-            try {
-                await navigator.clipboard.writeText(code);
-                setStatus('Code copied to clipboard!');
-            } catch (err) {
-                // Fallback for older browsers
-                const textarea = document.createElement('textarea');
-                textarea.value = code;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                setStatus('Code copied to clipboard!');
-            }
-        }
-
-        function setStatus(msg) {
-            document.getElementById('status-bar').textContent = msg;
-        }
-
-        // Event listeners
-        window.addEventListener('DOMContentLoaded', async () => {
-            // Try to load widget key from server first
-            const serverKeyLoaded = await loadWidgetKeyFromServer();
-            
-            // If server key not available, try localStorage
-            if (!serverKeyLoaded) {
-                loadAccessKey();
-            }
-
-            // Update code display when settings change
-            document.getElementById('access-key-input').addEventListener('input', () => {
-                if (!useServerKey) {
-                    saveAccessKey();
-                    updateCodeDisplay();
-                }
-            });
-            document.getElementById('sport-select').addEventListener('change', updateCodeDisplay);
-            document.getElementById('bookmaker-select').addEventListener('change', updateCodeDisplay);
-            document.getElementById('odds-format-select').addEventListener('change', updateCodeDisplay);
-            document.querySelectorAll('.market-checkbox').forEach(cb => {
-                cb.addEventListener('change', updateCodeDisplay);
-            });
-
-            document.getElementById('add-widget-btn').onclick = addWidget;
-            document.getElementById('clear-widgets-btn').onclick = clearWidgets;
-            document.getElementById('copy-code-btn').onclick = copyCode;
-
-            // Initial code display
-            await updateCodeDisplay();
-        });
+        window.addEventListener('DOMContentLoaded', loadWidgetLink);
     </script>
 </body>
 
 </html>
-
