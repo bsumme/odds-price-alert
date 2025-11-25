@@ -45,6 +45,32 @@
             font-weight: 600;
         }
 
+        .odds-format-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: 1rem;
+            padding: 0.5rem 0.75rem;
+            background: #1e293b;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+        }
+
+        .odds-format-toggle label {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            margin: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .odds-format-toggle input[type="radio"] {
+            margin: 0;
+            cursor: pointer;
+        }
+
         main {
             padding: 1.5rem;
             max-width: 1800px;
@@ -262,6 +288,16 @@
         <nav>
             <a href="/" class="active">Arbitrage Finder</a>
             <a href="/watcher.html">Watcher</a>
+            <div class="odds-format-toggle">
+                <label>
+                    <input type="radio" name="odds-format" value="american" checked />
+                    <span>American</span>
+                </label>
+                <label>
+                    <input type="radio" name="odds-format" value="decimal" />
+                    <span>Decimal</span>
+                </label>
+            </div>
         </nav>
     </header>
 
@@ -726,9 +762,36 @@
             return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${fallback}.png`;
         }
 
-        function formatAmericanOdds(odds) {
+        // Odds format conversion functions
+        function americanToDecimal(odds) {
+            if (odds === null || odds === undefined) return null;
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) return null;
+            if (numOdds > 0) {
+                return 1.0 + numOdds / 100.0;
+            } else {
+                return 1.0 + 100.0 / Math.abs(numOdds);
+            }
+        }
+
+        function getOddsFormat() {
+            return localStorage.getItem("oddsFormat") || "american";
+        }
+
+        function setOddsFormat(format) {
+            localStorage.setItem("oddsFormat", format);
+            // Trigger re-render of all odds displays
+            if (lastValueData) {
+                renderValueFromState();
+            }
+            if (lastBestValueData) {
+                renderBestValuePlays(lastBestValueData, false, watcherTimer !== null);
+            }
+        }
+
+        function formatOdds(odds) {
             /**
-             * Format American odds with "+" prefix for positive values.
+             * Format odds based on user preference (American or Decimal).
              * Returns the odds as a string with proper formatting.
              */
             if (odds === null || odds === undefined) {
@@ -738,8 +801,20 @@
             if (isNaN(numOdds)) {
                 return String(odds);
             }
-            // Add "+" prefix for positive odds
-            return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+            
+            const format = getOddsFormat();
+            if (format === "decimal") {
+                const decimal = americanToDecimal(numOdds);
+                return decimal ? decimal.toFixed(2) : String(odds);
+            } else {
+                // American format: Add "+" prefix for positive odds
+                return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+            }
+        }
+
+        // Legacy function for backwards compatibility
+        function formatAmericanOdds(odds) {
+            return formatOdds(odds);
         }
 
         function createTeamNameWithLogo(teamName, sportKey = null) {
@@ -864,7 +939,7 @@
 
                 const compareCell = document.createElement("td");
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatAmericanOdds(play.novig_price);
+                const formattedCompareOdds = formatOdds(play.novig_price);
                 compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 tr.appendChild(compareCell);
 
@@ -880,7 +955,7 @@
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
                     const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                    const formattedHedgeOdds = formatAmericanOdds(play.novig_reverse_price);
+                    const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
                     hedgeCell.innerHTML = `<strong>${formattedHedgeOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
@@ -889,7 +964,7 @@
 
                 const bookCell = document.createElement("td");
                 const targetBookLabel = document.querySelector("#book-select option:checked")?.textContent || data.target_book || "Target";
-                const formattedBookOdds = formatAmericanOdds(play.book_price);
+                const formattedBookOdds = formatOdds(play.book_price);
                 bookCell.innerHTML = `<strong>${formattedBookOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(bookCell);
 
@@ -940,7 +1015,7 @@
                     text += ` @ ${leg.point}`;
                 }
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-                text += ` | Book: ${formatAmericanOdds(leg.book_price)}, ${compareBookLabel}: ${formatAmericanOdds(leg.novig_price)}, EV: ${leg.ev_percent}%`;
+                text += ` | Book: ${formatOdds(leg.book_price)}, ${compareBookLabel}: ${formatOdds(leg.novig_price)}, EV: ${leg.ev_percent}%`;
                 li.textContent = text;
                 legsList.appendChild(li);
             });
@@ -1130,7 +1205,7 @@
                 const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
                 let teamName = parseTeamFromOutcome(play.outcome_name);
                 const marketLabel = marketLabels[play.market] || play.market;
-                const formattedOdds = formatAmericanOdds(play.book_price);
+                const formattedOdds = formatOdds(play.book_price);
                 
                 // For totals markets, extract team from matchup since outcome is "Over" or "Under"
                 let logoTeamName = teamName;
@@ -1191,14 +1266,14 @@
 
                 const compareCell = document.createElement("td");
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatAmericanOdds(play.novig_price);
+                const formattedCompareOdds = formatOdds(play.novig_price);
                 compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 tr.appendChild(compareCell);
 
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined && play.novig_reverse_name) {
                     const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                    const formattedHedgeOdds = formatAmericanOdds(play.novig_reverse_price);
+                    const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
                     
                     // Parse the opposite side name to format it properly
                     let oppositeTeamName = parseTeamFromOutcome(play.novig_reverse_name);
@@ -1270,8 +1345,8 @@
             const sportLabel = sportLabels[play.sport_key] || play.sport_key;
             const teamName = parseTeamFromOutcome(play.outcome_name);
             const margin = Math.round(play.arb_margin_percent * 100) / 100;
-            const bookOdds = formatAmericanOdds(play.book_price);
-            const hedgeOdds = play.novig_reverse_price ? formatAmericanOdds(play.novig_reverse_price) : "N/A";
+            const bookOdds = formatOdds(play.book_price);
+            const hedgeOdds = play.novig_reverse_price ? formatOdds(play.novig_reverse_price) : "N/A";
 
             const notification = new Notification(`Hedge Opportunity Found! (${margin}%)`, {
                 body: `${sportLabel}: ${teamName} ${bookOdds} vs Hedge ${hedgeOdds}\n${play.matchup || ""}`,
@@ -1431,7 +1506,91 @@
             }
         }
 
+        // Save form selections to localStorage
+        function saveFormSelections() {
+            const selections = {
+                sports: Array.from(document.querySelectorAll(".sport-checkbox:checked")).map(cb => cb.value),
+                markets: Array.from(document.querySelectorAll(".market-checkbox:checked")).map(cb => cb.value),
+                targetBook: document.getElementById("best-target-book-select").value,
+                compareBook: document.getElementById("best-compare-book-select").value,
+                maxResults: document.getElementById("best-max-results-input").value,
+                dummyData: document.getElementById("dummy-data-checkbox").checked,
+                watcherInterval: document.getElementById("watcher-interval-input").value
+            };
+            localStorage.setItem("arbitrageFinderSelections", JSON.stringify(selections));
+        }
+
+        // Load form selections from localStorage
+        function loadFormSelections() {
+            try {
+                const saved = localStorage.getItem("arbitrageFinderSelections");
+                if (!saved) return;
+                
+                const selections = JSON.parse(saved);
+                
+                // Restore sports checkboxes
+                if (selections.sports && Array.isArray(selections.sports)) {
+                    document.querySelectorAll(".sport-checkbox").forEach(cb => {
+                        cb.checked = selections.sports.includes(cb.value);
+                    });
+                }
+                
+                // Restore markets checkboxes
+                if (selections.markets && Array.isArray(selections.markets)) {
+                    document.querySelectorAll(".market-checkbox").forEach(cb => {
+                        cb.checked = selections.markets.includes(cb.value);
+                    });
+                }
+                
+                // Restore selects
+                if (selections.targetBook) {
+                    document.getElementById("best-target-book-select").value = selections.targetBook;
+                }
+                if (selections.compareBook) {
+                    document.getElementById("best-compare-book-select").value = selections.compareBook;
+                }
+                if (selections.maxResults) {
+                    document.getElementById("best-max-results-input").value = selections.maxResults;
+                }
+                if (selections.dummyData !== undefined) {
+                    document.getElementById("dummy-data-checkbox").checked = selections.dummyData;
+                }
+                if (selections.watcherInterval) {
+                    document.getElementById("watcher-interval-input").value = selections.watcherInterval;
+                }
+            } catch (e) {
+                console.error("Failed to load form selections:", e);
+            }
+        }
+
         window.addEventListener("DOMContentLoaded", () => {
+            // Load and setup odds format toggle
+            const savedFormat = localStorage.getItem("oddsFormat") || "american";
+            const formatRadios = document.querySelectorAll('input[name="odds-format"]');
+            formatRadios.forEach(radio => {
+                if (radio.value === savedFormat) {
+                    radio.checked = true;
+                }
+                radio.addEventListener("change", (e) => {
+                    if (e.target.checked) {
+                        setOddsFormat(e.target.value);
+                    }
+                });
+            });
+
+            // Load saved form selections
+            loadFormSelections();
+
+            // Save form selections when they change
+            document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
+                el.addEventListener("change", saveFormSelections);
+            });
+            document.getElementById("best-target-book-select").addEventListener("change", saveFormSelections);
+            document.getElementById("best-compare-book-select").addEventListener("change", saveFormSelections);
+            document.getElementById("best-max-results-input").addEventListener("change", saveFormSelections);
+            document.getElementById("dummy-data-checkbox").addEventListener("change", saveFormSelections);
+            document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
+
             // Load dummy data setting from localStorage
             const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
             const savedDummyData = localStorage.getItem("useDummyData");

@@ -44,6 +44,32 @@
             font-weight: 500;
         }
 
+        .odds-format-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: 1rem;
+            padding: 0.5rem 0.75rem;
+            background: #0f172a;
+            border-radius: 0.5rem;
+            border: 1px solid #1f2937;
+        }
+
+        .odds-format-toggle label {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            margin: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .odds-format-toggle input[type="radio"] {
+            margin: 0;
+            cursor: pointer;
+        }
+
         main {
             padding: 1.5rem;
             display: grid;
@@ -233,6 +259,16 @@
         <nav>
             <a href="/">Value Finder</a>
             <a href="/watcher.html" class="active">Watcher</a>
+            <div class="odds-format-toggle">
+                <label>
+                    <input type="radio" name="odds-format" value="american" checked />
+                    <span>American</span>
+                </label>
+                <label>
+                    <input type="radio" name="odds-format" value="decimal" />
+                    <span>Decimal</span>
+                </label>
+            </div>
         </nav>
     </header>
 
@@ -410,9 +446,33 @@
             }
         }
 
-        function formatAmericanOdds(odds) {
+        // Odds format conversion functions
+        function americanToDecimal(odds) {
+            if (odds === null || odds === undefined) return null;
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) return null;
+            if (numOdds > 0) {
+                return 1.0 + numOdds / 100.0;
+            } else {
+                return 1.0 + 100.0 / Math.abs(numOdds);
+            }
+        }
+
+        function getOddsFormat() {
+            return localStorage.getItem("oddsFormat") || "american";
+        }
+
+        function setOddsFormat(format) {
+            localStorage.setItem("oddsFormat", format);
+            // Trigger re-render if we have data
+            if (bets.length > 0 && pollTimer) {
+                fetchSnapshot();
+            }
+        }
+
+        function formatOdds(odds) {
             /**
-             * Format American odds with "+" prefix for positive values.
+             * Format odds based on user preference (American or Decimal).
              * Returns the odds as a string with proper formatting.
              */
             if (odds === null || odds === undefined) {
@@ -422,8 +482,20 @@
             if (isNaN(numOdds)) {
                 return String(odds);
             }
-            // Add "+" prefix for positive odds
-            return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+            
+            const format = getOddsFormat();
+            if (format === "decimal") {
+                const decimal = americanToDecimal(numOdds);
+                return decimal ? decimal.toFixed(2) : String(odds);
+            } else {
+                // American format: Add "+" prefix for positive odds
+                return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+            }
+        }
+
+        // Legacy function for backwards compatibility
+        function formatAmericanOdds(odds) {
+            return formatOdds(odds);
         }
 
         function renderBetList() {
@@ -567,7 +639,7 @@
                             if (price === null || price === undefined) {
                                 inner += '<span class="small-text">(no line)</span>';
                             } else {
-                                inner += price;
+                                inner += formatOdds(price);
                             }
 
                             const hit = (price !== null && price >= bet.target_odds); // "or better" logic
@@ -730,15 +802,78 @@
             clearResultsTable();
         }
 
+        // Save form selections to localStorage
+        function saveFormSelections() {
+            const selections = {
+                sport: document.getElementById("sport-select").value,
+                books: Array.from(document.querySelectorAll('input[name="book"]:checked')).map(cb => cb.value),
+                interval: document.getElementById("interval-input").value
+            };
+            localStorage.setItem("watcherSelections", JSON.stringify(selections));
+        }
+
+        // Load form selections from localStorage
+        function loadFormSelections() {
+            try {
+                const saved = localStorage.getItem("watcherSelections");
+                if (!saved) return;
+                
+                const selections = JSON.parse(saved);
+                
+                if (selections.sport) {
+                    document.getElementById("sport-select").value = selections.sport;
+                    populateTeamDropdown(); // Update team dropdown when sport changes
+                }
+                
+                if (selections.books && Array.isArray(selections.books)) {
+                    document.querySelectorAll('input[name="book"]').forEach(cb => {
+                        cb.checked = selections.books.includes(cb.value);
+                    });
+                }
+                
+                if (selections.interval) {
+                    document.getElementById("interval-input").value = selections.interval;
+                }
+            } catch (e) {
+                console.error("Failed to load form selections:", e);
+            }
+        }
+
         window.addEventListener("DOMContentLoaded", () => {
+            // Load and setup odds format toggle
+            const savedFormat = localStorage.getItem("oddsFormat") || "american";
+            const formatRadios = document.querySelectorAll('input[name="odds-format"]');
+            formatRadios.forEach(radio => {
+                if (radio.value === savedFormat) {
+                    radio.checked = true;
+                }
+                radio.addEventListener("change", (e) => {
+                    if (e.target.checked) {
+                        setOddsFormat(e.target.value);
+                    }
+                });
+            });
+
+            // Load saved form selections
+            loadFormSelections();
+
+            // Save form selections when they change
+            document.getElementById("sport-select").addEventListener("change", () => {
+                saveFormSelections();
+                populateTeamDropdown();
+            });
+            document.querySelectorAll('input[name="book"]').forEach(cb => {
+                cb.addEventListener("change", saveFormSelections);
+            });
+            document.getElementById("interval-input").addEventListener("change", saveFormSelections);
+
             loadBetsFromStorage();
             renderBetList();
 
             // Initialize team dropdown based on default sport selection
             populateTeamDropdown();
             
-            // Update team dropdown when sport changes
-            document.getElementById("sport-select").addEventListener("change", populateTeamDropdown);
+            // Note: sport change handler is already set up above in the form selections section
 
             document.getElementById("add-bet-btn").onclick = addBetFromForm;
             document.getElementById("clear-bets-btn").onclick = clearBets;

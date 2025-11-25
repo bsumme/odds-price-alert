@@ -44,6 +44,32 @@
             font-weight: 500;
         }
 
+        .odds-format-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: 1rem;
+            padding: 0.5rem 0.75rem;
+            background: #0f172a;
+            border-radius: 0.5rem;
+            border: 1px solid #1f2937;
+        }
+
+        .odds-format-toggle label {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            margin: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .odds-format-toggle input[type="radio"] {
+            margin: 0;
+            cursor: pointer;
+        }
+
         main {
             padding: 1.5rem;
             display: grid;
@@ -195,6 +221,16 @@
         <nav>
             <a href="/index.html">Watcher</a>
             <a href="/value.html" class="active">Value Finder</a>
+            <div class="odds-format-toggle">
+                <label>
+                    <input type="radio" name="odds-format" value="american" checked />
+                    <span>American</span>
+                </label>
+                <label>
+                    <input type="radio" name="odds-format" value="decimal" />
+                    <span>Decimal</span>
+                </label>
+            </div>
         </nav>
     </header>
 
@@ -303,9 +339,33 @@
             setSummary("");
         }
 
-        function formatAmericanOdds(odds) {
+        // Odds format conversion functions
+        function americanToDecimal(odds) {
+            if (odds === null || odds === undefined) return null;
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) return null;
+            if (numOdds > 0) {
+                return 1.0 + numOdds / 100.0;
+            } else {
+                return 1.0 + 100.0 / Math.abs(numOdds);
+            }
+        }
+
+        function getOddsFormat() {
+            return localStorage.getItem("oddsFormat") || "american";
+        }
+
+        function setOddsFormat(format) {
+            localStorage.setItem("oddsFormat", format);
+            // Trigger re-render if we have data
+            if (valuePollTimer || lastValueData) {
+                fetchValuePlays(false);
+            }
+        }
+
+        function formatOdds(odds) {
             /**
-             * Format American odds with "+" prefix for positive values.
+             * Format odds based on user preference (American or Decimal).
              * Returns the odds as a string with proper formatting.
              */
             if (odds === null || odds === undefined) {
@@ -315,8 +375,20 @@
             if (isNaN(numOdds)) {
                 return String(odds);
             }
-            // Add "+" prefix for positive odds
-            return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+            
+            const format = getOddsFormat();
+            if (format === "decimal") {
+                const decimal = americanToDecimal(numOdds);
+                return decimal ? decimal.toFixed(2) : String(odds);
+            } else {
+                // American format: Add "+" prefix for positive odds
+                return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+            }
+        }
+
+        // Legacy function for backwards compatibility
+        function formatAmericanOdds(odds) {
+            return formatOdds(odds);
         }
 
         function renderValuePlays(data) {
@@ -350,7 +422,7 @@
 
                 const compareCell = document.createElement("td");
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatAmericanOdds(play.novig_price);
+                const formattedCompareOdds = formatOdds(play.novig_price);
                 compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 tr.appendChild(compareCell);
 
@@ -364,7 +436,7 @@
 
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
-                    const formattedHedgeOdds = formatAmericanOdds(play.novig_reverse_price);
+                    const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
                     hedgeCell.textContent = formattedHedgeOdds;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
@@ -372,7 +444,7 @@
                 tr.appendChild(hedgeCell);
 
                 const bookCell = document.createElement("td");
-                const formattedBookOdds = formatAmericanOdds(play.book_price);
+                const formattedBookOdds = formatOdds(play.book_price);
                 bookCell.textContent = formattedBookOdds;
                 tr.appendChild(bookCell);
 
@@ -407,7 +479,7 @@
                     text += ` @ ${leg.point}`;
                 }
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-                text += ` | Book: ${formatAmericanOdds(leg.book_price)}, ${compareBookLabel}: ${formatAmericanOdds(leg.novig_price)}, EV: ${leg.ev_percent}%`;
+                text += ` | Book: ${formatOdds(leg.book_price)}, ${compareBookLabel}: ${formatOdds(leg.novig_price)}, EV: ${leg.ev_percent}%`;
                 li.textContent = text;
                 legsList.appendChild(li);
             });
@@ -460,6 +532,7 @@
                     throw new Error(text || ("HTTP " + res.status));
                 }
                 const data = await res.json();
+                lastValueData = data;
                 renderValuePlays(data);
                 const playsCount = (data.plays || []).length;
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked").textContent;
@@ -504,7 +577,83 @@
             document.getElementById("stop-loop-btn").disabled = true;
         }
 
+        let lastValueData = null;
+
+        // Save form selections to localStorage
+        function saveFormSelections() {
+            const selections = {
+                sport: document.getElementById("sport-select").value,
+                market: document.getElementById("market-select").value,
+                targetBook: document.getElementById("book-select").value,
+                compareBook: document.getElementById("compare-book-select").value,
+                maxResults: document.getElementById("max-results-input").value,
+                includeSGP: document.getElementById("sgp-checkbox").checked,
+                interval: document.getElementById("interval-input").value
+            };
+            localStorage.setItem("valueFinderSelections", JSON.stringify(selections));
+        }
+
+        // Load form selections from localStorage
+        function loadFormSelections() {
+            try {
+                const saved = localStorage.getItem("valueFinderSelections");
+                if (!saved) return;
+                
+                const selections = JSON.parse(saved);
+                
+                if (selections.sport) {
+                    document.getElementById("sport-select").value = selections.sport;
+                }
+                if (selections.market) {
+                    document.getElementById("market-select").value = selections.market;
+                }
+                if (selections.targetBook) {
+                    document.getElementById("book-select").value = selections.targetBook;
+                }
+                if (selections.compareBook) {
+                    document.getElementById("compare-book-select").value = selections.compareBook;
+                }
+                if (selections.maxResults) {
+                    document.getElementById("max-results-input").value = selections.maxResults;
+                }
+                if (selections.includeSGP !== undefined) {
+                    document.getElementById("sgp-checkbox").checked = selections.includeSGP;
+                }
+                if (selections.interval) {
+                    document.getElementById("interval-input").value = selections.interval;
+                }
+            } catch (e) {
+                console.error("Failed to load form selections:", e);
+            }
+        }
+
         window.addEventListener("DOMContentLoaded", () => {
+            // Load and setup odds format toggle
+            const savedFormat = localStorage.getItem("oddsFormat") || "american";
+            const formatRadios = document.querySelectorAll('input[name="odds-format"]');
+            formatRadios.forEach(radio => {
+                if (radio.value === savedFormat) {
+                    radio.checked = true;
+                }
+                radio.addEventListener("change", (e) => {
+                    if (e.target.checked) {
+                        setOddsFormat(e.target.value);
+                    }
+                });
+            });
+
+            // Load saved form selections
+            loadFormSelections();
+
+            // Save form selections when they change
+            document.getElementById("sport-select").addEventListener("change", saveFormSelections);
+            document.getElementById("market-select").addEventListener("change", saveFormSelections);
+            document.getElementById("book-select").addEventListener("change", saveFormSelections);
+            document.getElementById("compare-book-select").addEventListener("change", saveFormSelections);
+            document.getElementById("max-results-input").addEventListener("change", saveFormSelections);
+            document.getElementById("sgp-checkbox").addEventListener("change", saveFormSelections);
+            document.getElementById("interval-input").addEventListener("change", saveFormSelections);
+
             document.getElementById("find-btn").onclick = () => fetchValuePlays(true);
             document.getElementById("clear-btn").onclick = clearResults;
             document.getElementById("start-loop-btn").onclick = startValueLoop;
