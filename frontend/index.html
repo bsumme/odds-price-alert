@@ -21,10 +21,15 @@
             background: #1e293b;
             border-bottom: 2px solid #334155;
             display: none;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             gap: 1rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 999;
         }
 
         header.show {
@@ -35,9 +40,14 @@
             position: fixed;
             top: 0.5rem;
             right: 0.5rem;
-            z-index: 1000;
+            z-index: 1001;
             display: flex;
             gap: 0.5rem;
+            transition: top 0.2s;
+        }
+
+        body.header-visible .toggle-buttons {
+            top: 3.5rem;
         }
 
         .toggle-btn {
@@ -129,6 +139,17 @@
             gap: 0.75rem;
             align-items: start;
             overflow: hidden;
+            padding-top: 0.75rem;
+            box-sizing: border-box;
+        }
+
+        header.show + main {
+            padding-top: 3.5rem;
+        }
+
+        .filter-panel,
+        .watcher-panel {
+            padding-top: 0;
         }
 
         @media (max-width: 1600px) {
@@ -396,18 +417,7 @@
         <button class="toggle-btn" id="toggle-watcher-btn" title="Toggle Watcher">🔔 Watcher</button>
     </div>
     <header id="main-header">
-        <div>
-            <h1>Arbitrage Bet Finder</h1>
-            <div class="small-text">
-                Find arbitrage betting opportunities by comparing odds across different sportsbooks
-            </div>
-        </div>
         <nav>
-            <a href="/" class="active">Arbitrage Finder</a>
-            <a href="/watcher.html">Watcher</a>
-            <a href="/value.html">Value Finder</a>
-            <a href="/playerprops.html">Player Props</a>
-            <a href="/widgets.html">Widgets</a>
             <div class="odds-format-toggle">
                 <label>
                     <input type="radio" name="odds-format" value="american" checked />
@@ -418,12 +428,7 @@
                     <span>Decimal</span>
                 </label>
             </div>
-            <div id="credits-display" class="credits-display" style="margin-left: 0.5rem; padding: 0.35rem 0.6rem; background: #1e293b; border-radius: 0.4rem; border: 1px solid #334155; font-size: 0.7rem;">
-                <div style="display: flex; gap: 0.75rem; align-items: center;">
-                    <span id="api-credits" style="color: #cbd5e1;">API: Loading...</span>
-                    <span id="widget-credits" style="color: #cbd5e1;">Widget: Loading...</span>
-                </div>
-            </div>
+            <a href="/watcher.html" class="btn btn-primary" style="margin-left: 0.5rem; text-decoration: none; display: inline-block;">Bet Watcher</a>
         </nav>
     </header>
 
@@ -2006,6 +2011,7 @@
             // Set initial states
             if (headerVisible) {
                 mainHeader.classList.add("show");
+                document.body.classList.add("header-visible");
                 toggleHeaderBtn.classList.add("active");
             }
             if (watcherVisible) {
@@ -2018,10 +2024,12 @@
                 const isVisible = mainHeader.classList.contains("show");
                 if (isVisible) {
                     mainHeader.classList.remove("show");
+                    document.body.classList.remove("header-visible");
                     toggleHeaderBtn.classList.remove("active");
                     localStorage.setItem("headerVisible", "false");
                 } else {
                     mainHeader.classList.add("show");
+                    document.body.classList.add("header-visible");
                     toggleHeaderBtn.classList.add("active");
                     localStorage.setItem("headerVisible", "true");
                 }
