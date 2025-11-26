@@ -36,6 +36,15 @@
             display: flex;
         }
 
+        .top-right-buttons {
+            position: fixed;
+            bottom: 0.5rem;
+            right: 0.5rem;
+            z-index: 1001;
+            display: flex;
+            gap: 0.5rem;
+        }
+
         .toggle-buttons {
             position: fixed;
             bottom: 0.5rem;
@@ -64,6 +73,31 @@
         }
 
         .toggle-btn.active {
+            background: #166534;
+            border-color: #15803d;
+            color: #bbf7d0;
+        }
+
+        .top-right-buttons .btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e5e7eb;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .top-right-buttons .btn:hover {
+            background: #334155;
+            border-color: #475569;
+        }
+
+        .top-right-buttons .btn.active {
             background: #166534;
             border-color: #15803d;
             color: #bbf7d0;
@@ -101,31 +135,6 @@
             font-weight: 600;
         }
 
-        .odds-format-toggle {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            margin-left: 0.5rem;
-            padding: 0.35rem 0.6rem;
-            background: #1e293b;
-            border-radius: 0.4rem;
-            border: 1px solid #334155;
-        }
-
-        .odds-format-toggle label {
-            font-size: 0.75rem;
-            color: #cbd5e1;
-            margin: 0;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .odds-format-toggle input[type="radio"] {
-            margin: 0;
-            cursor: pointer;
-        }
 
         main {
             padding: 0.75rem;
@@ -408,23 +417,12 @@
 </head>
 
 <body>
-    <div class="toggle-buttons">
-        <button class="toggle-btn" id="toggle-header-btn" title="Toggle Toolbar">☰ Toolbar</button>
-        <button class="toggle-btn" id="toggle-watcher-btn" title="Toggle Watcher">🔔 Watcher</button>
+    <div class="top-right-buttons">
+        <a href="/watcher.html" class="btn" title="Go to Bet Watcher">Bet Watcher</a>
+        <button class="btn" id="toggle-watcher-btn" title="Toggle Arb Watcher">Arb Watcher</button>
     </div>
     <header id="main-header">
         <nav>
-            <div class="odds-format-toggle">
-                <label>
-                    <input type="radio" name="odds-format" value="american" checked />
-                    <span>American</span>
-                </label>
-                <label>
-                    <input type="radio" name="odds-format" value="decimal" />
-                    <span>Decimal</span>
-                </label>
-            </div>
-            <a href="/watcher.html" class="btn btn-primary" style="margin-left: 0.5rem; text-decoration: none; display: inline-block;">Bet Watcher</a>
         </nav>
     </header>
 
@@ -902,36 +900,10 @@
             return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${fallback}.png`;
         }
 
-        // Odds format conversion functions
-        function americanToDecimal(odds) {
-            if (odds === null || odds === undefined) return null;
-            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
-            if (isNaN(numOdds)) return null;
-            if (numOdds > 0) {
-                return 1.0 + numOdds / 100.0;
-            } else {
-                return 1.0 + 100.0 / Math.abs(numOdds);
-            }
-        }
-
-        function getOddsFormat() {
-            return localStorage.getItem("oddsFormat") || "american";
-        }
-
-        function setOddsFormat(format) {
-            localStorage.setItem("oddsFormat", format);
-            // Trigger re-render of all odds displays
-            if (lastValueData) {
-                renderValueFromState();
-            }
-            if (lastBestValueData) {
-                renderBestValuePlays(lastBestValueData, false, watcherTimer !== null);
-            }
-        }
 
         function formatOdds(odds) {
             /**
-             * Format odds based on user preference (American or Decimal).
+             * Format odds in American format.
              * Returns the odds as a string with proper formatting.
              */
             if (odds === null || odds === undefined) {
@@ -941,15 +913,8 @@
             if (isNaN(numOdds)) {
                 return String(odds);
             }
-            
-            const format = getOddsFormat();
-            if (format === "decimal") {
-                const decimal = americanToDecimal(numOdds);
-                return decimal ? decimal.toFixed(2) : String(odds);
-            } else {
-                // American format: Add "+" prefix for positive odds
-                return numOdds > 0 ? `+${numOdds}` : String(numOdds);
-            }
+            // American format: Add "+" prefix for positive odds
+            return numOdds > 0 ? `+${numOdds}` : String(numOdds);
         }
 
         // Legacy function for backwards compatibility
@@ -1793,19 +1758,6 @@
         }
 
         window.addEventListener("DOMContentLoaded", () => {
-            // Load and setup odds format toggle
-            const savedFormat = localStorage.getItem("oddsFormat") || "american";
-            const formatRadios = document.querySelectorAll('input[name="odds-format"]');
-            formatRadios.forEach(radio => {
-                if (radio.value === savedFormat) {
-                    radio.checked = true;
-                }
-                radio.addEventListener("change", (e) => {
-                    if (e.target.checked) {
-                        setOddsFormat(e.target.value);
-                    }
-                });
-            });
 
             // Start credits refresh
             startCreditsRefresh();
@@ -1995,41 +1947,17 @@
             });
 
             // Toggle buttons functionality
-            const toggleHeaderBtn = document.getElementById("toggle-header-btn");
             const toggleWatcherBtn = document.getElementById("toggle-watcher-btn");
-            const mainHeader = document.getElementById("main-header");
             const watcherCard = document.getElementById("watcher-card");
 
             // Load toggle states from localStorage
-            const headerVisible = localStorage.getItem("headerVisible") === "true";
             const watcherVisible = localStorage.getItem("watcherVisible") === "true";
 
             // Set initial states
-            if (headerVisible) {
-                mainHeader.classList.add("show");
-                document.body.classList.add("header-visible");
-                toggleHeaderBtn.classList.add("active");
-            }
             if (watcherVisible) {
                 watcherCard.style.display = "block";
                 toggleWatcherBtn.classList.add("active");
             }
-
-            // Toggle header
-            toggleHeaderBtn.onclick = () => {
-                const isVisible = mainHeader.classList.contains("show");
-                if (isVisible) {
-                    mainHeader.classList.remove("show");
-                    document.body.classList.remove("header-visible");
-                    toggleHeaderBtn.classList.remove("active");
-                    localStorage.setItem("headerVisible", "false");
-                } else {
-                    mainHeader.classList.add("show");
-                    document.body.classList.add("header-visible");
-                    toggleHeaderBtn.classList.add("active");
-                    localStorage.setItem("headerVisible", "true");
-                }
-            };
 
             // Toggle watcher
             toggleWatcherBtn.onclick = () => {

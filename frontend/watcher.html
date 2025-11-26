@@ -71,31 +71,6 @@
             color: #bbf7d0;
         }
 
-        .odds-format-toggle {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            margin-left: 0.5rem;
-            padding: 0.35rem 0.6rem;
-            background: #1e293b;
-            border-radius: 0.4rem;
-            border: 1px solid #334155;
-        }
-
-        .odds-format-toggle label {
-            font-size: 0.75rem;
-            color: #cbd5e1;
-            margin: 0;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .odds-format-toggle input[type="radio"] {
-            margin: 0;
-            cursor: pointer;
-        }
 
         main {
             padding: 0.75rem;
@@ -402,22 +377,9 @@
 </head>
 
 <body>
-    <div class="toggle-buttons">
-        <button class="toggle-btn" id="toggle-header-btn" title="Toggle Toolbar">☰ Toolbar</button>
-    </div>
     <header id="main-header">
         <nav>
-            <div class="odds-format-toggle">
-                <label>
-                    <input type="radio" name="odds-format" value="american" checked />
-                    <span>American</span>
-                </label>
-                <label>
-                    <input type="radio" name="odds-format" value="decimal" />
-                    <span>Decimal</span>
-                </label>
-            </div>
-            <a href="/" class="btn btn-primary" style="margin-left: 0.5rem; text-decoration: none; display: inline-block;">Arbitrage Finder</a>
+            <a href="/" class="btn btn-primary" style="text-decoration: none; display: inline-block;">Arbitrage Finder</a>
         </nav>
     </header>
 
@@ -597,32 +559,9 @@
         }
 
         // Odds format conversion functions
-        function americanToDecimal(odds) {
-            if (odds === null || odds === undefined) return null;
-            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
-            if (isNaN(numOdds)) return null;
-            if (numOdds > 0) {
-                return 1.0 + numOdds / 100.0;
-            } else {
-                return 1.0 + 100.0 / Math.abs(numOdds);
-            }
-        }
-
-        function getOddsFormat() {
-            return localStorage.getItem("oddsFormat") || "american";
-        }
-
-        function setOddsFormat(format) {
-            localStorage.setItem("oddsFormat", format);
-            // Trigger re-render if we have data
-            if (bets.length > 0 && pollTimer) {
-                fetchSnapshot();
-            }
-        }
-
         function formatOdds(odds) {
             /**
-             * Format odds based on user preference (American or Decimal).
+             * Format odds in American format.
              * Returns the odds as a string with proper formatting.
              */
             if (odds === null || odds === undefined) {
@@ -632,15 +571,8 @@
             if (isNaN(numOdds)) {
                 return String(odds);
             }
-            
-            const format = getOddsFormat();
-            if (format === "decimal") {
-                const decimal = americanToDecimal(numOdds);
-                return decimal ? decimal.toFixed(2) : String(odds);
-            } else {
-                // American format: Add "+" prefix for positive odds
-                return numOdds > 0 ? `+${numOdds}` : String(numOdds);
-            }
+            // American format: Add "+" prefix for positive odds
+            return numOdds > 0 ? `+${numOdds}` : String(numOdds);
         }
 
         // Legacy function for backwards compatibility
@@ -1097,19 +1029,6 @@
         }
 
         window.addEventListener("DOMContentLoaded", () => {
-            // Load and setup odds format toggle
-            const savedFormat = localStorage.getItem("oddsFormat") || "american";
-            const formatRadios = document.querySelectorAll('input[name="odds-format"]');
-            formatRadios.forEach(radio => {
-                if (radio.value === savedFormat) {
-                    radio.checked = true;
-                }
-                radio.addEventListener("change", (e) => {
-                    if (e.target.checked) {
-                        setOddsFormat(e.target.value);
-                    }
-                });
-            });
 
             // Load saved form selections
             loadFormSelections();
@@ -1138,35 +1057,6 @@
             document.getElementById("start-btn").onclick = startWatching;
             document.getElementById("stop-btn").onclick = stopWatching;
 
-            // Toggle header functionality
-            const toggleHeaderBtn = document.getElementById("toggle-header-btn");
-            const mainHeader = document.getElementById("main-header");
-
-            // Load toggle state from localStorage
-            const headerVisible = localStorage.getItem("headerVisible") === "true";
-
-            // Set initial state
-            if (headerVisible) {
-                mainHeader.classList.add("show");
-                document.body.classList.add("header-visible");
-                toggleHeaderBtn.classList.add("active");
-            }
-
-            // Toggle header
-            toggleHeaderBtn.onclick = () => {
-                const isVisible = mainHeader.classList.contains("show");
-                if (isVisible) {
-                    mainHeader.classList.remove("show");
-                    document.body.classList.remove("header-visible");
-                    toggleHeaderBtn.classList.remove("active");
-                    localStorage.setItem("headerVisible", "false");
-                } else {
-                    mainHeader.classList.add("show");
-                    document.body.classList.add("header-visible");
-                    toggleHeaderBtn.classList.add("active");
-                    localStorage.setItem("headerVisible", "true");
-                }
-            };
         });
     </script>
 </body>
