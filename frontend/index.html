@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <title>Arbitrage Bet Finder</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <style>
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -11,29 +12,78 @@
             color: #e5e7eb;
             margin: 0;
             padding: 0;
+            overflow: hidden;
+            height: 100vh;
         }
 
         header {
-            padding: 1rem 1.5rem;
+            padding: 0.5rem 1rem;
             background: #1e293b;
             border-bottom: 2px solid #334155;
-            display: flex;
+            display: none;
             justify-content: space-between;
             align-items: center;
             gap: 1rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
         }
 
+        header.show {
+            display: flex;
+        }
+
+        .toggle-buttons {
+            position: fixed;
+            top: 0.5rem;
+            right: 0.5rem;
+            z-index: 1000;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .toggle-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e5e7eb;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn:hover {
+            background: #334155;
+            border-color: #475569;
+        }
+
+        .toggle-btn.active {
+            background: #166534;
+            border-color: #15803d;
+            color: #bbf7d0;
+        }
+
         header h1 {
             margin: 0;
-            font-size: 1.3rem;
+            font-size: 1.1rem;
+        }
+
+        header .small-text {
+            font-size: 0.7rem;
+        }
+
+        header nav {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
         }
 
         header nav a {
             color: #94a3b8;
             text-decoration: none;
-            font-size: 0.85rem;
-            margin-left: 0.75rem;
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
         }
 
         header nav a:hover {
@@ -48,22 +98,22 @@
         .odds-format-toggle {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            margin-left: 1rem;
-            padding: 0.5rem 0.75rem;
+            gap: 0.4rem;
+            margin-left: 0.5rem;
+            padding: 0.35rem 0.6rem;
             background: #1e293b;
-            border-radius: 0.5rem;
+            border-radius: 0.4rem;
             border: 1px solid #334155;
         }
 
         .odds-format-toggle label {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             color: #cbd5e1;
             margin: 0;
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.3rem;
         }
 
         .odds-format-toggle input[type="radio"] {
@@ -72,54 +122,71 @@
         }
 
         main {
-            padding: 1.5rem;
-            max-width: 1800px;
-            margin: 0 auto;
+            padding: 0.75rem;
+            height: 100vh;
             display: grid;
-            grid-template-columns: 380px 1fr;
-            gap: 1.5rem;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 0.75rem;
             align-items: start;
+            overflow: hidden;
         }
 
-        @media (max-width: 1200px) {
+        @media (max-width: 1600px) {
             main {
-                grid-template-columns: 1fr;
+                grid-template-columns: 280px 1fr 280px;
+            }
+        }
+
+        @media (max-width: 1400px) {
+            main {
+                grid-template-columns: 260px 1fr 260px;
             }
         }
 
         .card {
             background: #1e293b;
-            border-radius: 0.75rem;
+            border-radius: 0.5rem;
             border: 1px solid #334155;
-            padding: 1rem 1.25rem;
+            padding: 0.6rem 0.8rem;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .card h2 {
             margin-top: 0;
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .card h3 {
+            margin-top: 0;
+            font-size: 0.85rem;
+            margin-bottom: 0.3rem;
         }
 
         label {
             display: block;
-            font-size: 0.85rem;
-            margin-top: 0.6rem;
-            margin-bottom: 0.15rem;
+            font-size: 0.75rem;
+            margin-top: 0.4rem;
+            margin-bottom: 0.1rem;
             color: #cbd5e1;
             font-weight: 500;
         }
 
         select,
-        input[type="number"] {
+        input[type="number"],
+        input[type="tel"] {
             width: 100%;
-            padding: 0.45rem 0.6rem;
-            border-radius: 0.5rem;
+            padding: 0.3rem 0.5rem;
+            border-radius: 0.4rem;
             border: 1px solid #475569;
             background: #0f172a;
             color: #e5e7eb;
             box-sizing: border-box;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
         }
 
         select:hover,
@@ -140,12 +207,12 @@
 
         .btn {
             border: none;
-            border-radius: 0.5rem;
-            padding: 0.5rem 0.9rem;
-            font-size: 0.9rem;
+            border-radius: 0.4rem;
+            padding: 0.35rem 0.7rem;
+            font-size: 0.75rem;
             cursor: pointer;
-            margin-right: 0.5rem;
-            margin-top: 0.75rem;
+            margin-right: 0.4rem;
+            margin-top: 0.5rem;
         }
 
         .btn-primary {
@@ -182,21 +249,21 @@
         }
 
         .status-bar {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: #94a3b8;
-            margin-top: 0.5rem;
+            margin-top: 0.4rem;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
         }
 
         th,
         td {
             border-bottom: 1px solid #334155;
-            padding: 0.4rem 0.5rem;
+            padding: 0.3rem 0.4rem;
             text-align: left;
             vertical-align: top;
         }
@@ -208,15 +275,17 @@
             z-index: 1;
             font-weight: 600;
             color: #e5e7eb;
+            font-size: 0.7rem;
         }
 
         .scroll-container {
-            max-height: 520px;
+            flex: 1;
             overflow-y: auto;
+            min-height: 0;
         }
 
         .small-text {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: #94a3b8;
         }
 
@@ -235,6 +304,26 @@
         .badge-negative {
             background: #7f1d1d;
             color: #fecaca;
+        }
+
+        .badge-hit {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .badge-best {
+            background: #1d4ed8;
+            color: #bfdbfe;
+            margin-left: 0.25rem;
+        }
+
+        .bet-list {
+            font-size: 0.75rem;
+        }
+
+        .bet-item {
+            padding: 0.25rem 0;
+            border-bottom: 1px dashed #334155;
         }
 
         .sgp-card {
@@ -267,12 +356,20 @@
         }
 
         .filter-panel {
-            position: sticky;
-            top: 1.5rem;
+            overflow-y: auto;
+            height: 100%;
         }
 
         .results-panel {
             min-width: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .watcher-panel {
+            overflow-y: auto;
+            height: 100%;
         }
 
         .credits-display {
@@ -294,7 +391,11 @@
 </head>
 
 <body>
-    <header>
+    <div class="toggle-buttons">
+        <button class="toggle-btn" id="toggle-header-btn" title="Toggle Toolbar">☰ Toolbar</button>
+        <button class="toggle-btn" id="toggle-watcher-btn" title="Toggle Watcher">🔔 Watcher</button>
+    </div>
+    <header id="main-header">
         <div>
             <h1>Arbitrage Bet Finder</h1>
             <div class="small-text">
@@ -317,8 +418,8 @@
                     <span>Decimal</span>
                 </label>
             </div>
-            <div id="credits-display" class="credits-display" style="margin-left: 1rem; padding: 0.5rem 0.75rem; background: #1e293b; border-radius: 0.5rem; border: 1px solid #334155; font-size: 0.75rem;">
-                <div style="display: flex; gap: 1rem; align-items: center;">
+            <div id="credits-display" class="credits-display" style="margin-left: 0.5rem; padding: 0.35rem 0.6rem; background: #1e293b; border-radius: 0.4rem; border: 1px solid #334155; font-size: 0.7rem;">
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
                     <span id="api-credits" style="color: #cbd5e1;">API: Loading...</span>
                     <span id="widget-credits" style="color: #cbd5e1;">Widget: Loading...</span>
                 </div>
@@ -335,7 +436,7 @@
                     Discover arbitrage opportunities across multiple sports and markets by comparing odds between sportsbooks
                 </div>
 
-                <label>Select Sports (multiple)</label>
+                <label>Select Sports</label>
                 <div style="margin-bottom: 0.5rem;">
                     <label style="display: flex; align-items: center; margin-top: 0.3rem;">
                         <input type="checkbox" class="sport-checkbox" value="basketball_nba" checked />
@@ -355,11 +456,11 @@
                     </label>
                 </div>
 
-                <label>Select Markets (multiple)</label>
+                <label>Select Markets</label>
                 <div style="margin-bottom: 0.5rem;">
                     <label style="display: flex; align-items: center; margin-top: 0.3rem;">
                         <input type="checkbox" class="market-checkbox" value="h2h" checked />
-                        <span style="margin-left: 0.5rem;">Moneyline (h2h)</span>
+                        <span style="margin-left: 0.5rem;">Moneyline</span>
                     </label>
                     <label style="display: flex; align-items: center; margin-top: 0.3rem;">
                         <input type="checkbox" class="market-checkbox" value="spreads" checked />
@@ -401,20 +502,6 @@
                     <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
                 </div>
 
-                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155;">
-                    <h3 style="margin-top: 0; font-size: 1rem; color: #bbf7d0;">🔔 Hedge Watcher</h3>
-                    <div class="small-text" style="margin-bottom: 0.75rem;">
-                        Continuously monitor for hedge opportunities (arbitrage margin ≥ 0%). Alerts will appear when new hedge plays are found.
-                    </div>
-                    <label for="watcher-interval-input">Check interval (seconds)</label>
-                    <input id="watcher-interval-input" type="number" min="30" max="300" step="10" value="60" />
-                    <div style="margin-top: 0.75rem;">
-                        <button class="btn btn-primary" id="start-watcher-btn">Start Watcher</button>
-                        <button class="btn btn-secondary" id="stop-watcher-btn" disabled>Stop Watcher</button>
-                    </div>
-                    <div class="status-bar" id="watcher-status-bar" style="margin-top: 0.5rem;">Watcher stopped.</div>
-                </div>
-
                 <div class="status-bar" id="best-status-bar">Ready.</div>
             </section>
         </div>
@@ -422,15 +509,14 @@
         <!-- Results Panel -->
         <div class="results-panel">
             <section class="card" id="best-results-section" style="display: none;">
-                <h2>Arbitrage Opportunities (All Sports/Markets)</h2>
-                <div class="small-text" id="best-summary-bar"></div>
+                <h2>Arbitrage Opportunities</h2>
+                <div class="small-text" id="best-summary-bar" style="margin-bottom: 0.4rem;"></div>
                 <div class="scroll-container">
                     <table>
                         <thead>
                             <tr>
                                 <th>Sport</th>
                                 <th>Recommended Bet</th>
-                                <th>Matchup</th>
                                 <th>Start Time</th>
                                 <th>Compare Price</th>
                                 <th>Hedge Bet</th>
@@ -441,6 +527,34 @@
                         </tbody>
                     </table>
                 </div>
+            </section>
+        </div>
+
+        <!-- Arb Watcher Panel -->
+        <div class="watcher-panel">
+            <section class="card" id="watcher-card" style="display: none;">
+                <h2>🔔 Hedge Watcher</h2>
+                <div class="small-text" style="margin-bottom: 0.5rem;">
+                    Monitor for hedge opportunities (arbitrage margin ≥ 0%).
+                </div>
+
+                <label for="watcher-interval-input">Check interval (seconds)</label>
+                <input id="watcher-interval-input" type="number" min="30" max="300" step="10" value="60" />
+                
+                <label for="sms-phone-input" style="margin-top: 0.5rem;">SMS Phone (optional)</label>
+                <input id="sms-phone-input" type="tel" placeholder="5551234567" />
+                
+                <div style="margin-top: 0.5rem;">
+                    <button class="btn btn-primary" id="start-watcher-btn">Start Watcher</button>
+                    <button class="btn btn-secondary" id="stop-watcher-btn" disabled>Stop</button>
+                </div>
+                
+                <div style="margin-top: 0.5rem;">
+                    <button class="btn btn-secondary" id="test-sms-btn">Test SMS Alert</button>
+                </div>
+                
+                <div class="status-bar" id="watcher-status-bar" style="margin-top: 0.4rem;">Watcher stopped.</div>
+                <div class="status-bar" id="test-sms-status" style="margin-top: 0.4rem; display: none;"></div>
             </section>
         </div>
     </main>
@@ -944,20 +1058,6 @@
                 }
                 tr.appendChild(outcomeCell);
 
-                const matchupCell = document.createElement("td");
-                const teams = parseTeamsFromMatchup(play.matchup);
-                if (teams.away && teams.home) {
-                    matchupCell.appendChild(createTeamNameWithLogo(teams.away, play.sport_key || currentSport));
-                    const vsSpan = document.createElement("span");
-                    vsSpan.textContent = " @ ";
-                    vsSpan.style.margin = "0 0.3rem";
-                    matchupCell.appendChild(vsSpan);
-                    matchupCell.appendChild(createTeamNameWithLogo(teams.home, play.sport_key || currentSport));
-                } else {
-                    matchupCell.textContent = play.matchup || "";
-                }
-                tr.appendChild(matchupCell);
-
                 const startCell = document.createElement("td");
                 startCell.textContent = formatStartTime(play.start_time);
                 tr.appendChild(startCell);
@@ -1281,10 +1381,6 @@
                 bookCell.appendChild(betContainer);
                 tr.appendChild(bookCell);
 
-                const matchupCell = document.createElement("td");
-                matchupCell.textContent = play.matchup || "";
-                tr.appendChild(matchupCell);
-
                 const startCell = document.createElement("td");
                 startCell.textContent = formatStartTime(play.start_time);
                 tr.appendChild(startCell);
@@ -1391,6 +1487,53 @@
             return `${play.event_id}-${play.outcome_name}-${play.book_price}-${play.novig_reverse_price}`;
         }
 
+        // Send SMS alert
+        async function sendSMSAlert(play) {
+            const phoneInput = document.getElementById("sms-phone-input");
+            const phone = phoneInput ? phoneInput.value.trim() : "";
+            
+            if (!phone) {
+                return; // No phone number configured, skip SMS
+            }
+            
+            const sportLabels = {
+                "basketball_nba": "NBA",
+                "americanfootball_nfl": "NFL",
+                "basketball_ncaab": "NCAAB",
+                "americanfootball_ncaaf": "NCAAF"
+            };
+            
+            const sportLabel = sportLabels[play.sport_key] || play.sport_key;
+            const teamName = parseTeamFromOutcome(play.outcome_name);
+            const margin = Math.round(play.arb_margin_percent * 100) / 100;
+            const bookOdds = formatOdds(play.book_price);
+            const hedgeOdds = play.novig_reverse_price ? formatOdds(play.novig_reverse_price) : "N/A";
+            
+            // Format message (SMS has 160 char limit, so keep it concise)
+            const message = `Hedge Alert! ${sportLabel}: ${teamName} ${bookOdds} vs ${hedgeOdds} (${margin}% margin). ${play.matchup || ""}`;
+            
+            try {
+                const response = await fetch("/api/send-sms", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        phone: phone,
+                        message: message
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    console.error("SMS send failed:", error.detail || "Unknown error");
+                } else {
+                    const result = await response.json();
+                    console.log("SMS sent successfully. Quota remaining:", result.quotaRemaining);
+                }
+            } catch (error) {
+                console.error("Error sending SMS:", error);
+            }
+        }
+
         // Check for new hedge opportunities and alert
         function checkForHedgeAlerts(plays) {
             if (!plays || plays.length === 0) return;
@@ -1409,6 +1552,7 @@
                     if (!alertedPlayIds.has(playId)) {
                         alertedPlayIds.add(playId);
                         showHedgeAlert(play);
+                        sendSMSAlert(play); // Send SMS alert
                     }
                 }
             });
@@ -1689,6 +1833,18 @@
             dummyDataCheckbox.addEventListener("change", (e) => {
                 localStorage.setItem("useDummyData", e.target.checked ? "true" : "false");
             });
+
+            // Load and save SMS phone number from localStorage
+            const smsPhoneInput = document.getElementById("sms-phone-input");
+            const savedPhone = localStorage.getItem("smsPhoneNumber");
+            if (savedPhone && smsPhoneInput) {
+                smsPhoneInput.value = savedPhone;
+            }
+            if (smsPhoneInput) {
+                smsPhoneInput.addEventListener("change", (e) => {
+                    localStorage.setItem("smsPhoneNumber", e.target.value);
+                });
+            }
             
             // Arbitrage Finder buttons
             document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays(false);
@@ -1779,12 +1935,113 @@
             startWatcherBtn.onclick = startWatcher;
             stopWatcherBtn.onclick = stopWatcher;
 
+            // Test SMS functionality
+            const testSmsBtn = document.getElementById("test-sms-btn");
+            const testSmsStatus = document.getElementById("test-sms-status");
+            
+            async function sendTestSMS() {
+                const phoneInput = document.getElementById("sms-phone-input");
+                const phone = phoneInput ? phoneInput.value.trim() : "";
+                
+                if (!phone) {
+                    testSmsStatus.style.display = "block";
+                    testSmsStatus.style.color = "#fecaca";
+                    testSmsStatus.textContent = "Please enter a phone number first.";
+                    return;
+                }
+                
+                testSmsStatus.style.display = "block";
+                testSmsStatus.style.color = "#94a3b8";
+                testSmsStatus.textContent = "Sending test SMS...";
+                testSmsBtn.disabled = true;
+                
+                const testMessage = "Test alert from Arbitrage Bet Finder - SMS notifications are working!";
+                
+                try {
+                    const response = await fetch("/api/send-sms", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            phone: phone,
+                            message: testMessage
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        testSmsStatus.style.color = "#bbf7d0";
+                        testSmsStatus.textContent = `✅ Test SMS sent successfully! Quota remaining: ${result.quotaRemaining || "N/A"}`;
+                    } else {
+                        testSmsStatus.style.color = "#fecaca";
+                        testSmsStatus.textContent = `❌ Failed: ${result.detail || result.error || "Unknown error"}`;
+                    }
+                } catch (error) {
+                    testSmsStatus.style.color = "#fecaca";
+                    testSmsStatus.textContent = `❌ Error: ${error.message}`;
+                } finally {
+                    testSmsBtn.disabled = false;
+                }
+            }
+            
+            testSmsBtn.onclick = sendTestSMS;
+
             // Clean up on page unload
             window.addEventListener("beforeunload", () => {
                 if (watcherTimer) {
                     clearInterval(watcherTimer);
                 }
             });
+
+            // Toggle buttons functionality
+            const toggleHeaderBtn = document.getElementById("toggle-header-btn");
+            const toggleWatcherBtn = document.getElementById("toggle-watcher-btn");
+            const mainHeader = document.getElementById("main-header");
+            const watcherCard = document.getElementById("watcher-card");
+
+            // Load toggle states from localStorage
+            const headerVisible = localStorage.getItem("headerVisible") === "true";
+            const watcherVisible = localStorage.getItem("watcherVisible") === "true";
+
+            // Set initial states
+            if (headerVisible) {
+                mainHeader.classList.add("show");
+                toggleHeaderBtn.classList.add("active");
+            }
+            if (watcherVisible) {
+                watcherCard.style.display = "block";
+                toggleWatcherBtn.classList.add("active");
+            }
+
+            // Toggle header
+            toggleHeaderBtn.onclick = () => {
+                const isVisible = mainHeader.classList.contains("show");
+                if (isVisible) {
+                    mainHeader.classList.remove("show");
+                    toggleHeaderBtn.classList.remove("active");
+                    localStorage.setItem("headerVisible", "false");
+                } else {
+                    mainHeader.classList.add("show");
+                    toggleHeaderBtn.classList.add("active");
+                    localStorage.setItem("headerVisible", "true");
+                }
+            };
+
+            // Toggle watcher
+            toggleWatcherBtn.onclick = () => {
+                const isVisible = watcherCard.style.display !== "none";
+                if (isVisible) {
+                    watcherCard.style.display = "none";
+                    toggleWatcherBtn.classList.remove("active");
+                    localStorage.setItem("watcherVisible", "false");
+                } else {
+                    watcherCard.style.display = "block";
+                    toggleWatcherBtn.classList.add("active");
+                    localStorage.setItem("watcherVisible", "true");
+                }
+            };
+
+
         });
     </script>
 </body>

@@ -184,6 +184,11 @@ def get_widget_api_key() -> Optional[str]:
     return os.getenv("THE_ODDS_WIDGET_API_KEY")
 
 
+def get_textbelt_api_key() -> Optional[str]:
+    """Get the Textbelt API key from environment variable. Returns None if not set."""
+    return os.getenv("TEXTBELT_API_KEY")
+
+
 def pretty_book_label(book_key: str) -> str:
     return BOOK_LABELS.get(book_key, book_key)
 
@@ -2024,6 +2029,112 @@ def get_api_credits():
         "api_credits": api_credits,
         "widget_credits": widget_credits
     }
+
+
+class SMSAlertRequest(BaseModel):
+    phone: str
+    message: str
+
+
+@app.post("/api/send-sms")
+def send_sms_alert(payload: SMSAlertRequest):
+    """
+    Send SMS alert via Textbelt API.
+    
+    Parameters:
+    - phone: Phone number in format like "5551234567" or "+15551234567"
+    - message: Message text to send
+    """
+    textbelt_key = get_textbelt_api_key()
+    if not textbelt_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Textbelt API key not configured. Set TEXTBELT_API_KEY environment variable.",
+        )
+    
+    # Clean phone number (remove any non-digit characters except +)
+    phone = payload.phone.strip()
+    # Remove + if present, Textbelt expects just digits
+    if phone.startswith("+"):
+        phone = phone[1:]
+    # Remove any remaining non-digit characters
+    phone = "".join(filter(str.isdigit, phone))
+    
+    if not phone or len(phone) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid phone number format. Please provide a valid phone number.",
+        )
+    
+    # Textbelt API endpoint
+    url = "https://textbelt.com/text"
+    
+    # Prepare request data
+    data = {
+        "phone": phone,
+        "message": payload.message,
+        "key": textbelt_key
+    }
+    
+    try:
+        response = requests.post(url, data=data, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "message": "SMS sent successfully",
+                "quotaRemaining": result.get("quotaRemaining")
+            }
+        else:
+            error_msg = result.get("error", "Unknown error")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to send SMS: {error_msg}"
+            )
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error communicating with Textbelt API: {str(e)}"
+        )
+
+
+@app.get("/api/test-arbitrage-alert")
+def get_test_arbitrage_alert():
+    """
+    Returns a mock arbitrage opportunity for testing the watcher text feature.
+    This creates a fake play with positive arbitrage margin to test SMS alerts.
+    """
+    # Create a mock arbitrage opportunity
+    now_utc = datetime.now(timezone.utc)
+    future_time = (now_utc + timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+    formatted_time = format_start_time_est(future_time)
+    
+    # Create a test play with positive arbitrage margin (e.g., 2.5%)
+    test_play = BestValuePlayOutcome(
+        sport_key="basketball_nba",
+        market="h2h",
+        event_id="test_arbitrage_001",
+        matchup="Lakers @ Warriors",
+        start_time=formatted_time,
+        outcome_name="Lakers",
+        point=None,
+        novig_price=-110,  # Novig odds for Lakers
+        novig_reverse_name="Warriors",
+        novig_reverse_price=105,  # Novig odds for opposite side (Warriors)
+        book_price=-105,  # Better odds at target book (DraftKings)
+        ev_percent=2.5,  # Positive EV
+        hedge_ev_percent=1.8,
+        is_arbitrage=True,
+        arb_margin_percent=2.5,  # Positive arbitrage margin
+    )
+    
+    return BestValuePlaysResponse(
+        target_book="draftkings",
+        compare_book="novig",
+        plays=[test_play],
+    )
 
 
 # Static frontend (index.html, value.html, etc. under ./frontend)

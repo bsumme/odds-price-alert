@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Arbitrage Watcher Text Feature</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0a0e27;
+            color: #e2e8f0;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #60a5fa;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+        
+        h2 {
+            color: #93c5fd;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #334155;
+            padding-bottom: 0.5rem;
+        }
+        
+        .section {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="tel"],
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 4px;
+            color: #e2e8f0;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+        }
+        
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        button:hover {
+            background: #2563eb;
+        }
+        
+        button:active {
+            background: #1d4ed8;
+        }
+        
+        button.secondary {
+            background: #475569;
+        }
+        
+        button.secondary:hover {
+            background: #64748b;
+        }
+        
+        button:disabled {
+            background: #334155;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        .status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 6px;
+            background: #1e293b;
+            border: 1px solid #334155;
+        }
+        
+        .status.success {
+            background: #064e3b;
+            border-color: #10b981;
+            color: #6ee7b7;
+        }
+        
+        .status.error {
+            background: #7f1d1d;
+            border-color: #ef4444;
+            color: #fca5a5;
+        }
+        
+        .status.info {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+            color: #93c5fd;
+        }
+        
+        .test-play {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        
+        .test-play pre {
+            color: #cbd5e1;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .instructions {
+            background: #1e3a8a;
+            border: 1px solid #3b82f6;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            color: #bfdbfe;
+        }
+        
+        .instructions h3 {
+            color: #93c5fd;
+            margin-bottom: 0.5rem;
+        }
+        
+        .instructions ul {
+            margin-left: 1.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .instructions li {
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Arbitrage Watcher Text Feature</h1>
+        
+        <div class="instructions">
+            <h3>How to Test:</h3>
+            <ul>
+                <li><strong>Test SMS Directly:</strong> Enter a phone number and click "Test SMS Alert" to send a test message</li>
+                <li><strong>Test Mock Arbitrage:</strong> Click "Get Test Arbitrage Play" to see what a mock arbitrage opportunity looks like</li>
+                <li><strong>Test Full Flow:</strong> Use the mock play data to test the full watcher alert flow</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>1. Test SMS Alert Directly</h2>
+            <label for="test-phone">Phone Number:</label>
+            <input type="tel" id="test-phone" placeholder="5551234567" />
+            
+            <label for="test-message">Test Message:</label>
+            <textarea id="test-message" rows="3" placeholder="Enter a test message or use the default...">Hedge Alert! NBA: Lakers -105 vs +105 (2.5% margin). Lakers @ Warriors</textarea>
+            
+            <button onclick="testSMS()">Test SMS Alert</button>
+            <div id="sms-status" class="status" style="display: none;"></div>
+        </div>
+        
+        <div class="section">
+            <h2>2. Get Mock Arbitrage Play</h2>
+            <p style="margin-bottom: 1rem; color: #94a3b8;">
+                This fetches a mock arbitrage opportunity that simulates what the watcher would find.
+            </p>
+            <button onclick="getTestArbitrage()">Get Test Arbitrage Play</button>
+            <button class="secondary" onclick="clearTestPlay()">Clear</button>
+            <div id="test-play-result" style="display: none;"></div>
+        </div>
+        
+        <div class="section">
+            <h2>3. Test Full Alert Flow</h2>
+            <p style="margin-bottom: 1rem; color: #94a3b8;">
+                This simulates the complete watcher alert flow: detects arbitrage opportunity and sends SMS.
+            </p>
+            <label for="flow-phone">Phone Number:</label>
+            <input type="tel" id="flow-phone" placeholder="5551234567" />
+            <button onclick="testFullFlow()">Test Full Alert Flow</button>
+            <div id="flow-status" class="status" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        async function testSMS() {
+            const phone = document.getElementById("test-phone").value.trim();
+            const message = document.getElementById("test-message").value.trim();
+            const statusDiv = document.getElementById("sms-status");
+            
+            if (!phone) {
+                statusDiv.className = "status error";
+                statusDiv.textContent = "Please enter a phone number";
+                statusDiv.style.display = "block";
+                return;
+            }
+            
+            if (!message) {
+                statusDiv.className = "status error";
+                statusDiv.textContent = "Please enter a message";
+                statusDiv.style.display = "block";
+                return;
+            }
+            
+            statusDiv.className = "status info";
+            statusDiv.textContent = "Sending SMS...";
+            statusDiv.style.display = "block";
+            
+            try {
+                const response = await fetch("/api/send-sms", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ phone, message })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    statusDiv.className = "status success";
+                    statusDiv.textContent = `✅ SMS sent successfully! Quota remaining: ${result.quotaRemaining || "N/A"}`;
+                } else {
+                    statusDiv.className = "status error";
+                    statusDiv.textContent = `❌ Failed: ${result.detail || result.error || "Unknown error"}`;
+                }
+            } catch (error) {
+                statusDiv.className = "status error";
+                statusDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function getTestArbitrage() {
+            const resultDiv = document.getElementById("test-play-result");
+            resultDiv.style.display = "block";
+            resultDiv.className = "status info";
+            resultDiv.innerHTML = "Loading test arbitrage play...";
+            
+            try {
+                const response = await fetch("/api/test-arbitrage-alert");
+                const data = await response.json();
+                
+                if (response.ok && data.plays && data.plays.length > 0) {
+                    const play = data.plays[0];
+                    resultDiv.className = "status success";
+                    resultDiv.innerHTML = `
+                        <strong>✅ Test Arbitrage Play Found:</strong>
+                        <div class="test-play">
+                            <pre>${JSON.stringify(play, null, 2)}</pre>
+                        </div>
+                        <p style="margin-top: 1rem;">
+                            <strong>Summary:</strong><br>
+                            Sport: ${play.sport_key}<br>
+                            Matchup: ${play.matchup}<br>
+                            Outcome: ${play.outcome_name}<br>
+                            Book Odds: ${play.book_price}<br>
+                            Hedge Odds: ${play.novig_reverse_price}<br>
+                            Arbitrage Margin: ${play.arb_margin_percent}%<br>
+                            Is Arbitrage: ${play.is_arbitrage ? "Yes ✅" : "No"}
+                        </p>
+                    `;
+                } else {
+                    resultDiv.className = "status error";
+                    resultDiv.textContent = "❌ No test play returned";
+                }
+            } catch (error) {
+                resultDiv.className = "status error";
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        function clearTestPlay() {
+            const resultDiv = document.getElementById("test-play-result");
+            resultDiv.style.display = "none";
+            resultDiv.innerHTML = "";
+        }
+        
+        async function testFullFlow() {
+            const phone = document.getElementById("flow-phone").value.trim();
+            const statusDiv = document.getElementById("flow-status");
+            
+            if (!phone) {
+                statusDiv.className = "status error";
+                statusDiv.textContent = "Please enter a phone number";
+                statusDiv.style.display = "block";
+                return;
+            }
+            
+            statusDiv.className = "status info";
+            statusDiv.textContent = "Testing full alert flow...";
+            statusDiv.style.display = "block";
+            
+            try {
+                // Step 1: Get test arbitrage play
+                const playResponse = await fetch("/api/test-arbitrage-alert");
+                const playData = await playResponse.json();
+                
+                if (!playResponse.ok || !playData.plays || playData.plays.length === 0) {
+                    statusDiv.className = "status error";
+                    statusDiv.textContent = "❌ Failed to get test arbitrage play";
+                    return;
+                }
+                
+                const play = playData.plays[0];
+                
+                // Step 2: Format the SMS message (same as watcher does)
+                const sportLabels = {
+                    "basketball_nba": "NBA",
+                    "americanfootball_nfl": "NFL",
+                    "basketball_ncaab": "NCAAB",
+                    "americanfootball_ncaaf": "NCAAF"
+                };
+                
+                const sportLabel = sportLabels[play.sport_key] || play.sport_key;
+                const teamName = play.outcome_name;
+                
+                function formatOdds(odds) {
+                    if (odds > 0) return `+${odds}`;
+                    return `${odds}`;
+                }
+                
+                const margin = Math.round(play.arb_margin_percent * 100) / 100;
+                const bookOdds = formatOdds(play.book_price);
+                const hedgeOdds = play.novig_reverse_price ? formatOdds(play.novig_reverse_price) : "N/A";
+                
+                const message = `Hedge Alert! ${sportLabel}: ${teamName} ${bookOdds} vs ${hedgeOdds} (${margin}% margin). ${play.matchup || ""}`;
+                
+                // Step 3: Send SMS
+                const smsResponse = await fetch("/api/send-sms", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ phone, message })
+                });
+                
+                const smsResult = await smsResponse.json();
+                
+                if (smsResponse.ok && smsResult.success) {
+                    statusDiv.className = "status success";
+                    statusDiv.innerHTML = `
+                        ✅ Full flow test successful!<br><br>
+                        <strong>Arbitrage Play:</strong><br>
+                        ${play.matchup} - ${play.outcome_name}<br>
+                        Margin: ${play.arb_margin_percent}%<br><br>
+                        <strong>SMS Sent:</strong><br>
+                        ${message}<br><br>
+                        Quota remaining: ${smsResult.quotaRemaining || "N/A"}
+                    `;
+                } else {
+                    statusDiv.className = "status error";
+                    statusDiv.textContent = `❌ SMS failed: ${smsResult.detail || smsResult.error || "Unknown error"}`;
+                }
+            } catch (error) {
+                statusDiv.className = "status error";
+                statusDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
+
+
