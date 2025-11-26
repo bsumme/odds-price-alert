@@ -25,3 +25,4 @@ def compute_regions_for_books(bookmaker_keys: List[str]) -> str:
     return ",".join(sorted(regions))
 
 
+

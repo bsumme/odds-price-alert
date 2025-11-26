@@ -200,3 +200,4 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 New-NetFirewallRule -DisplayName "Allow FastAPI Port 8000" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
 ```
 
+

@@ -60,3 +60,4 @@ Write-Host ""
 Write-Host "Starting server..." -ForegroundColor Yellow
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
+
