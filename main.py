@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Set, Optional
 
 import requests
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from zoneinfo import ZoneInfo
@@ -177,11 +178,6 @@ def get_api_key() -> str:
             "Set it in Windows Environment Variables and restart."
         )
     return api_key
-
-
-def get_widget_api_key() -> Optional[str]:
-    """Get the widget API key from environment variable. Returns None if not set."""
-    return os.getenv("THE_ODDS_WIDGET_API_KEY")
 
 
 def get_textbelt_api_key() -> Optional[str]:
@@ -1821,34 +1817,6 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
     )
 
 
-@app.get("/api/widget-key")
-def get_widget_key():
-    """
-    Get the widget API key from environment variable.
-    Returns the key if set, or null if not configured.
-    """
-    key = get_widget_api_key()
-    return {"key": key}
-
-
-@app.get("/api/widget-display-url")
-def get_widget_display_url():
-    """
-    Get the URL for the widget display page with the widget API key included.
-    Returns the URL if the key is configured, otherwise returns an error.
-    """
-    widget_key = get_widget_api_key()
-    if not widget_key:
-        raise HTTPException(
-            status_code=400,
-            detail="Widget API key not configured. Set THE_ODDS_WIDGET_API_KEY environment variable.",
-        )
-    
-    # Return URL with widget key as query parameter
-    display_url = f"/widget-display.html?key={widget_key}"
-    return {"url": display_url}
-
-
 @app.get("/api/check-active-odds")
 def check_active_odds(sport: str, bookmaker: str):
     """
@@ -1858,7 +1826,7 @@ def check_active_odds(sport: str, bookmaker: str):
     try:
         api_key = get_api_key()
     except RuntimeError:
-        # If API key not available, return False to hide widget
+        # If API key not available, return False
         return {"has_active_odds": False}
     
     # Determine region based on bookmaker
@@ -1904,61 +1872,18 @@ def check_active_odds(sport: str, bookmaker: str):
         
         return {"has_active_odds": has_active}
     except Exception as e:
-        # On error, return False to hide widget
+        # On error, return False
         print(f"Error checking active odds for {sport}/{bookmaker}: {e}")
         return {"has_active_odds": False}
-
-
-@app.get("/api/widget-url")
-def generate_widget_url(
-    sport: str,
-    bookmaker: str,
-    odds_format: str = "american",
-    markets: str = "h2h,spreads,totals",
-    market_names: Optional[str] = None,
-):
-    """
-    Generate a widget URL with the access key embedded.
-    
-    Parameters:
-    - sport: Sport key (e.g., "americanfootball_nfl")
-    - bookmaker: Bookmaker key (e.g., "draftkings")
-    - odds_format: "american" or "decimal" (default: "american")
-    - markets: Comma-separated markets (default: "h2h,spreads,totals")
-    - market_names: Optional comma-separated market:label pairs (e.g., "h2h:Moneyline,spreads:Spread")
-    """
-    widget_key = get_widget_api_key()
-    if not widget_key:
-        raise HTTPException(
-            status_code=400,
-            detail="Widget API key not configured. Set THE_ODDS_WIDGET_API_KEY environment variable.",
-        )
-    
-    base_url = f"https://widget.the-odds-api.com/v1/sports/{sport}/events/"
-    params = {
-        "accessKey": widget_key,
-        "bookmakerKeys": bookmaker,
-        "oddsFormat": odds_format,
-        "markets": markets,
-    }
-    
-    if market_names:
-        params["marketNames"] = market_names
-    
-    query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-    widget_url = f"{base_url}?{query_string}"
-    
-    return {"url": widget_url}
 
 
 @app.get("/api/credits")
 def get_api_credits():
     """
-    Get API and Widget subscription usage credits.
+    Get API subscription usage credits.
     Returns usage information from API response headers.
     """
     api_credits = None
-    widget_credits = None
     
     # Get API credits from a lightweight API call
     try:
@@ -1990,44 +1915,8 @@ def get_api_credits():
         # If API key is not available or call fails, return None
         print(f"Error fetching API credits: {e}")
     
-    # Get Widget credits - try to make a lightweight widget API call
-    try:
-        widget_key = get_widget_api_key()
-        if widget_key:
-            # Make a minimal widget API call to get usage headers
-            widget_url = f"https://widget.the-odds-api.com/v1/sports/basketball_nba/events/"
-            params = {
-                "accessKey": widget_key,
-                "bookmakerKeys": "draftkings",
-                "oddsFormat": "american",
-                "markets": "h2h"
-            }
-            response = requests.get(widget_url, params=params, timeout=10)
-            
-            if response.status_code == 200:
-                used = response.headers.get("x-requests-used")
-                remaining = response.headers.get("x-requests-remaining")
-                
-                if used is not None and remaining is not None:
-                    try:
-                        used_int = int(used)
-                        remaining_int = int(remaining)
-                        total = used_int + remaining_int
-                        widget_credits = {
-                            "used": used_int,
-                            "remaining": remaining_int,
-                            "total": total,
-                            "display": f"{used_int}/{total}"
-                        }
-                    except (ValueError, TypeError):
-                        pass
-    except Exception as e:
-        # If widget key is not available or call fails, return None
-        print(f"Error fetching widget credits: {e}")
-    
     return {
-        "api_credits": api_credits,
-        "widget_credits": widget_credits
+        "api_credits": api_credits
     }
 
 
@@ -2137,5 +2026,10 @@ def get_test_arbitrage_alert():
     )
 
 
-# Static frontend (index.html, value.html, etc. under ./frontend)
+# Redirect root to the main page
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/ArbritrageBetFinder.html")
+
+# Static frontend (ArbritrageBetFinder.html, value.html, etc. under ./frontend)
 app.mount("/", StaticFiles(directory="frontend", html=True), name="static")

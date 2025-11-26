@@ -1710,13 +1710,11 @@
             } catch (error) {
                 console.error("Error fetching credits:", error);
                 document.getElementById("api-credits").textContent = "API: Error";
-                document.getElementById("widget-credits").textContent = "Widget: Error";
             }
         }
 
         function updateCreditsDisplay(data) {
             const apiCreditsEl = document.getElementById("api-credits");
-            const widgetCreditsEl = document.getElementById("widget-credits");
 
             if (data.api_credits) {
                 const credits = data.api_credits;
@@ -1732,22 +1730,6 @@
             } else {
                 apiCreditsEl.textContent = "API: N/A";
                 apiCreditsEl.className = "";
-            }
-
-            if (data.widget_credits) {
-                const credits = data.widget_credits;
-                const percentage = (credits.used / credits.total) * 100;
-                let className = "credits-high";
-                if (percentage >= 90) {
-                    className = "credits-low";
-                } else if (percentage >= 70) {
-                    className = "credits-medium";
-                }
-                widgetCreditsEl.textContent = `Widget: ${credits.display}`;
-                widgetCreditsEl.className = className;
-            } else {
-                widgetCreditsEl.textContent = "Widget: N/A";
-                widgetCreditsEl.className = "";
             }
         }
 

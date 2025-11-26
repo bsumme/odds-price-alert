@@ -126,7 +126,7 @@ For development and testing when API credits are exhausted, the application incl
 odds-price-alert/
 ├── main.py              # FastAPI backend with API endpoints
 ├── frontend/
-│   ├── index.html       # Arbitrage Finder page
+│   ├── ArbritrageBetFinder.html       # Arbitrage Finder page
 │   ├── value.html       # Value Plays page
 │   └── watcher.html     # Bet Watcher page
 └── README.md            # This file
@@ -234,6 +234,7 @@ This project is for personal/educational use. The Odds API has its own terms of 
 
 - [The Odds API Documentation](https://the-odds-api.com/liveapi/guides/v4/#overview)
 - [The Odds API Website](https://the-odds-api.com/)
+
 
 
 
