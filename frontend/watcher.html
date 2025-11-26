@@ -30,6 +30,8 @@
             left: 0;
             right: 0;
             z-index: 999;
+            height: auto;
+            min-height: 3rem;
         }
 
         header.show {
@@ -38,16 +40,12 @@
 
         .toggle-buttons {
             position: fixed;
-            top: 0.5rem;
+            bottom: 0.5rem;
             right: 0.5rem;
             z-index: 1001;
             display: flex;
             gap: 0.5rem;
-            transition: top 0.2s;
-        }
-
-        body.header-visible .toggle-buttons {
-            top: 3.5rem;
+            transition: bottom 0.2s;
         }
 
         .toggle-btn {
@@ -112,7 +110,7 @@
         }
 
         header.show + main {
-            padding-top: 3.5rem;
+            padding-top: 4.5rem;
         }
 
         .card {
@@ -121,10 +119,19 @@
             border: 1px solid #334155;
             padding: 0.6rem 0.8rem;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            height: 100%;
+            max-height: calc(100vh - 1.5rem);
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        header.show + main .card {
+            max-height: calc(100vh - 5.25rem);
+        }
+
+        header.show + main > section.card:first-child {
+            margin-top: 0;
         }
 
         .card h2 {
