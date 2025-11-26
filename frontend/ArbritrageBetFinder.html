@@ -155,7 +155,14 @@
             align-items: start;
             overflow: hidden;
             padding-top: 0.75rem;
+            padding-right: 0.75rem;
             box-sizing: border-box;
+            transition: padding-right 0.3s ease;
+        }
+        
+        /* Adjust main layout when watcher panel is open */
+        body.watcher-open main {
+            padding-right: 320px; /* 300px panel + 20px gap */
         }
 
         header.show + main {
@@ -291,6 +298,7 @@
 
         table {
             width: 100%;
+            min-width: 800px; /* Ensure table doesn't get too narrow */
             border-collapse: collapse;
             font-size: 0.75rem;
         }
@@ -301,6 +309,47 @@
             padding: 0.3rem 0.4rem;
             text-align: left;
             vertical-align: top;
+            white-space: nowrap;
+        }
+        
+        /* Column width adjustments - use min-width for critical columns */
+        th:nth-child(1),
+        td:nth-child(1) {
+            width: auto;
+            min-width: 60px; /* Sport */
+        }
+        
+        th:nth-child(2),
+        td:nth-child(2) {
+            width: auto;
+            min-width: 150px;
+            max-width: 200px; /* Recommended Bet - shortened */
+            white-space: normal; /* Allow wrapping for this column */
+        }
+        
+        th:nth-child(3),
+        td:nth-child(3) {
+            width: auto;
+            min-width: 120px; /* Start Time */
+        }
+        
+        th:nth-child(4),
+        td:nth-child(4) {
+            width: auto;
+            min-width: 100px; /* Compare Price */
+        }
+        
+        th:nth-child(5),
+        td:nth-child(5) {
+            width: auto;
+            min-width: 150px; /* Hedge Bet */
+            white-space: normal; /* Allow wrapping */
+        }
+        
+        th:nth-child(6),
+        td:nth-child(6) {
+            width: auto;
+            min-width: 130px; /* Arbitrage Margin - ensure it's always visible */
         }
 
         th {
@@ -316,6 +365,7 @@
         .scroll-container {
             flex: 1;
             overflow-y: auto;
+            overflow-x: auto;
             min-height: 0;
         }
 
@@ -418,6 +468,7 @@
             height: 100%;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         .panel-toggle-btn {
@@ -476,6 +527,7 @@
         .watcher-panel.open {
             right: 0;
         }
+        
 
         .watcher-panel .card {
             margin: 0;
@@ -485,6 +537,7 @@
 
         .credits-display {
             font-size: 0.75rem;
+            color: #94a3b8;
         }
 
         .credits-display .credits-low {
@@ -497,6 +550,15 @@
 
         .credits-display .credits-high {
             color: #bbf7d0;
+        }
+        
+        footer {
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Adjust main padding to account for footer */
+        main {
+            padding-bottom: 3rem;
         }
     </style>
 </head>
@@ -644,6 +706,13 @@
             </section>
         </div>
     </main>
+
+    <!-- Credits Display -->
+    <footer style="position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; padding: 0.5rem 1rem; z-index: 1000; text-align: center;">
+        <div class="credits-display">
+            <span id="api-credits">API: Loading...</span>
+        </div>
+    </footer>
 
     <script>
         let valuePollTimer = null;
@@ -2074,6 +2143,7 @@
             if (watcherVisible) {
                 watcherPanel.classList.add("open");
                 toggleWatcherBtn.classList.add("active");
+                document.body.classList.add("watcher-open");
             }
 
             // Toggle watcher panel
@@ -2082,10 +2152,12 @@
                 if (isOpen) {
                     watcherPanel.classList.remove("open");
                     toggleWatcherBtn.classList.remove("active");
+                    document.body.classList.remove("watcher-open");
                     localStorage.setItem("watcherVisible", "false");
                 } else {
                     watcherPanel.classList.add("open");
                     toggleWatcherBtn.classList.add("active");
+                    document.body.classList.add("watcher-open");
                     localStorage.setItem("watcherVisible", "true");
                 }
             };
