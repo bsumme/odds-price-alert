@@ -244,3 +244,4 @@ odds-price-alert/
 - No changes to frontend or API contracts needed
 - Consider using type hints consistently throughout
 
+

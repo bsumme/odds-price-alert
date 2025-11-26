@@ -13,7 +13,7 @@ A web application for finding arbitrage betting opportunities by comparing odds 
 ## The Odds API
 
 This project uses [The Odds API](https://the-odds-api.com/) v4 to fetch live sports betting odds.
-
+https://app.swaggerhub.com/apis-docs/the-odds-api/odds-api/4#/current%20events/get_v4_sports__sport__scores
 ### API Overview
 
 The Odds API provides real-time and historical odds data from multiple sportsbooks. The v4 API offers:

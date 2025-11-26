@@ -153,3 +153,4 @@ def apply_vig_adjustment(odds: int, bookmaker_key: str) -> int:
                     closest = odds - 10
         return closest
 
+
