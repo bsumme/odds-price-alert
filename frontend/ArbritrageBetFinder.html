@@ -14,6 +14,16 @@
             padding: 0;
             overflow: hidden;
             height: 100vh;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        body.fade-out {
+            opacity: 0;
+        }
+
+        body.fade-in {
+            opacity: 1;
         }
 
         header {
@@ -140,7 +150,7 @@
             padding: 0.75rem;
             height: 100vh;
             display: grid;
-            grid-template-columns: 300px 1fr 300px;
+            grid-template-columns: 300px 1fr;
             gap: 0.75rem;
             align-items: start;
             overflow: hidden;
@@ -152,20 +162,19 @@
             padding-top: 3.5rem;
         }
 
-        .filter-panel,
-        .watcher-panel {
+        .filter-panel {
             padding-top: 0;
         }
 
         @media (max-width: 1600px) {
             main {
-                grid-template-columns: 280px 1fr 280px;
+                grid-template-columns: 280px 1fr;
             }
         }
 
         @media (max-width: 1400px) {
             main {
-                grid-template-columns: 260px 1fr 260px;
+                grid-template-columns: 260px 1fr;
             }
         }
 
@@ -310,6 +319,24 @@
             min-height: 0;
         }
 
+        /* Custom scrollbar styling */
+        .scroll-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .scroll-container::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        .scroll-container::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        .scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
         .small-text {
             font-size: 0.7rem;
             color: #94a3b8;
@@ -382,8 +409,8 @@
         }
 
         .filter-panel {
-            overflow-y: auto;
             height: 100%;
+            overflow: hidden;
         }
 
         .results-panel {
@@ -393,9 +420,67 @@
             flex-direction: column;
         }
 
+        .panel-toggle-btn {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1002;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-right: none;
+            border-radius: 0.4rem 0 0 0.4rem;
+            color: #e5e7eb;
+            padding: 1rem 0.5rem;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-toggle-btn:hover {
+            background: #334155;
+            border-color: #475569;
+        }
+
+        .panel-toggle-btn.active {
+            background: #166534;
+            border-color: #15803d;
+            color: #bbf7d0;
+        }
+
+        .panel-toggle-btn .arrow {
+            transition: transform 0.3s ease;
+            display: inline-block;
+        }
+
+        .panel-toggle-btn.active .arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Slide-out panel animation */
         .watcher-panel {
-            overflow-y: auto;
+            position: fixed;
+            right: -300px;
+            top: 0;
+            width: 300px;
+            height: 100vh;
+            background: transparent;
+            transition: right 0.3s ease;
+            z-index: 1001;
+            overflow: hidden;
+            padding: 0.75rem;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .watcher-panel.open {
+            right: 0;
+        }
+
+        .watcher-panel .card {
+            margin: 0;
             height: 100%;
+            max-height: 100%;
         }
 
         .credits-display {
@@ -418,9 +503,11 @@
 
 <body>
     <div class="top-right-buttons">
-        <a href="/watcher.html" class="btn" title="Go to Bet Watcher">Bet Watcher</a>
-        <button class="btn" id="toggle-watcher-btn" title="Toggle Arb Watcher">Arb Watcher</button>
+        <a href="/watcher.html" class="btn smooth-nav" data-href="/watcher.html" title="Go to Bet Watcher">Bet Watcher</a>
     </div>
+    <button class="panel-toggle-btn" id="toggle-watcher-btn" title="Toggle Arb Watcher Panel">
+        <span class="arrow">◀</span>
+    </button>
     <header id="main-header">
         <nav>
         </nav>
@@ -530,8 +617,8 @@
         </div>
 
         <!-- Arb Watcher Panel -->
-        <div class="watcher-panel">
-            <section class="card" id="watcher-card" style="display: none;">
+        <div class="watcher-panel" id="watcher-panel">
+            <section class="card" id="watcher-card">
                 <h2>🔔 Hedge Watcher</h2>
                 <div class="small-text" style="margin-bottom: 0.5rem;">
                     Monitor for hedge opportunities (arbitrage margin ≥ 0%).
@@ -1739,7 +1826,55 @@
             setInterval(fetchCredits, 5 * 60 * 1000); // Refresh every 5 minutes
         }
 
+        // Smooth page navigation with fade transition
+        function smoothNavigate(url) {
+            document.body.classList.add('fade-out');
+            setTimeout(() => {
+                window.location.href = url;
+            }, 300); // Match the CSS transition duration
+        }
+
+        // Fade in on page load
+        function fadeInPage() {
+            requestAnimationFrame(() => {
+                document.body.classList.add('fade-in');
+            });
+        }
+
+        // Handle both initial load and back/forward navigation
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fadeInPage);
+        } else {
+            fadeInPage();
+        }
+
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                // Page was loaded from cache (back/forward navigation)
+                document.body.classList.remove('fade-in');
+                requestAnimationFrame(() => {
+                    document.body.classList.add('fade-in');
+                });
+            }
+        });
+
         window.addEventListener("DOMContentLoaded", () => {
+            // Set up smooth navigation for all smooth-nav links
+            document.querySelectorAll('.smooth-nav').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const url = link.getAttribute('data-href') || link.getAttribute('href');
+                    if (url) {
+                        smoothNavigate(url);
+                    }
+                });
+            });
+
+            // Mark the current page button as active (Bet Watcher button should not be active on this page)
+            const watcherButton = document.querySelector('.top-right-buttons .smooth-nav[data-href="/watcher.html"]');
+            if (watcherButton) {
+                watcherButton.classList.remove('active');
+            }
 
             // Start credits refresh
             startCreditsRefresh();
@@ -1928,28 +2063,28 @@
                 }
             });
 
-            // Toggle buttons functionality
+            // Toggle panel functionality
             const toggleWatcherBtn = document.getElementById("toggle-watcher-btn");
-            const watcherCard = document.getElementById("watcher-card");
+            const watcherPanel = document.getElementById("watcher-panel");
 
             // Load toggle states from localStorage
             const watcherVisible = localStorage.getItem("watcherVisible") === "true";
 
             // Set initial states
             if (watcherVisible) {
-                watcherCard.style.display = "block";
+                watcherPanel.classList.add("open");
                 toggleWatcherBtn.classList.add("active");
             }
 
-            // Toggle watcher
+            // Toggle watcher panel
             toggleWatcherBtn.onclick = () => {
-                const isVisible = watcherCard.style.display !== "none";
-                if (isVisible) {
-                    watcherCard.style.display = "none";
+                const isOpen = watcherPanel.classList.contains("open");
+                if (isOpen) {
+                    watcherPanel.classList.remove("open");
                     toggleWatcherBtn.classList.remove("active");
                     localStorage.setItem("watcherVisible", "false");
                 } else {
-                    watcherCard.style.display = "block";
+                    watcherPanel.classList.add("open");
                     toggleWatcherBtn.classList.add("active");
                     localStorage.setItem("watcherVisible", "true");
                 }

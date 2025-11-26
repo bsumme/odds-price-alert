@@ -14,6 +14,16 @@
             padding: 0;
             overflow: hidden;
             height: 100vh;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        body.fade-out {
+            opacity: 0;
+        }
+
+        body.fade-in {
+            opacity: 1;
         }
 
         header {
@@ -36,6 +46,40 @@
 
         header.show {
             display: flex;
+        }
+
+        .top-right-buttons {
+            position: fixed;
+            bottom: 0.5rem;
+            right: 0.5rem;
+            z-index: 1001;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .top-right-buttons .btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e5e7eb;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .top-right-buttons .btn:hover {
+            background: #334155;
+            border-color: #475569;
+        }
+
+        .top-right-buttons .btn.active {
+            background: #166534;
+            border-color: #15803d;
+            color: #bbf7d0;
         }
 
         .toggle-buttons {
@@ -76,7 +120,7 @@
             padding: 0.75rem;
             height: 100vh;
             display: grid;
-            grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+            grid-template-columns: 300px 1fr;
             gap: 0.75rem;
             align-items: start;
             overflow: hidden;
@@ -94,19 +138,10 @@
             border: 1px solid #334155;
             padding: 0.6rem 0.8rem;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            max-height: calc(100vh - 1.5rem);
+            height: 100%;
             display: flex;
             flex-direction: column;
-            overflow-y: auto;
-            overflow-x: hidden;
-        }
-
-        header.show + main .card {
-            max-height: calc(100vh - 5.25rem);
-        }
-
-        header.show + main > section.card:first-child {
-            margin-top: 0;
+            overflow: hidden;
         }
 
         .card h2 {
@@ -239,25 +274,46 @@
             min-height: 0;
         }
 
+        /* Custom scrollbar styling */
+        .scroll-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .scroll-container::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        .scroll-container::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        .scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
         }
 
         th,
         td {
-            border-bottom: 1px solid #1f2937;
-            padding: 0.4rem 0.5rem;
+            border-bottom: 1px solid #334155;
+            padding: 0.3rem 0.4rem;
             text-align: left;
             vertical-align: top;
         }
 
         th {
-            background: #020617;
+            background: #1e293b;
             position: sticky;
             top: 0;
             z-index: 1;
+            font-weight: 600;
+            color: #e5e7eb;
+            font-size: 0.7rem;
         }
 
         .badge {
@@ -278,10 +334,6 @@
             margin-left: 0.25rem;
         }
 
-        .scroll-container {
-            max-height: 520px;
-            overflow-y: auto;
-        }
 
         /* Alert popup styles */
         .alert-overlay {
@@ -368,18 +420,26 @@
             }
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 1600px) {
             main {
-                grid-template-columns: minmax(0, 1fr);
+                grid-template-columns: 280px 1fr;
+            }
+        }
+
+        @media (max-width: 1400px) {
+            main {
+                grid-template-columns: 260px 1fr;
             }
         }
     </style>
 </head>
 
 <body>
+    <div class="top-right-buttons">
+        <a href="/" class="btn smooth-nav active" data-href="/" title="Go to Arbitrage Finder">Arbitrage Finder</a>
+    </div>
     <header id="main-header">
         <nav>
-            <a href="/" class="btn btn-primary" style="text-decoration: none; display: inline-block;">Arbitrage Finder</a>
         </nav>
     </header>
 
@@ -388,9 +448,6 @@
         <section class="card">
             <h2>Configure Bets</h2>
 
-            <button class="btn btn-link" style="margin-bottom: 0.5rem;" onclick="window.location.href='/'">
-                ⇄ Switch to Value Finder (Home)
-            </button>
 
             <label for="sport-select">Sport</label>
             <select id="sport-select">
@@ -1028,7 +1085,55 @@
             }
         }
 
+        // Smooth page navigation with fade transition
+        function smoothNavigate(url) {
+            document.body.classList.add('fade-out');
+            setTimeout(() => {
+                window.location.href = url;
+            }, 300); // Match the CSS transition duration
+        }
+
+        // Fade in on page load
+        function fadeInPage() {
+            requestAnimationFrame(() => {
+                document.body.classList.add('fade-in');
+            });
+        }
+
+        // Handle both initial load and back/forward navigation
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fadeInPage);
+        } else {
+            fadeInPage();
+        }
+
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                // Page was loaded from cache (back/forward navigation)
+                document.body.classList.remove('fade-in');
+                requestAnimationFrame(() => {
+                    document.body.classList.add('fade-in');
+                });
+            }
+        });
+
         window.addEventListener("DOMContentLoaded", () => {
+            // Set up smooth navigation for all smooth-nav links and buttons
+            document.querySelectorAll('.smooth-nav, .smooth-nav-btn').forEach(element => {
+                element.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const url = element.getAttribute('data-href') || element.getAttribute('href');
+                    if (url) {
+                        smoothNavigate(url);
+                    }
+                });
+            });
+
+            // Mark the current page button as active
+            const currentPageButton = document.querySelector('.top-right-buttons .smooth-nav');
+            if (currentPageButton) {
+                currentPageButton.classList.add('active');
+            }
 
             // Load saved form selections
             loadFormSelections();
