@@ -1,11 +1,12 @@
-import os
 import sys
 import time
 from typing import Any, Dict, List, Set
 
 import requests
 
-BASE_URL = "https://api.the-odds-api.com/v4"
+# Import shared utilities
+from services.odds_api import get_api_key, BASE_URL
+from utils.regions import compute_regions_for_books
 
 # === CONFIG: change these to whatever you want ============================
 SPORT_KEY = "basketball_nba"          # e.g. "basketball_nba", "americanfootball_nfl"
@@ -31,16 +32,6 @@ SHOW_CURRENT_ODDS = True              # print current odds every loop for compar
 # ==========================================================================
 
 
-def get_api_key() -> str:
-    api_key = os.getenv("THE_ODDS_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "Missing THE_ODDS_API_KEY environment variable. "
-            "Set it in Windows environment variables before running this script."
-        )
-    return api_key
-
-
 def fetch_odds_for_sport(
     api_key: str,
     sport_key: str,
@@ -49,21 +40,10 @@ def fetch_odds_for_sport(
     bookmaker_keys: List[str],
 ) -> List[Dict[str, Any]]:
     """
-    Fetch upcoming events for a given sport and market(s).
+    Wrapper for fetch_odds that matches nba_price_alert's interface.
     """
-    url = f"{BASE_URL}/sports/{sport_key}/odds"
-    params = {
-        "apiKey": api_key,
-        "regions": regions,
-        "markets": markets,
-        "oddsFormat": "american",
-        "dateFormat": "iso",
-        "bookmakers": ",".join(bookmaker_keys),
-    }
-
-    resp = requests.get(url, params=params, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
+    from services.odds_api import fetch_odds
+    return fetch_odds(api_key, sport_key, regions, markets, bookmaker_keys, use_dummy_data=False)
 
 
 def extract_team_prices_per_game(

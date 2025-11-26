@@ -14,7 +14,6 @@ Modes:
 """
 
 import argparse
-import os
 import sys
 import time
 from dataclasses import dataclass
@@ -22,7 +21,11 @@ from typing import Any, Dict, List, Set
 
 import requests
 
-BASE_URL = "https://api.the-odds-api.com/v4"
+# Import shared utilities
+from services.odds_api import get_api_key, fetch_odds, BASE_URL
+from services.odds_utils import is_price_or_better
+from utils.regions import compute_regions_for_books
+from utils.formatting import pretty_book_label
 
 # Global configuration (you can tweak these if you want)
 POLL_INTERVAL_SECONDS = 60  # how often to refresh odds
@@ -46,6 +49,9 @@ BOOK_CHOICES = [
     ("fliff", "Fliff"),
 ]
 
+# Import BOOK_LABELS for consistency (though we use BOOK_CHOICES here)
+from utils.formatting import BOOK_LABELS
+
 
 # --- CLI args ---------------------------------------------------------------
 
@@ -66,41 +72,9 @@ def parse_args() -> argparse.Namespace:
 # --- Utility functions ------------------------------------------------------
 
 
-def get_api_key() -> str:
-    api_key = os.getenv("THE_ODDS_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "Missing THE_ODDS_API_KEY environment variable.\n"
-            "Set it in Windows Environment Variables, then restart VS Code."
-        )
-    return api_key
 
 
-def compute_regions_for_books(bookmaker_keys: List[str]) -> str:
-    """
-    Decide which regions to request based on which books you're tracking.
-
-    - DraftKings / FanDuel live in 'us'
-    - Fliff lives in 'us2'
-    - Novig lives in 'us_ex'
-    """
-    regions: Set[str] = set()
-
-    if any(b in ("draftkings", "fanduel") for b in bookmaker_keys):
-        regions.add("us")
-    if "fliff" in bookmaker_keys:
-        regions.add("us2")
-    if "novig" in bookmaker_keys:
-        regions.add("us_ex")
-
-    if not regions:
-        # fallback: still request US main region
-        regions.add("us")
-
-    return ",".join(sorted(regions))
-
-
-def fetch_odds(
+def fetch_odds_for_watcher(
     api_key: str,
     sport_key: str,
     regions: str,
@@ -108,23 +82,11 @@ def fetch_odds(
     bookmaker_keys: List[str] | None = None,
 ) -> List[Dict[str, Any]]:
     """
-    Call /v4/sports/{sport}/odds for the given sport and regions.
-    We request only the books we actually care about.
+    Wrapper for fetch_odds that matches bet_watcher's interface.
     """
-    url = f"{BASE_URL}/sports/{sport_key}/odds"
-    params = {
-        "apiKey": api_key,
-        "regions": regions,
-        "markets": markets,
-        "oddsFormat": "american",
-        "dateFormat": "iso",
-    }
-    if bookmaker_keys:
-        params["bookmakers"] = ",".join(bookmaker_keys)
-
-    resp = requests.get(url, params=params, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+    if not bookmaker_keys:
+        bookmaker_keys = []
+    return fetch_odds(api_key, sport_key, regions, markets, bookmaker_keys, use_dummy_data=False)
 
 
 def sign_to_int(s: str) -> int:
@@ -135,19 +97,6 @@ def sign_to_int(s: str) -> int:
     if s.startswith("+"):
         s = s[1:]
     return int(s)
-
-
-def is_price_or_better(current: int, target: int) -> bool:
-    """
-    Implements "or better" logic for American odds.
-
-    - If target is positive (e.g. +120), we want current >= target
-      (+130 is better than +120).
-
-    - If target is negative (e.g. -290), we want current >= target as well,
-      because -200 >= -290 (and -200 is "better" than -290).
-    """
-    return current >= target
 
 
 # --- Core logic -------------------------------------------------------------
@@ -219,11 +168,6 @@ def extract_team_prices(
     return games
 
 
-def pretty_book_label(book_key: str) -> str:
-    for key, label in BOOK_CHOICES:
-        if key == book_key:
-            return label
-    return book_key
 
 
 def print_snapshot(bets: List[BetConfig], events: List[Dict[str, Any]]) -> None:
@@ -469,7 +413,7 @@ def main() -> None:
         print("\n=== SNAPSHOT-ONLY MODE ===")
         print("Fetching current odds once and printing snapshot (no tracking).\n")
         try:
-            events = fetch_odds(
+            events = fetch_odds_for_watcher(
                 api_key=api_key,
                 sport_key=SPORT_KEY,
                 regions=regions,
@@ -504,7 +448,7 @@ def main() -> None:
 
     while True:
         try:
-            events = fetch_odds(
+            events = fetch_odds_for_watcher(
                 api_key=api_key,
                 sport_key=SPORT_KEY,
                 regions=regions,

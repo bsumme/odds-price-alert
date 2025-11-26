@@ -8,15 +8,23 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from zoneinfo import ZoneInfo
 
-BASE_URL = "https://api.the-odds-api.com/v4"
-
-# Treat absurdly large American odds as invalid (e.g. -100000 from Novig)
-MAX_VALID_AMERICAN_ODDS = 10000
+# Import shared utilities
+from services.odds_api import get_api_key, fetch_odds, BASE_URL
+from services.odds_utils import (
+    american_to_decimal,
+    decimal_to_american,
+    american_to_prob,
+    estimate_ev_percent,
+    points_match,
+    apply_vig_adjustment,
+    MAX_VALID_AMERICAN_ODDS,
+)
+from utils.regions import compute_regions_for_books
+from utils.formatting import pretty_book_label, format_start_time_est, BOOK_LABELS
 
 # -------------------------------------------------------------------
-# Shared models and utilities
+# Pydantic Models
 # -------------------------------------------------------------------
 
 
@@ -161,54 +169,9 @@ class PlayerPropsRequest(BaseModel):
     use_dummy_data: bool = False
 
 
-BOOK_LABELS = {
-    "draftkings": "DraftKings",
-    "fanduel": "FanDuel",
-    "novig": "Novig",
-    "fliff": "Fliff",
-    # add more as needed
-}
-
-
-def get_api_key() -> str:
-    api_key = os.getenv("THE_ODDS_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "Missing THE_ODDS_API_KEY environment variable. "
-            "Set it in Windows Environment Variables and restart."
-        )
-    return api_key
-
-
 def get_textbelt_api_key() -> Optional[str]:
     """Get the Textbelt API key from environment variable. Returns None if not set."""
     return os.getenv("TEXTBELT_API_KEY")
-
-
-def pretty_book_label(book_key: str) -> str:
-    return BOOK_LABELS.get(book_key, book_key)
-
-
-def compute_regions_for_books(bookmaker_keys: List[str]) -> str:
-    """
-    Decide which regions to request based on which books you're tracking.
-
-    - DraftKings / FanDuel live in "us"
-    - Fliff lives in "us2"
-    - Novig lives in "us_ex"
-    """
-    regions: Set[str] = set()
-    for bk in bookmaker_keys:
-        if bk in ("draftkings", "fanduel"):
-            regions.add("us")
-        elif bk == "fliff":
-            regions.add("us2")
-        elif bk == "novig":
-            regions.add("us_ex")
-        else:
-            regions.add("us")
-
-    return ",".join(sorted(regions))
 
 
 def generate_dummy_odds_data(
@@ -807,7 +770,7 @@ def generate_dummy_player_props_data(
     return events
 
 
-def fetch_odds(
+def fetch_odds_with_dummy(
     api_key: str,
     sport_key: str,
     regions: str,
@@ -816,207 +779,11 @@ def fetch_odds(
     use_dummy_data: bool = False,
 ) -> List[Dict[str, Any]]:
     """
-    Core call to /v4/sports/{sport_key}/odds.
-    If use_dummy_data is True, returns mock data instead of calling the API.
+    Wrapper around fetch_odds that handles dummy data generation.
     """
     if use_dummy_data:
         return generate_dummy_odds_data(sport_key, markets, bookmaker_keys)
-    
-    params = {
-        "apiKey": api_key,
-        "regions": regions,
-        "markets": markets,
-        "oddsFormat": "american",
-        "bookmakers": ",".join(bookmaker_keys),
-    }
-
-    url = f"{BASE_URL}/sports/{sport_key}/odds"
-    response = requests.get(url, params=params, timeout=15)
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Error from The Odds API: {response.status_code}, {response.text}",
-        )
-    return response.json()
-
-
-def american_to_decimal(odds: int) -> float:
-    """
-    Convert American odds to decimal odds.
-    """
-    if odds > 0:
-        return 1.0 + odds / 100.0
-    else:
-        return 1.0 + 100.0 / abs(odds)
-
-
-def decimal_to_american(decimal: float) -> int:
-    """
-    Convert decimal odds to American odds.
-    """
-    if decimal >= 2.0:
-        return int((decimal - 1.0) * 100)
-    else:
-        return int(-100.0 / (decimal - 1.0))
-
-
-def apply_vig_adjustment(odds: int, bookmaker_key: str) -> int:
-    """
-    Apply vig adjustment to odds to make them less favorable (reduce 0% hedge opportunities).
-    High vig levels to reflect reality: arbitrage bets are extremely rare due to vig.
-    - Fliff: 30% vig (highest)
-    - DraftKings: 20% vig
-    - FanDuel: 20% vig
-    
-    Args:
-        odds: American odds
-        bookmaker_key: The bookmaker key (e.g., "draftkings", "fanduel", "fliff")
-    
-    Returns:
-        Adjusted American odds (less favorable)
-    """
-    if odds is None:
-        return odds
-    
-    # Define vig percentages by book (higher = more vig, less favorable odds)
-    # Set to realistic high vig levels to make arbitrage opportunities very rare
-    # In reality, vig makes arbitrage bets extremely difficult to find
-    vig_percentages = {
-        "fliff": 0.30,      # 30% vig for Fliff (highest - makes arb extremely rare)
-        "draftkings": 0.20,  # 20% vig for DraftKings
-        "fanduel": 0.20,    # 20% vig for FanDuel
-    }
-    
-    vig_pct = vig_percentages.get(bookmaker_key.lower(), 0.0)
-    if vig_pct == 0.0:
-        # No adjustment for other books
-        return odds
-    
-    # Convert to decimal odds
-    dec_odds = american_to_decimal(odds)
-    
-    # Apply vig: reduce the decimal odds by the vig percentage
-    # This makes the odds less favorable (higher implied probability)
-    # Add a small additional buffer (1%) to prevent exactly 0% margins and ensure rounding doesn't undo the effect
-    buffer = 0.01  # 1% additional buffer to ensure odds are always significantly worse
-    adjusted_dec = dec_odds * (1.0 - vig_pct - buffer)
-    
-    # Convert back to American odds
-    adjusted_american = decimal_to_american(adjusted_dec)
-    
-    # CRITICAL FIX: If original odds were positive, ensure adjusted odds stay positive
-    # High vig can cause positive odds to drop below 2.0 decimal, making them negative
-    if odds > 0:
-        if adjusted_american <= 0:
-            # Force it to be positive but worse than original
-            # Use a minimum positive value that's worse than original
-            adjusted_american = max(100, odds - 50)  # At least 50 points worse, minimum +100
-        # Also ensure adjusted is always worse (less positive) than original
-        if adjusted_american >= odds:
-            adjusted_american = max(100, odds - 50)
-    
-    # Round to nearest common odds value to keep it realistic
-    # Use a more comprehensive list that includes more granular values
-    common_odds = [
-        -10000, -5000, -2500, -2000, -1500, -1200, -1000, -900, -800, -700, -600, -550,
-        -500, -475, -450, -425, -400, -375, -350, -325, -300, -275, -250, -225, -200,
-        -190, -180, -170, -160, -150, -140, -130, -120, -115, -110, -105, -102,
-        100, 102, 105, 110, 115, 120, 130, 140, 150, 160, 170, 180, 190,
-        200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500,
-        550, 600, 700, 800, 900, 1000, 1200, 1500, 2000, 2500, 5000, 10000
-    ]
-    
-    # Find closest common odds value that makes odds worse (not better)
-    # CRITICAL: For negative odds, "worse" means MORE negative (e.g., -200 is worse than -130)
-    # For positive odds, "worse" means LESS positive (e.g., +100 is worse than +150)
-    if odds > 0:
-        # For positive odds, find the closest value that is < adjusted_american (strictly worse)
-        # CRITICAL: Only consider positive values in common_odds
-        # Filter to only positive values that are strictly worse than adjusted_american and original
-        positive_common_odds = [x for x in common_odds if x > 0]
-        worse_options = [x for x in positive_common_odds if x < adjusted_american and x < odds]
-        if worse_options:
-            closest = max(worse_options)  # Closest but still worse
-        else:
-            # If no worse option found, use the adjusted value directly but ensure it's worse and positive
-            closest = max(100, int(adjusted_american))  # Ensure it's at least +100
-            # Ensure it's strictly worse than original
-            if closest >= odds:
-                # Find the next worse positive value
-                worse_values = [x for x in positive_common_odds if x < odds]
-                if worse_values:
-                    closest = max(worse_values)
-                else:
-                    closest = max(100, odds - 50)  # At least make it significantly worse, minimum +100
-        return closest
-    else:
-        # For negative odds, "worse" means MORE negative (e.g., -200 is worse than -130)
-        # So we need values that are < adjusted_american (more negative)
-        # adjusted_american should be more negative than original odds
-        worse_options = [x for x in common_odds if x < adjusted_american and x < odds]
-        if worse_options:
-            # Find the value closest to adjusted_american but still more negative than original
-            closest = max(worse_options)  # Most negative (worst) option that's still valid
-        else:
-            # If no worse option found, use the adjusted value directly but ensure it's worse
-            closest = int(adjusted_american)
-            # Ensure it's strictly worse than original (more negative)
-            if closest >= odds:  # If closest is less negative (better) than original
-                # Find the next worse value (more negative)
-                worse_values = [x for x in common_odds if x < odds]
-                if worse_values:
-                    closest = max(worse_values)  # Most negative (worst) option
-                else:
-                    closest = odds - 10  # At least make it significantly worse (more negative)
-        return closest
-
-
-def american_to_prob(odds: int) -> float:
-    """
-    Convert American odds to implied probability.
-    """
-    if odds > 0:
-        return 100.0 / (odds + 100.0)
-    else:
-        return abs(odds) / (abs(odds) + 100.0)
-
-
-def estimate_ev_percent(book_odds: int, sharp_odds: int) -> float:
-    """
-    Approximate EV% using:
-      EV% ~ (decimal_book * sharp_prob - 1) * 100
-    where sharp_prob is implied probability from Novig, treated as "true".
-    """
-    book_dec = american_to_decimal(book_odds)
-    sharp_prob = american_to_prob(sharp_odds)
-    ev = book_dec * sharp_prob - 1.0
-    return ev * 100.0
-
-
-def points_match(
-    book_point: Optional[float],
-    novig_point: Optional[float],
-    allow_half_point_flex: bool,
-) -> bool:
-    """Determine if two points should be treated as matching.
-
-    For most markets we require an exact match (including both being ``None``).
-    For spreads/totals, The Odds API occasionally publishes a 0.5-point
-    difference between Novig and the target book; when ``allow_half_point_flex``
-    is True we still consider those to be a match.
-    """
-
-    if book_point is None or novig_point is None:
-        return book_point == novig_point
-
-    diff = abs(book_point - novig_point)
-    if diff < 1e-9:
-        return True
-
-    if allow_half_point_flex and diff <= 0.5 + 1e-9:
-        return True
-
-    return False
+    return fetch_odds(api_key, sport_key, regions, markets, bookmaker_keys, use_dummy_data=False)
 
 
 def find_best_comparison_outcome(
@@ -1271,24 +1038,6 @@ def collect_value_plays(
     return plays
 
 
-def format_start_time_est(iso_str: str) -> str:
-    """Convert an ISO UTC time string into an easy-to-read EST label.
-
-    Example output: "Thu, Nov 20, 3:30 PM ET".
-    If parsing fails, returns the original string.
-    """
-    try:
-        dt_utc = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        dt_et = dt_utc.astimezone(ZoneInfo("America/New_York"))
-        # Format: "Thu, Nov 20, 3:30 PM ET" (more readable than "Thu 11/20 03:30 PM ET")
-        # Use %I for hour (01-12) and remove leading zero manually for cross-platform compatibility
-        formatted = dt_et.strftime("%a, %b %d, %I:%M %p ET")
-        # Remove leading zero from hour (e.g., " 03:" -> " 3:")
-        if formatted[8:10] == " 0" and formatted[10].isdigit():
-            formatted = formatted[:8] + " " + formatted[10:]
-        return formatted
-    except Exception:
-        return iso_str
 
 
 def choose_three_leg_parlay(plays: List[ValuePlayOutcome], target_book: str) -> Optional[Dict[str, Any]]:
@@ -1393,7 +1142,7 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
         markets = sorted({b.market for b in bets_for_sport})
         bookmaker_keys = sorted({bk for b in bets_for_sport for bk in b.bookmaker_keys})
 
-        events = fetch_odds(
+        events = fetch_odds_with_dummy(
             api_key=api_key,
             sport_key=sport_key,
             regions=regions,
@@ -1524,7 +1273,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     bookmaker_keys = [target_book, compare_book]
     regions = compute_regions_for_books(bookmaker_keys)
 
-    events = fetch_odds(
+    events = fetch_odds_with_dummy(
         api_key=api_key,
         sport_key=payload.sport_key,
         regions=regions,
@@ -1625,7 +1374,7 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
     for sport_key in payload.sport_keys:
         for market_key in payload.markets:
             try:
-                events = fetch_odds(
+                events = fetch_odds_with_dummy(
                     api_key=api_key,
                     sport_key=sport_key,
                     regions=regions,
