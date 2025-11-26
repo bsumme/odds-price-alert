@@ -274,6 +274,22 @@
         .results-panel {
             min-width: 0;
         }
+
+        .credits-display {
+            font-size: 0.75rem;
+        }
+
+        .credits-display .credits-low {
+            color: #fecaca;
+        }
+
+        .credits-display .credits-medium {
+            color: #fde68a;
+        }
+
+        .credits-display .credits-high {
+            color: #bbf7d0;
+        }
     </style>
 </head>
 
@@ -300,6 +316,12 @@
                     <input type="radio" name="odds-format" value="decimal" />
                     <span>Decimal</span>
                 </label>
+            </div>
+            <div id="credits-display" class="credits-display" style="margin-left: 1rem; padding: 0.5rem 0.75rem; background: #1e293b; border-radius: 0.5rem; border: 1px solid #334155; font-size: 0.75rem;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <span id="api-credits" style="color: #cbd5e1;">API: Loading...</span>
+                    <span id="widget-credits" style="color: #cbd5e1;">Widget: Loading...</span>
+                </div>
             </div>
         </nav>
     </header>
@@ -1566,6 +1588,65 @@
             }
         }
 
+        // Credits display functions
+        async function fetchCredits() {
+            try {
+                const response = await fetch("/api/credits");
+                if (!response.ok) {
+                    throw new Error("Failed to fetch credits");
+                }
+                const data = await response.json();
+                updateCreditsDisplay(data);
+            } catch (error) {
+                console.error("Error fetching credits:", error);
+                document.getElementById("api-credits").textContent = "API: Error";
+                document.getElementById("widget-credits").textContent = "Widget: Error";
+            }
+        }
+
+        function updateCreditsDisplay(data) {
+            const apiCreditsEl = document.getElementById("api-credits");
+            const widgetCreditsEl = document.getElementById("widget-credits");
+
+            if (data.api_credits) {
+                const credits = data.api_credits;
+                const percentage = (credits.used / credits.total) * 100;
+                let className = "credits-high";
+                if (percentage >= 90) {
+                    className = "credits-low";
+                } else if (percentage >= 70) {
+                    className = "credits-medium";
+                }
+                apiCreditsEl.textContent = `API: ${credits.display}`;
+                apiCreditsEl.className = className;
+            } else {
+                apiCreditsEl.textContent = "API: N/A";
+                apiCreditsEl.className = "";
+            }
+
+            if (data.widget_credits) {
+                const credits = data.widget_credits;
+                const percentage = (credits.used / credits.total) * 100;
+                let className = "credits-high";
+                if (percentage >= 90) {
+                    className = "credits-low";
+                } else if (percentage >= 70) {
+                    className = "credits-medium";
+                }
+                widgetCreditsEl.textContent = `Widget: ${credits.display}`;
+                widgetCreditsEl.className = className;
+            } else {
+                widgetCreditsEl.textContent = "Widget: N/A";
+                widgetCreditsEl.className = "";
+            }
+        }
+
+        // Refresh credits every 5 minutes
+        function startCreditsRefresh() {
+            fetchCredits(); // Initial fetch
+            setInterval(fetchCredits, 5 * 60 * 1000); // Refresh every 5 minutes
+        }
+
         window.addEventListener("DOMContentLoaded", () => {
             // Load and setup odds format toggle
             const savedFormat = localStorage.getItem("oddsFormat") || "american";
@@ -1580,6 +1661,9 @@
                     }
                 });
             });
+
+            // Start credits refresh
+            startCreditsRefresh();
 
             // Load saved form selections
             loadFormSelections();

@@ -1946,5 +1946,85 @@ def generate_widget_url(
     return {"url": widget_url}
 
 
+@app.get("/api/credits")
+def get_api_credits():
+    """
+    Get API and Widget subscription usage credits.
+    Returns usage information from API response headers.
+    """
+    api_credits = None
+    widget_credits = None
+    
+    # Get API credits from a lightweight API call
+    try:
+        api_key = get_api_key()
+        # Make a minimal API call to get usage headers
+        # Using sports endpoint as it's lightweight
+        url = f"{BASE_URL}/sports"
+        params = {"apiKey": api_key}
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            used = response.headers.get("x-requests-used")
+            remaining = response.headers.get("x-requests-remaining")
+            
+            if used is not None and remaining is not None:
+                try:
+                    used_int = int(used)
+                    remaining_int = int(remaining)
+                    total = used_int + remaining_int
+                    api_credits = {
+                        "used": used_int,
+                        "remaining": remaining_int,
+                        "total": total,
+                        "display": f"{used_int}/{total}"
+                    }
+                except (ValueError, TypeError):
+                    pass
+    except Exception as e:
+        # If API key is not available or call fails, return None
+        print(f"Error fetching API credits: {e}")
+    
+    # Get Widget credits - try to make a lightweight widget API call
+    try:
+        widget_key = get_widget_api_key()
+        if widget_key:
+            # Make a minimal widget API call to get usage headers
+            widget_url = f"https://widget.the-odds-api.com/v1/sports/basketball_nba/events/"
+            params = {
+                "accessKey": widget_key,
+                "bookmakerKeys": "draftkings",
+                "oddsFormat": "american",
+                "markets": "h2h"
+            }
+            response = requests.get(widget_url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                used = response.headers.get("x-requests-used")
+                remaining = response.headers.get("x-requests-remaining")
+                
+                if used is not None and remaining is not None:
+                    try:
+                        used_int = int(used)
+                        remaining_int = int(remaining)
+                        total = used_int + remaining_int
+                        widget_credits = {
+                            "used": used_int,
+                            "remaining": remaining_int,
+                            "total": total,
+                            "display": f"{used_int}/{total}"
+                        }
+                    except (ValueError, TypeError):
+                        pass
+    except Exception as e:
+        # If widget key is not available or call fails, return None
+        print(f"Error fetching widget credits: {e}")
+    
+    return {
+        "api_credits": api_credits,
+        "widget_credits": widget_credits
+    }
+
+
 # Static frontend (index.html, value.html, etc. under ./frontend)
 app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
