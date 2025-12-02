@@ -10,7 +10,6 @@ Usage:
 
 import argparse
 import requests
-import json
 from typing import Optional
 
 import pytest
@@ -36,7 +35,7 @@ def test_sms(phone: str, message: str) -> bool:
         result = response.json()
         
         if response.ok and result.get("success"):
-            print(f"✅ SMS sent successfully!")
+            print("✅ SMS sent successfully!")
             print(f"   Quota remaining: {result.get('quotaRemaining', 'N/A')}")
             return True
         else:
@@ -57,7 +56,7 @@ def get_test_arbitrage() -> Optional[dict]:
         
         if response.ok and data.get("plays") and len(data["plays"]) > 0:
             play = data["plays"][0]
-            print(f"✅ Test arbitrage play found:")
+            print("✅ Test arbitrage play found:")
             print(f"   Sport: {play['sport_key']}")
             print(f"   Matchup: {play['matchup']}")
             print(f"   Outcome: {play['outcome_name']}")
@@ -111,7 +110,7 @@ def test_full_flow(phone: str) -> bool:
         f"({margin}% margin). {play.get('matchup', '')}"
     )
     
-    print(f"📝 Formatted message:")
+    print("📝 Formatted message:")
     print(f"   {message}")
     print()
     

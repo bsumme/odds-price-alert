@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Set
 import requests
 
 # Import shared utilities
-from services.odds_api import get_api_key, fetch_odds, BASE_URL
+from services.odds_api import get_api_key, fetch_odds
 from services.odds_utils import is_price_or_better
 from utils.regions import compute_regions_for_books
 from utils.formatting import pretty_book_label
@@ -48,10 +48,6 @@ BOOK_CHOICES = [
     ("novig", "Novig (exchange)"),
     ("fliff", "Fliff"),
 ]
-
-# Import BOOK_LABELS for consistency (though we use BOOK_CHOICES here)
-from utils.formatting import BOOK_LABELS
-
 
 # --- CLI args ---------------------------------------------------------------
 
