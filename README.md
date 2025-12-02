@@ -159,6 +159,21 @@ odds-price-alert/
 4. **Access the application**:
    Open http://localhost:8000 in your browser
 
+## Quick CLI odds test
+
+Use `test_odds_api.py` to pull raw odds responses (especially for totals) without running the web server. The script hits The Odds API directly and prints either a condensed summary or the full JSON so you can inspect issues with the data.
+
+```bash
+# Fetch NBA totals from all configured regions and bookmakers (requires THE_ODDS_API_KEY)
+python test_odds_api.py --sport basketball_nba --markets totals --limit 3
+
+# Dump full JSON for debugging
+python test_odds_api.py --sport basketball_nba --markets totals --raw
+
+# Use dummy data if you want to test formatting without hitting the network
+python test_odds_api.py --sport basketball_nba --markets totals --use-dummy-data
+```
+
 ## API Endpoints
 
 ### `POST /api/odds`
