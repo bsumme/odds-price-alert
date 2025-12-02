@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Line Movement Tracker</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #0f172a;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            padding: 1rem 1.5rem;
+            background: #1e293b;
+            border-bottom: 2px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        header nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin-left: 0.75rem;
+        }
+
+        header nav a:hover {
+            color: #e5e7eb;
+        }
+
+        header nav a.active {
+            color: #bbf7d0;
+            font-weight: 600;
+        }
+
+        main {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            margin-top: 0.6rem;
+            margin-bottom: 0.15rem;
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        select,
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 0.45rem 0.6rem;
+            border-radius: 0.5rem;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #e5e7eb;
+            box-sizing: border-box;
+            font-size: 0.9rem;
+        }
+
+        select:hover,
+        input[type="text"]:hover,
+        input[type="number"]:hover {
+            border-color: #64748b;
+        }
+
+        select:focus,
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #166534;
+            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.2);
+        }
+
+        input[type="checkbox"] {
+            margin-right: 0.35rem;
+        }
+
+        .book-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        .book-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin: 0;
+        }
+
+        .market-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        .market-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin: 0;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .btn-primary {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .btn-primary:hover {
+            background: #15803d;
+        }
+
+        .btn-secondary {
+            background: #475569;
+            color: #e5e7eb;
+        }
+
+        .btn-secondary:hover {
+            background: #64748b;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .status-bar {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 0.5rem;
+        }
+
+        .small-text {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #334155;
+            padding: 0.4rem 0.5rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #1e293b;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            font-weight: 600;
+            color: #e5e7eb;
+        }
+
+        .scroll-container {
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        .badge {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 0.1rem 0.45rem;
+            font-size: 0.7rem;
+        }
+
+        .badge-market {
+            background: #1d4ed8;
+            color: #bfdbfe;
+            margin-right: 0.25rem;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div>
+            <h1>Line Movement Tracker</h1>
+            <div class="small-text">
+                Track ML, spread, and total lines for a single game, updated every N seconds.
+            </div>
+        </div>
+        <nav>
+            <a href="/ArbritrageBetFinder.html">Arbitrage Finder</a>
+            <a href="/value.html">Value Finder</a>
+            <a href="/playerprops.html">Player Props</a>
+            <a href="/watcher.html">Watcher</a>
+            <a href="/linetracker.html" class="active">Line Tracker</a>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Left: configuration -->
+        <section class="card">
+            <h2>Configure Game</h2>
+
+            <label for="sport-select">Sport</label>
+            <select id="sport-select">
+                <option value="americanfootball_nfl">NFL</option>
+                <option value="basketball_nba">NBA</option>
+                <option value="basketball_ncaab">NCAAB</option>
+                <option value="americanfootball_ncaaf">NCAAF</option>
+            </select>
+
+            <label>Team keywords (case-insensitive)</label>
+            <div class="small-text">
+                Enter parts of the team names. Order doesn't matter (we'll match either side).
+                Example: "Saints" and "Falcons".
+            </div>
+            <label for="team1-input">Team 1 keyword</label>
+            <input id="team1-input" type="text" placeholder="e.g. Saints" />
+
+            <label for="team2-input">Team 2 keyword</label>
+            <input id="team2-input" type="text" placeholder="e.g. Falcons" />
+
+            <label>Books</label>
+            <div class="book-checkboxes">
+                <label><input type="checkbox" name="book" value="draftkings" checked /> DraftKings</label>
+                <label><input type="checkbox" name="book" value="fanduel" checked /> FanDuel</label>
+                <label><input type="checkbox" name="book" value="novig" /> Novig</label>
+                <label><input type="checkbox" name="book" value="fliff" checked /> Fliff</label>
+            </div>
+
+            <label>Markets to track</label>
+            <div class="market-checkboxes">
+                <label><input type="checkbox" id="ml-checkbox" checked /> Moneyline</label>
+                <label><input type="checkbox" id="spread-checkbox" /> Spreads</label>
+                <label><input type="checkbox" id="total-checkbox" /> Totals</label>
+            </div>
+
+            <label for="interval-input">Polling interval (seconds)</label>
+            <input id="interval-input" type="number" min="15" step="15" value="60" />
+
+            <div style="margin-top: 0.75rem;">
+                <button class="btn btn-primary" id="start-btn">Start tracking</button>
+                <button class="btn btn-secondary" id="snapshot-btn">One-time snapshot</button>
+                <button class="btn btn-secondary" id="stop-btn" disabled>Stop</button>
+            </div>
+
+            <div class="status-bar" id="status-bar">Ready.</div>
+        </section>
+
+        <!-- Right: live lines -->
+        <section class="card">
+            <h2>Live Lines</h2>
+            <div class="small-text" id="last-updated"></div>
+            <div class="scroll-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 22%;">Matchup</th>
+                            <th style="width: 18%;">Start Time</th>
+                            <th>Book / Markets</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body">
+                        <tr>
+                            <td colspan="3" class="small-text">
+                                No data yet. Configure a game and run a snapshot or start tracking.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let pollTimer = null;
+
+        function setStatus(msg) {
+            document.getElementById("status-bar").textContent = msg;
+        }
+
+        function setLastUpdated() {
+            const el = document.getElementById("last-updated");
+            const now = new Date();
+            el.textContent = "Last updated: " + now.toLocaleTimeString();
+        }
+
+        function buildRequestPayload() {
+            const sport = document.getElementById("sport-select").value;
+            const team1 = document.getElementById("team1-input").value.trim();
+            const team2 = document.getElementById("team2-input").value.trim();
+
+            if (!sport) {
+                alert("Please select a sport.");
+                return null;
+            }
+            if (!team1 || !team2) {
+                alert("Please enter both team keywords.");
+                return null;
+            }
+
+            const bookCheckboxes = document.querySelectorAll('input[name="book"]:checked');
+            const bookmaker_keys = Array.from(bookCheckboxes).map(cb => cb.value);
+            if (bookmaker_keys.length === 0) {
+                alert("Please select at least one book.");
+                return null;
+            }
+
+            const track_ml = document.getElementById("ml-checkbox").checked;
+            const track_spreads = document.getElementById("spread-checkbox").checked;
+            const track_totals = document.getElementById("total-checkbox").checked;
+
+            if (!track_ml && !track_spreads && !track_totals) {
+                alert("Please select at least one market (ML, spreads, or totals).");
+                return null;
+            }
+
+            // We send team1 as "home_query" and team2 as "away_query", but the backend
+            // will match in either order so the user doesn't need to know who is home.
+            return {
+                sport_key: sport,
+                home_query: team1,
+                away_query: team2,
+                bookmaker_keys,
+                track_ml,
+                track_spreads,
+                track_totals,
+            };
+        }
+
+        function clearResultsTable() {
+            const body = document.getElementById("results-body");
+            body.innerHTML = `
+                <tr>
+                    <td colspan="3" class="small-text">
+                        No data yet. Configure a game and run a snapshot or start tracking.
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderSnapshot(data) {
+            const body = document.getElementById("results-body");
+            body.innerHTML = "";
+
+            if (!data || !data.events || data.events.length === 0) {
+                body.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="small-text">
+                            No matching events found for the current configuration.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            data.events.forEach(event => {
+                const matchup = `${event.away_team} @ ${event.home_team}`;
+
+                const tr = document.createElement("tr");
+
+                const matchupCell = document.createElement("td");
+                matchupCell.innerHTML = `<strong>${matchup}</strong>`;
+                tr.appendChild(matchupCell);
+
+                const startCell = document.createElement("td");
+                startCell.textContent = event.start_time || "";
+                tr.appendChild(startCell);
+
+                const linesCell = document.createElement("td");
+
+                const lines = event.lines || {};
+                const bookKeys = Object.keys(lines);
+                if (bookKeys.length === 0) {
+                    linesCell.innerHTML = '<span class="small-text">No lines available for selected books.</span>';
+                } else {
+                    bookKeys.forEach(bookKey => {
+                        const bookDiv = document.createElement("div");
+                        const marketData = lines[bookKey];
+
+                        const header = document.createElement("div");
+                        header.innerHTML = `<strong>${bookKey}</strong>`;
+                        bookDiv.appendChild(header);
+
+                        // Moneyline
+                        if (marketData.moneyline) {
+                            const ml = marketData.moneyline;
+                            const row = document.createElement("div");
+                            row.innerHTML = `
+                                <span class="badge badge-market">ML</span>
+                                Home: ${ml.home_price ?? "(no line)"} |
+                                Away: ${ml.away_price ?? "(no line)"}
+                            `;
+                            bookDiv.appendChild(row);
+                        }
+
+                        // Spread
+                        if (marketData.spread) {
+                            const sp = marketData.spread;
+                            const row = document.createElement("div");
+                            row.innerHTML = `
+                                <span class="badge badge-market">SP</span>
+                                Home: ${sp.home_point ?? "?"} (${sp.home_price ?? "(no line)"}) |
+                                Away: ${sp.away_point ?? "?"} (${sp.away_price ?? "(no line)"})
+                            `;
+                            bookDiv.appendChild(row);
+                        }
+
+                        // Total
+                        if (marketData.total) {
+                            const tot = marketData.total;
+                            const row = document.createElement("div");
+                            row.innerHTML = `
+                                <span class="badge badge-market">TOT</span>
+                                ${tot.point ?? "?"} &nbsp;
+                                Over: ${tot.over_price ?? "(no line)"} |
+                                Under: ${tot.under_price ?? "(no line)"}
+                            `;
+                            bookDiv.appendChild(row);
+                        }
+
+                        linesCell.appendChild(bookDiv);
+                    });
+                }
+
+                tr.appendChild(linesCell);
+                body.appendChild(tr);
+            });
+        }
+
+        async function fetchSnapshot() {
+            const payload = buildRequestPayload();
+            if (!payload) {
+                return;
+            }
+            setStatus("Fetching snapshot...");
+            try {
+                const response = await fetch("/api/line-tracker", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || ("HTTP " + response.status));
+                }
+                const data = await response.json();
+                renderSnapshot(data);
+                setLastUpdated();
+                setStatus("Snapshot fetched.");
+            } catch (e) {
+                console.error(e);
+                setStatus("Error fetching lines: " + e.message);
+            }
+        }
+
+        function startTracking() {
+            const payload = buildRequestPayload();
+            if (!payload) {
+                return;
+            }
+
+            const intervalInput = document.getElementById("interval-input");
+            const intervalVal = Number(intervalInput.value) || 60;
+            const intervalMs = Math.max(intervalVal, 15) * 1000; // min 15 seconds
+
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+
+            setStatus("Tracking lines...");
+            document.getElementById("start-btn").disabled = true;
+            document.getElementById("snapshot-btn").disabled = true;
+            document.getElementById("stop-btn").disabled = false;
+
+            // Run immediately, then on interval
+            fetchSnapshot();
+            pollTimer = setInterval(fetchSnapshot, intervalMs);
+        }
+
+        function stopTracking() {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+            setStatus("Stopped.");
+            document.getElementById("start-btn").disabled = false;
+            document.getElementById("snapshot-btn").disabled = false;
+            document.getElementById("stop-btn").disabled = true;
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("snapshot-btn").onclick = fetchSnapshot;
+            document.getElementById("start-btn").onclick = startTracking;
+            document.getElementById("stop-btn").onclick = stopTracking;
+        });
+    </script>
+</body>
+
+</html>
+
+
+
+

@@ -1,3 +1,4 @@
+import json
 import os
 import random
 from datetime import datetime, timedelta, timezone
@@ -925,6 +926,19 @@ def collect_value_plays(
                 continue
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                 continue
+            
+            # For totals markets, outcomes MUST have a point value (totals always have a line)
+            # Also validate that the name is "Over" or "Under" for totals
+            # Totals odds should be in a reasonable range (typically -150 to +150, not like -300 which is ML territory)
+            if market_key == "totals":
+                if point is None:
+                    continue
+                if name.lower() not in ("over", "under"):
+                    continue  # Skip invalid totals outcomes
+                # Skip totals with extreme prices that look like moneyline odds (e.g., -300, +400)
+                # Totals typically range from -150 to +150
+                if price is not None and (price < -150 or price > 150):
+                    continue  # Skip suspiciously extreme totals prices
 
             # Apply vig adjustment to target book odds (makes them less favorable)
             adjusted_price = apply_vig_adjustment(price, target_book)
@@ -1011,11 +1025,17 @@ def collect_value_plays(
             outcome_display_name = name
             if is_player_prop and description:
                 outcome_display_name = f"{description} {name}"
+            # For totals, include the point value in outcome_name (e.g., "Over 225.5")
+            elif market_key == "totals" and point is not None:
+                outcome_display_name = f"{name} {point}"
             
             reverse_display_name = novig_reverse_name
             if is_player_prop and other_compare and other_compare.get("description"):
                 reverse_desc = other_compare.get("description")
                 reverse_display_name = f"{reverse_desc} {novig_reverse_name}" if novig_reverse_name else None
+            # For totals, include the point value in reverse outcome_name
+            elif market_key == "totals" and novig_reverse_name and point is not None:
+                reverse_display_name = f"{novig_reverse_name} {point}"
 
             plays.append(
                 ValuePlayOutcome(
@@ -1674,6 +1694,174 @@ class SMSAlertRequest(BaseModel):
     message: str
 
 
+class LineTrackerRequest(BaseModel):
+    """
+    Request body for /api/line-tracker:
+      - sport_key: e.g. "americanfootball_nfl"
+      - home_query / away_query: substrings to match teams (case-insensitive)
+      - bookmaker_keys: list of books to include
+      - track_ml / track_spreads / track_totals: which markets to include
+    """
+    sport_key: str
+    home_query: str
+    away_query: str
+    bookmaker_keys: List[str]
+    track_ml: bool = True
+    track_spreads: bool = False
+    track_totals: bool = False
+
+
+class LineTrackerEvent(BaseModel):
+    event_id: str
+    home_team: str
+    away_team: str
+    start_time: Optional[str]
+    lines: Dict[str, Dict[str, Any]]
+
+
+class LineTrackerSnapshot(BaseModel):
+    timestamp: str
+    sport_key: str
+    regions: str
+    markets: List[str]
+    bookmaker_keys: List[str]
+    events: List[LineTrackerEvent]
+
+
+def _ensure_logs_dir() -> str:
+    """Return path to logs directory, creating it if needed."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(base_dir)
+    logs_dir = os.path.join(project_root, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    return logs_dir
+
+
+def _log_line_tracker_snapshot(record: Dict[str, Any]) -> None:
+    """
+    Append one line-movement snapshot to logs/line_movement_tracker.jsonl.
+    Failures here should never break the main request flow.
+    """
+    try:
+        logs_dir = _ensure_logs_dir()
+        log_path = os.path.join(logs_dir, "line_movement_tracker.jsonl")
+        record.setdefault("log_type", "line_movement_tracker")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record))
+            f.write("\n")
+    except Exception:
+        # Silent failure – logging should not impact live behavior.
+        pass
+
+
+def _matches_team_query(query: str, team_name: Optional[str]) -> bool:
+    """Case-insensitive substring match helper for team selection."""
+    if not query or not team_name:
+        return False
+    return query.lower() in team_name.lower()
+
+
+def _extract_line_tracker_markets(
+    event: Dict[str, Any],
+    bookmaker_keys: List[str],
+    track_ml: bool,
+    track_spreads: bool,
+    track_totals: bool,
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Extract ML, spread, and total info for an event for each requested bookmaker.
+    Returns a dict keyed by bookmaker with nested market data.
+    """
+    home = event.get("home_team")
+    away = event.get("away_team")
+
+    per_book: Dict[str, Dict[str, Any]] = {}
+
+    for bookmaker in event.get("bookmakers", []):
+        book_key = bookmaker.get("key")
+        if book_key not in bookmaker_keys:
+            continue
+
+        book_entry: Dict[str, Any] = {}
+
+        # Moneyline (h2h)
+        if track_ml:
+            h2h_market = next(
+                (m for m in bookmaker.get("markets", []) if m.get("key") == "h2h"),
+                None,
+            )
+            if h2h_market:
+                home_price = None
+                away_price = None
+                for outcome in h2h_market.get("outcomes", []):
+                    name = outcome.get("name")
+                    if name == home:
+                        home_price = outcome.get("price")
+                    elif name == away:
+                        away_price = outcome.get("price")
+                book_entry["moneyline"] = {
+                    "home_price": home_price,
+                    "away_price": away_price,
+                }
+
+        # Spreads
+        if track_spreads:
+            spread_market = next(
+                (m for m in bookmaker.get("markets", []) if m.get("key") == "spreads"),
+                None,
+            )
+            if spread_market:
+                home_point = None
+                home_price = None
+                away_point = None
+                away_price = None
+                for outcome in spread_market.get("outcomes", []):
+                    name = outcome.get("name")
+                    if name == home:
+                        home_point = outcome.get("point")
+                        home_price = outcome.get("price")
+                    elif name == away:
+                        away_point = outcome.get("point")
+                        away_price = outcome.get("price")
+                book_entry["spread"] = {
+                    "home_point": home_point,
+                    "home_price": home_price,
+                    "away_point": away_point,
+                    "away_price": away_price,
+                }
+
+        # Totals
+        if track_totals:
+            totals_market = next(
+                (m for m in bookmaker.get("markets", []) if m.get("key") == "totals"),
+                None,
+            )
+            if totals_market:
+                total_point = None
+                over_price = None
+                under_price = None
+                for outcome in totals_market.get("outcomes", []):
+                    name = outcome.get("name", "")
+                    price = outcome.get("price")
+                    point = outcome.get("point")
+                    if "over" in name.lower():
+                        total_point = point
+                        over_price = price
+                    elif "under" in name.lower():
+                        total_point = point
+                        under_price = price
+                book_entry["total"] = {
+                    "point": total_point,
+                    "over_price": over_price,
+                    "under_price": under_price,
+                }
+
+        if book_entry:
+            per_book[book_key] = book_entry
+
+    return per_book
+
+
 @app.post("/api/send-sms")
 def send_sms_alert(payload: SMSAlertRequest):
     """
@@ -1736,6 +1924,118 @@ def send_sms_alert(payload: SMSAlertRequest):
             status_code=502,
             detail=f"Error communicating with Textbelt API: {str(e)}"
         )
+
+
+@app.post("/api/line-tracker", response_model=LineTrackerSnapshot)
+def get_line_tracker_snapshot(payload: LineTrackerRequest) -> LineTrackerSnapshot:
+    """
+    Return a one-shot snapshot of lines (ML/spread/total) for a specific game,
+    and log it to logs/line_movement_tracker.jsonl.
+
+    The frontend is responsible for polling this endpoint (e.g. every minute)
+    to visualize line movement over time.
+    """
+    try:
+        api_key = get_api_key()
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not payload.bookmaker_keys:
+        raise HTTPException(status_code=400, detail="No bookmakers specified")
+
+    regions = compute_regions_for_books(payload.bookmaker_keys)
+
+    markets_to_request: List[str] = []
+    if payload.track_ml:
+        markets_to_request.append("h2h")
+    if payload.track_spreads:
+        markets_to_request.append("spreads")
+    if payload.track_totals:
+        markets_to_request.append("totals")
+    if not markets_to_request:
+        raise HTTPException(status_code=400, detail="At least one market must be selected")
+
+    markets_param = ",".join(markets_to_request)
+
+    try:
+        events = fetch_odds(
+            api_key=api_key,
+            sport_key=payload.sport_key,
+            regions=regions,
+            markets=markets_param,
+            bookmaker_keys=payload.bookmaker_keys,
+            use_dummy_data=False,
+        )
+    except requests.HTTPError as http_err:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error from The Odds API: {http_err.response.status_code}, {http_err.response.text}",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error fetching odds: {e}")
+
+    snapshot_events: List[LineTrackerEvent] = []
+
+    for event in events:
+        home = event.get("home_team")
+        away = event.get("away_team")
+        raw_start_time = event.get("commence_time")
+        formatted_start_time: Optional[str] = None
+        if raw_start_time:
+            try:
+                formatted_start_time = format_start_time_est(raw_start_time)
+            except Exception:
+                # If formatting fails, fall back to raw value
+                formatted_start_time = raw_start_time
+
+        # Match either (home_query -> home, away_query -> away) OR swapped,
+        # so the user doesn't have to know which team is home.
+        direct_match = (
+            _matches_team_query(payload.home_query, home)
+            and _matches_team_query(payload.away_query, away)
+        )
+        swapped_match = (
+            _matches_team_query(payload.home_query, away)
+            and _matches_team_query(payload.away_query, home)
+        )
+        if not (direct_match or swapped_match):
+            continue
+
+        lines = _extract_line_tracker_markets(
+            event=event,
+            bookmaker_keys=payload.bookmaker_keys,
+            track_ml=payload.track_ml,
+            track_spreads=payload.track_spreads,
+            track_totals=payload.track_totals,
+        )
+        if not lines:
+            continue
+
+        snapshot_events.append(
+            LineTrackerEvent(
+                event_id=event.get("id", ""),
+                home_team=home or "",
+                away_team=away or "",
+                start_time=formatted_start_time,
+                lines=lines,
+            )
+        )
+
+    now_utc = datetime.utcnow().isoformat() + "Z"
+    snapshot_dict: Dict[str, Any] = {
+        "timestamp": now_utc,
+        "sport_key": payload.sport_key,
+        "regions": regions,
+        "markets": markets_to_request,
+        "bookmaker_keys": payload.bookmaker_keys,
+        "events": [e.dict() for e in snapshot_events],
+    }
+
+    # Persist snapshot to logs for later analysis.
+    _log_line_tracker_snapshot(snapshot_dict)
+
+    # Return structured response to the frontend.
+    return LineTrackerSnapshot(**snapshot_dict)
 
 
 @app.get("/api/test-arbitrage-alert")

@@ -1,6 +1,8 @@
 """The Odds API client wrapper."""
 
+import json
 import os
+from datetime import datetime
 from typing import List, Dict, Any
 
 import requests
@@ -18,6 +20,43 @@ def get_api_key() -> str:
             "Set it in Windows Environment Variables and restart."
         )
     return api_key
+
+
+def _log_real_api_response(
+    sport_key: str,
+    regions: str,
+    markets: str,
+    bookmaker_keys: List[str],
+    payload: List[Dict[str, Any]],
+) -> None:
+    """
+    Append the real API response to a local text file so it can be
+    compared to dummy data later. Failures here should never break
+    the main request flow.
+    """
+    try:
+        # Store under project_root/logs so it's easy to find.
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        logs_dir = os.path.join(base_dir, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+
+        log_path = os.path.join(logs_dir, "real_odds_api_responses.jsonl")
+
+        record = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "sport_key": sport_key,
+            "regions": regions,
+            "markets": markets,
+            "bookmaker_keys": bookmaker_keys,
+            "response": payload,
+        }
+
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record))
+            f.write("\n")
+    except Exception:
+        # Silent failure – logging should not impact live behavior.
+        pass
 
 
 def fetch_odds(
@@ -51,7 +90,22 @@ def fetch_odds(
             status_code=502,
             detail=f"Error from The Odds API: {response.status_code}, {response.text}",
         )
-    return response.json()
+
+    data: List[Dict[str, Any]] = response.json()
+
+    # Persist real API output to a text file for later comparison to dummy data.
+    _log_real_api_response(
+        sport_key=sport_key,
+        regions=regions,
+        markets=markets,
+        bookmaker_keys=bookmaker_keys,
+        payload=data,
+    )
+
+    return data
+
+
+
 
 
 
