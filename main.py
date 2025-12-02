@@ -84,7 +84,6 @@ class ValuePlaysResponse(BaseModel):
     compare_book: str
     market: str
     plays: List[ValuePlayOutcome]
-    sgp_suggestion: Optional[Dict[str, Any]] = None  # holds 3-leg SGP suggestion if requested
 
 
 class ValuePlaysRequest(BaseModel):
@@ -94,14 +93,12 @@ class ValuePlaysRequest(BaseModel):
       - target_book: e.g. "draftkings"
       - compare_book: e.g. "fanduel" (the book to compare against)
       - market: "h2h", "spreads", "totals", or "player_points"
-      - include_sgp: whether to build a naive 3-leg parlay from the top plays
       - use_dummy_data: if True, use mock data instead of real API calls
     """
     sport_key: str
     target_book: str
     compare_book: str
     market: str
-    include_sgp: bool = False
     use_dummy_data: bool = False
     max_results: Optional[int] = None
 
@@ -809,70 +806,6 @@ def collect_value_plays(
             )
 
     return plays
-
-
-
-
-def choose_three_leg_parlay(plays: List[ValuePlayOutcome], target_book: str) -> Optional[Dict[str, Any]]:
-    """
-    Very simple 3-leg high-EV parlay suggestion:
-      - take the top +EV plays (ev_percent)
-      - ensure all 3 legs come from different events
-    """
-    if len(plays) < 3:
-        return None
-
-    sorted_plays = sorted(plays, key=lambda p: p.ev_percent, reverse=True)
-
-    chosen: List[ValuePlayOutcome] = []
-    used_event_ids: Set[str] = set()
-
-    for p in sorted_plays:
-        if p.event_id in used_event_ids:
-            continue
-        chosen.append(p)
-        used_event_ids.add(p.event_id)
-        if len(chosen) == 3:
-            break
-
-    if len(chosen) < 3:
-        return None
-
-    decimal_odds_list = [american_to_decimal(p.book_price) for p in chosen]
-    combined_decimal = 1.0
-    for d in decimal_odds_list:
-        combined_decimal *= d
-
-    sharp_probs = [american_to_prob(p.novig_price) for p in chosen]
-    combined_sharp_prob = 1.0
-    for sp in sharp_probs:
-        combined_sharp_prob *= sp
-
-    parlay_ev = combined_decimal * combined_sharp_prob - 1.0
-    parlay_ev_percent = parlay_ev * 100.0
-
-    return {
-        "target_book": target_book,
-        "legs": [
-            {
-                "event_id": p.event_id,
-                "matchup": p.matchup,
-                "outcome_name": p.outcome_name,
-                "point": p.point,
-                "book_price": p.book_price,
-                "novig_price": p.novig_price,
-                "ev_percent": p.ev_percent,
-            }
-            for p in chosen
-        ],
-        "combined_decimal_odds": combined_decimal,
-        "combined_sharp_prob": combined_sharp_prob,
-        "estimated_parlay_ev_percent": parlay_ev_percent,
-        "approx_parlay_decimal_odds": combined_decimal,
-        "approx_parlay_ev_percent": parlay_ev_percent,
-    }
-
-
 # -------------------------------------------------------------------
 # FastAPI app
 # -------------------------------------------------------------------
@@ -1014,7 +947,7 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
 def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     """
     Compare a target sportsbook to a comparison book for a given sport
-    and market, returning the best value plays and an optional 3-leg parlay suggestion.
+    and market, returning the best value plays.
 
     Sorting:
       - Primary sort is by hedge opportunity using arb_margin_percent:
@@ -1098,17 +1031,11 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     if max_results is not None and max_results > 0:
         top_plays = top_plays[:max_results]
 
-    sgp_suggestion = None
-    if payload.include_sgp and top_plays:
-        # SGP still uses same-side EV ordering internally
-        sgp_suggestion = choose_three_leg_parlay(top_plays, target_book)
-
     return ValuePlaysResponse(
         target_book=target_book,
         compare_book=compare_book,
         market=market_key,
         plays=top_plays,
-        sgp_suggestion=sgp_suggestion,
     )
 
 
@@ -1335,7 +1262,6 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
         compare_book=compare_book,
         market=market_key,
         plays=top_plays,
-        sgp_suggestion=None,
     )
 
 

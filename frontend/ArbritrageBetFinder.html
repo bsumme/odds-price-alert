@@ -461,14 +461,6 @@
             border-bottom: 1px dashed #334155;
         }
 
-        .sgp-card {
-            margin-top: 0.75rem;
-            padding: 0.9rem;
-            border-radius: 0.5rem;
-            background: #0f172a;
-            border: 1px solid #334155;
-        }
-
         .team-logo {
             width: 24px;
             height: 24px;
@@ -679,7 +671,6 @@
 
                 <div style="margin-top: 0.75rem;">
                     <button class="btn btn-primary" id="find-best-btn">Find Arbitrage Opportunities</button>
-                    <button class="btn btn-secondary" id="profit-boost-btn">Find High-Odds Arbitrage (+200+)</button>
                     <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
                 </div>
 
@@ -1168,7 +1159,6 @@
         function clearResults() {
             const body = document.getElementById("results-body");
             body.innerHTML = '<tr><td colspan="9" class="small-text">No results yet.</td></tr>';
-            document.getElementById("sgp-container").innerHTML = "";
             setSummary("");
             lastValueData = null;
         }
@@ -1274,52 +1264,12 @@
             renderValuePlays(lastValueData, filterHedgeOnly);
         }
 
-        function renderSGP(sgp, bookLabel) {
-            const container = document.getElementById("sgp-container");
-            container.innerHTML = "";
-            if (!sgp) return;
-
-            const card = document.createElement("div");
-            card.className = "sgp-card";
-
-            const header = document.createElement("div");
-            header.innerHTML = `<strong>3-Leg High-EV Parlay Suggestion @ ${bookLabel}</strong>`;
-            card.appendChild(header);
-
-            const legsList = document.createElement("ul");
-            legsList.className = "small-text";
-            sgp.legs.forEach((leg, idx) => {
-                const li = document.createElement("li");
-                let text = `[Leg ${idx + 1}] ${leg.matchup}: ${leg.outcome_name}`;
-                if (leg.point !== null && leg.point !== undefined) {
-                    text += ` @ ${leg.point}`;
-                }
-                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-                text += ` | Book: ${formatOdds(leg.book_price)}, ${compareBookLabel}: ${formatOdds(leg.novig_price)}, EV: ${leg.ev_percent}%`;
-                li.textContent = text;
-                legsList.appendChild(li);
-            });
-            card.appendChild(legsList);
-
-            const footer = document.createElement("div");
-            footer.className = "small-text";
-            const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-            footer.innerHTML = `
-        Approx parlay decimal odds: <strong>${sgp.approx_parlay_decimal_odds}</strong><br />
-        Approx parlay EV: <strong>${sgp.approx_parlay_ev_percent}%</strong> (vs ${compareBookLabel} as sharp)
-      `;
-            card.appendChild(footer);
-
-            container.appendChild(card);
-        }
-
         async function fetchValuePlays(singleRun = false) {
             const sport = document.getElementById("sport-select").value;
             const market = document.getElementById("market-select").value;
             const book = document.getElementById("book-select").value;
             const compareBook = document.getElementById("compare-book-select").value;
             const maxResults = Number(document.getElementById("max-results-input").value) || 25;
-            const includeSGP = document.getElementById("sgp-checkbox").checked;
 
             if (book === compareBook) {
                 setStatus("Error: Target book and comparison book cannot be the same.");
@@ -1340,7 +1290,6 @@
                         market,
                         target_book: book,
                         compare_book: compareBook,
-                        include_sgp: includeSGP,
                         max_results: maxResults
                     }),
                 });
@@ -1355,8 +1304,6 @@
                 const playsCount = (data.plays || []).length;
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked").textContent;
                 setSummary(`Showing top ${playsCount} arbitrage opportunities for ${book} in market "${market}" vs ${compareBookLabel}. Filter: ${filterHedgeOnly ? "Hedgeable only" : "All"}.`);
-                const bookLabel = document.querySelector("#book-select option:checked").textContent;
-                renderSGP(data.sgp_suggestion, bookLabel);
                 setStatus("Done.");
             } catch (e) {
                 console.error(e);
@@ -1424,7 +1371,7 @@
             setBestSummary("");
         }
 
-        function renderBestValuePlays(data, profitBoostOnly = false, hedgeOnly = false) {
+        function renderBestValuePlays(data, hedgeOnly = false) {
             const body = document.getElementById("best-results-body");
             body.innerHTML = "";
             const section = document.getElementById("best-results-section");
@@ -1452,15 +1399,6 @@
                 }
             }
             
-            // Filter for high-odds arbitrage opportunities (+200 to +300, and above +300)
-            if (profitBoostOnly) {
-                plays = plays.filter(p => p.book_price >= 200);
-                if (plays.length === 0) {
-                    body.innerHTML = '<tr><td colspan="6" class="small-text">No high-odds arbitrage opportunities found (+200 odds and above).</td></tr>';
-                    return;
-                }
-            }
-
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
@@ -1712,7 +1650,7 @@
             });
         }
 
-        async function fetchBestValuePlays(profitBoostOnly = false) {
+        async function fetchBestValuePlays() {
             const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
             const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
             const targetBook = document.getElementById("best-target-book-select").value;
@@ -1743,14 +1681,14 @@
             if (!isWatcherRunning) {
                 clearBestResults();
             }
-            
+
             if (isWatcherRunning) {
                 setBestStatus("Watcher: Checking for hedge opportunities...");
             } else {
-                setBestStatus(profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...");
+                setBestStatus("Searching for arbitrage opportunities across sports and markets...");
             }
             if (useDummyData) {
-                setBestStatus((isWatcherRunning ? "Watcher: Checking for hedge opportunities..." : (profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...")) + " [DUMMY DATA MODE]");
+                setBestStatus((isWatcherRunning ? "Watcher: Checking for hedge opportunities..." : "Searching for arbitrage opportunities across sports and markets...") + " [DUMMY DATA MODE]");
             }
 
             try {
@@ -1778,7 +1716,7 @@
                 lastBestValueData = data;
                 
                 // If watcher is running, filter to show only hedge opportunities
-                renderBestValuePlays(data, profitBoostOnly, isWatcherRunning);
+                renderBestValuePlays(data, isWatcherRunning);
 
                 // Check for hedge alerts if watcher is running
                 if (isWatcherRunning) {
@@ -1811,14 +1749,10 @@
                         p.novig_reverse_price !== null &&
                         p.novig_reverse_price !== undefined
                     ).length;
-                } else if (profitBoostOnly) {
-                    playsCount = data.plays.filter(p => p.book_price >= 200).length;
                 }
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked").textContent;
                 if (isWatcherRunning) {
                     setBestSummary(`Hedge Watcher: Showing ${playsCount} hedge opportunities (arbitrage margin ≥ 0%) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
-                } else if (profitBoostOnly) {
-                    setBestSummary(`Found ${playsCount} high-odds arbitrage opportunities (+200 to +300+ odds) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 } else {
                     setBestSummary(`Found ${playsCount} arbitrage opportunities across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 }
@@ -2018,8 +1952,7 @@
             }
             
             // Arbitrage Finder buttons
-            document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays(false);
-            document.getElementById("profit-boost-btn").onclick = () => fetchBestValuePlays(true);
+            document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays();
             document.getElementById("clear-best-btn").onclick = clearBestResults;
 
             // Arbitrage finder book validation
@@ -2067,18 +2000,17 @@
                 startWatcherBtn.disabled = true;
                 stopWatcherBtn.disabled = false;
                 document.getElementById("find-best-btn").disabled = true;
-                document.getElementById("profit-boost-btn").disabled = true;
 
                 // Show results section
                 document.getElementById("best-results-section").style.display = "block";
 
                 // Initial fetch
-                fetchBestValuePlays(false);
+                fetchBestValuePlays();
 
                 // Set up polling with error handling
                 watcherTimer = setInterval(async () => {
                     try {
-                        await fetchBestValuePlays(false);
+                        await fetchBestValuePlays();
                     } catch (error) {
                         console.error("Watcher error:", error);
                         watcherStatusBar.textContent = `Error: ${error.message}. Retrying in ${intervalVal}s...`;
@@ -2095,11 +2027,10 @@
                 startWatcherBtn.disabled = false;
                 stopWatcherBtn.disabled = true;
                 document.getElementById("find-best-btn").disabled = false;
-                document.getElementById("profit-boost-btn").disabled = false;
-                
+
                 // Re-render results without hedge filter when watcher stops
                 if (lastBestValueData) {
-                    renderBestValuePlays(lastBestValueData, false, false);
+                    renderBestValuePlays(lastBestValueData, false);
                 }
             }
 
