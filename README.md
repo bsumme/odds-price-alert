@@ -159,6 +159,21 @@ odds-price-alert/
 4. **Access the application**:
    Open http://localhost:8000 in your browser
 
+## Formatting the captured Odds API logs in VS Code
+
+The real API payloads used for dummy data live in `logs/real_odds_api_responses.jsonl`. To make that newline-delimited
+JSON file easier to read in VS Code:
+
+1. Open `logs/real_odds_api_responses.jsonl` in VS Code.
+2. Change the language mode (bottom right or `Ctrl/Cmd+K M`) to **JSON** so the built-in formatter can run. If you want VS Code to
+   remember this for all `.jsonl` files, add the following workspace setting: `"files.associations": { "*.jsonl": "json" }`.
+3. Run **Format Document** (`Shift+Alt+F` on Windows/Linux or `Shift+Option+F` on macOS) to pretty-print each line. You can also
+   enable `"editor.formatOnSave": true` if you prefer formatting whenever the file is saved.
+4. If you prefer a dedicated formatter, install the "JSON Lines" extension from the VS Code marketplace and use **Format Document**
+   with that extension active.
+
+Each line remains an independent JSON object after formatting, so downstream processing of the `.jsonl` file still works.
+
 ## Quick CLI odds test
 
 Use `tests/test_odds_api.py` to pull raw odds responses (especially for totals) without running the web server. The script hits The Odds API directly and prints either a condensed summary or the full JSON so you can inspect issues with the data.
