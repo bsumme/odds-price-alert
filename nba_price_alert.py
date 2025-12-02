@@ -5,8 +5,7 @@ from typing import Any, Dict, List, Set
 import requests
 
 # Import shared utilities
-from services.odds_api import get_api_key, BASE_URL
-from utils.regions import compute_regions_for_books
+from services.odds_api import get_api_key
 
 # === CONFIG: change these to whatever you want ============================
 SPORT_KEY = "basketball_nba"          # e.g. "basketball_nba", "americanfootball_nfl"
