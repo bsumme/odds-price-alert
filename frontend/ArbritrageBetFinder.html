@@ -345,38 +345,38 @@
             width: auto;
             min-width: 60px; /* Sport */
         }
-        
+
         th:nth-child(2),
         td:nth-child(2) {
             width: auto;
-            min-width: 150px;
-            max-width: 200px; /* Recommended Bet - shortened */
+            min-width: 160px;
+            max-width: 220px; /* Recommended Bet - shortened */
             white-space: normal; /* Allow wrapping for this column */
         }
-        
+
         th:nth-child(3),
         td:nth-child(3) {
             width: auto;
-            min-width: 120px; /* Start Time */
+            min-width: 160px; /* Hedge Bet */
+            white-space: normal; /* Allow wrapping */
         }
-        
+
         th:nth-child(4),
         td:nth-child(4) {
             width: auto;
-            min-width: 100px; /* Compare Price */
+            min-width: 120px; /* Start Time */
         }
-        
+
         th:nth-child(5),
         td:nth-child(5) {
             width: auto;
-            min-width: 150px; /* Hedge Bet */
-            white-space: normal; /* Allow wrapping */
+            min-width: 130px; /* Arbitrage Margin - ensure it's always visible */
         }
-        
+
         th:nth-child(6),
         td:nth-child(6) {
             width: auto;
-            min-width: 130px; /* Arbitrage Margin - ensure it's always visible */
+            min-width: 100px; /* Compare Price */
         }
 
         th {
@@ -417,6 +417,11 @@
         .small-text {
             font-size: 0.7rem;
             color: #94a3b8;
+        }
+
+        .odds-highlight {
+            color: #facc15;
+            font-weight: 800;
         }
 
         .badge {
@@ -684,10 +689,10 @@
                             <tr>
                                 <th>Sport</th>
                                 <th>Recommended Bet</th>
-                                <th>Start Time</th>
-                                <th>Compare Price</th>
                                 <th>Hedge Bet</th>
+                                <th>Start Time</th>
                                 <th>Arbitrage Margin</th>
+                                <th>Compare Price</th>
                             </tr>
                         </thead>
                         <tbody id="best-results-body">
@@ -1373,7 +1378,7 @@
             section.style.display = "block";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="7" class="small-text">No arbitrage opportunities found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="6" class="small-text">No arbitrage opportunities found.</td></tr>';
                 return;
             }
 
@@ -1389,7 +1394,7 @@
                     p.novig_reverse_price !== undefined
                 );
                 if (plays.length === 0) {
-                    body.innerHTML = '<tr><td colspan="7" class="small-text">No hedge opportunities found (arbitrage margin ≥ 0%).</td></tr>';
+                    body.innerHTML = '<tr><td colspan="6" class="small-text">No hedge opportunities found (arbitrage margin ≥ 0%).</td></tr>';
                     return;
                 }
             }
@@ -1416,6 +1421,7 @@
 
                 const bookCell = document.createElement("td");
                 const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
+                const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
                 let teamName = parseTeamFromOutcome(play.outcome_name);
                 const marketLabel = marketLabels[play.market] || play.market;
                 const formattedOdds = formatOdds(play.book_price);
@@ -1463,27 +1469,16 @@
                         betDescription += ` ${play.point > 0 ? "+" : ""}${play.point}`;
                     }
                 }
-                betText.innerHTML = `<strong>${betDescription} ${formattedOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
+                betText.innerHTML = `<strong>${betDescription} <span class="odds-highlight">${formattedOdds}</span></strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 betContainer.appendChild(betText);
-                
+
                 bookCell.appendChild(betContainer);
                 tr.appendChild(bookCell);
 
-                const startCell = document.createElement("td");
-                startCell.textContent = formatStartTime(play.start_time);
-                tr.appendChild(startCell);
-
-                const compareCell = document.createElement("td");
-                const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatOdds(play.novig_price);
-                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
-                tr.appendChild(compareCell);
-
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined && play.novig_reverse_name) {
-                    const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
                     const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
-                    
+
                     // Parse the opposite side name to format it properly
                     let oppositeTeamName = parseTeamFromOutcome(play.novig_reverse_name);
                     const marketLabel = marketLabels[play.market] || play.market;
@@ -1506,11 +1501,15 @@
                         hedgeDescription = `${oppositeTeamName || ""} ML`;
                     }
                     
-                    hedgeCell.innerHTML = `<strong>${hedgeDescription} ${formattedHedgeOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
+                    hedgeCell.innerHTML = `<strong>${hedgeDescription} <span class="odds-highlight">${formattedHedgeOdds}</span></strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(hedgeCell);
+
+                const startCell = document.createElement("td");
+                startCell.textContent = formatStartTime(play.start_time);
+                tr.appendChild(startCell);
 
                 const hedgeEvCell = document.createElement("td");
                 if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
@@ -1521,6 +1520,11 @@
                     hedgeEvCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(hedgeEvCell);
+
+                const compareCell = document.createElement("td");
+                const formattedCompareOdds = formatOdds(play.novig_price);
+                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
+                tr.appendChild(compareCell);
 
                 body.appendChild(tr);
             });
