@@ -603,7 +603,6 @@
 
                     <div style="margin-top: 1rem;">
                         <button class="btn btn-primary" id="find-best-btn">Find Arbitrage Opportunities</button>
-                        <button class="btn btn-secondary" id="profit-boost-btn">Find High-Odds Arbitrage (+200+)</button>
                         <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
                     </div>
 
@@ -1071,7 +1070,7 @@
         }
 
         // Mobile card-based rendering
-        function renderBestValuePlays(data, profitBoostOnly = false, hedgeOnly = false) {
+        function renderBestValuePlays(data, hedgeOnly = false) {
             const body = document.getElementById("best-results-body");
             body.innerHTML = "";
             const section = document.getElementById("results-section");
@@ -1101,14 +1100,6 @@
                 }
             }
             
-            if (profitBoostOnly) {
-                plays = plays.filter(p => p.book_price >= 200);
-                if (plays.length === 0) {
-                    body.innerHTML = '<div class="empty-state">No high-odds arbitrage opportunities found (+200 odds and above).</div>';
-                    return;
-                }
-            }
-
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
@@ -1431,7 +1422,7 @@
             });
         }
 
-        async function fetchBestValuePlays(profitBoostOnly = false) {
+        async function fetchBestValuePlays() {
             const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
             const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
             const targetBook = document.getElementById("best-target-book-select").value;
@@ -1465,10 +1456,10 @@
             if (isWatcherRunning) {
                 setBestStatus("Watcher: Checking for hedge opportunities...");
             } else {
-                setBestStatus(profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...");
+                setBestStatus("Searching for arbitrage opportunities across sports and markets...");
             }
             if (useDummyData) {
-                setBestStatus((isWatcherRunning ? "Watcher: Checking for hedge opportunities..." : (profitBoostOnly ? "Searching for high-odds arbitrage opportunities (+200 odds and above)..." : "Searching for arbitrage opportunities across sports and markets...")) + " [DUMMY DATA MODE]");
+                setBestStatus((isWatcherRunning ? "Watcher: Checking for hedge opportunities..." : "Searching for arbitrage opportunities across sports and markets...") + " [DUMMY DATA MODE]");
             }
 
             try {
@@ -1493,7 +1484,7 @@
                 const data = await res.json();
                 lastBestValueData = data;
                 
-                renderBestValuePlays(data, profitBoostOnly, isWatcherRunning);
+                renderBestValuePlays(data, isWatcherRunning);
 
                 if (isWatcherRunning) {
                     const hedgePlays = (data.plays || []).filter(p => 
@@ -1517,21 +1508,17 @@
 
                 let playsCount = (data.plays || []).length;
                 if (isWatcherRunning) {
-                    playsCount = data.plays.filter(p => 
-                        p.arb_margin_percent !== null && 
-                        p.arb_margin_percent !== undefined && 
+                    playsCount = data.plays.filter(p =>
+                        p.arb_margin_percent !== null &&
+                        p.arb_margin_percent !== undefined &&
                         p.arb_margin_percent >= 0 &&
                         p.novig_reverse_price !== null &&
                         p.novig_reverse_price !== undefined
                     ).length;
-                } else if (profitBoostOnly) {
-                    playsCount = data.plays.filter(p => p.book_price >= 200).length;
                 }
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked").textContent;
                 if (isWatcherRunning) {
                     setBestSummary(`Hedge Watcher: Showing ${playsCount} hedge opportunities (arbitrage margin ≥ 0%) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
-                } else if (profitBoostOnly) {
-                    setBestSummary(`Found ${playsCount} high-odds arbitrage opportunities (+200 to +300+ odds) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 } else {
                     setBestSummary(`Found ${playsCount} arbitrage opportunities across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 }
@@ -1706,8 +1693,7 @@
                 });
             }
             
-            document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays(false);
-            document.getElementById("profit-boost-btn").onclick = () => fetchBestValuePlays(true);
+            document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays();
             document.getElementById("clear-best-btn").onclick = clearBestResults;
 
             const bestTargetBook = document.getElementById("best-target-book-select");
@@ -1819,16 +1805,15 @@
                 startWatcherBtn.disabled = true;
                 stopWatcherBtn.disabled = false;
                 document.getElementById("find-best-btn").disabled = true;
-                document.getElementById("profit-boost-btn").disabled = true;
 
                 document.getElementById("results-section").style.display = "block";
                 document.getElementById("empty-state").style.display = "none";
 
-                fetchBestValuePlays(false);
+                fetchBestValuePlays();
 
                 watcherTimer = setInterval(async () => {
                     try {
-                        await fetchBestValuePlays(false);
+                        await fetchBestValuePlays();
                     } catch (error) {
                         console.error("Watcher error:", error);
                         watcherStatusBar.textContent = `Error: ${error.message}. Retrying in ${intervalVal}s...`;
@@ -1845,10 +1830,9 @@
                 startWatcherBtn.disabled = false;
                 stopWatcherBtn.disabled = true;
                 document.getElementById("find-best-btn").disabled = false;
-                document.getElementById("profit-boost-btn").disabled = false;
-                
+
                 if (lastBestValueData) {
-                    renderBestValuePlays(lastBestValueData, false, false);
+                    renderBestValuePlays(lastBestValueData, false);
                 }
             }
 

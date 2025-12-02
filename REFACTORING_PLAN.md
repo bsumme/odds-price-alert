@@ -131,7 +131,6 @@ odds-price-alert/
 # Extract:
 # - collect_value_plays()
 # - find_best_comparison_outcome()
-# - choose_three_leg_parlay()
 ```
 
 #### 3.2 Create `services/arbitrage.py`
