@@ -669,6 +669,11 @@
                     <span>Use Dummy Data (for development when API credits are exhausted)</span>
                 </label>
 
+                <label style="display: flex; align-items: center; margin-top: 0.5rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                    <input type="checkbox" id="log-results-checkbox" style="margin-right: 0.5rem;" />
+                    <span>Save search results as JSON</span>
+                </label>
+
                 <div style="margin-top: 0.75rem;">
                     <button class="btn btn-primary" id="find-best-btn">Find Arbitrage Opportunities</button>
                     <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
@@ -762,6 +767,72 @@
             } catch (e) {
                 return isoString;
             }
+        }
+
+        function formatMarketLabel(marketKey) {
+            const mapping = {
+                h2h: "ML",
+                spreads: "Spreads",
+                totals: "Totals"
+            };
+            return mapping[marketKey] || marketKey.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function formatSportLabel(sportKey) {
+            const mapping = {
+                basketball_nba: "NBA",
+                americanfootball_nfl: "NFL",
+                basketball_ncaab: "NCAAB",
+                americanfootball_ncaaf: "NCAAF"
+            };
+            return mapping[sportKey] || sportKey.toUpperCase();
+        }
+
+        function formatBookLabel(bookKey) {
+            const mapping = {
+                draftkings: "DraftKings",
+                fanduel: "FanDuel",
+                fliff: "Fliff",
+                novig: "Novig"
+            };
+            return mapping[bookKey] || bookKey;
+        }
+
+        function buildLogFilename(markets, sports, targetBook, compareBook) {
+            const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
+            const marketPart = (markets.length ? markets.map(formatMarketLabel) : ["AllMarkets"]).join("+");
+            const sportPart = (sports.length ? sports.map(formatSportLabel) : ["AllSports"]).join("+");
+            const targetLabel = formatBookLabel(targetBook);
+            const compareLabel = formatBookLabel(compareBook);
+
+            const sanitize = (value) => value.replace(/[^a-zA-Z0-9+]+/g, "");
+            return `${timestamp}_${sanitize(marketPart)}_${sanitize(sportPart)}_${sanitize(targetLabel)}_vs_${sanitize(compareLabel)}.json`;
+        }
+
+        function logSearchResultsToFile(data, { sportKeys, markets, targetBook, compareBook, maxResults, useDummyData }) {
+            const payload = {
+                logged_at: new Date().toISOString(),
+                filters: {
+                    sports: sportKeys,
+                    markets,
+                    target_book: targetBook,
+                    compare_book: compareBook,
+                    max_results: maxResults,
+                    use_dummy_data: useDummyData
+                },
+                results: data
+            };
+
+            const filename = buildLogFilename(markets, sportKeys, targetBook, compareBook);
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         }
 
         function getTeamLogoUrl(teamName, sportKey = null) {
@@ -1657,6 +1728,7 @@
             const compareBook = document.getElementById("best-compare-book-select").value;
             const maxResults = Number(document.getElementById("best-max-results-input").value) || 50;
             const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+            const shouldLogResults = document.getElementById("log-results-checkbox").checked;
 
             if (sportCheckboxes.length === 0) {
                 setBestStatus("Error: Please select at least one sport.");
@@ -1676,6 +1748,7 @@
             const sportKeys = Array.from(sportCheckboxes).map(cb => cb.value);
             const markets = Array.from(marketCheckboxes).map(cb => cb.value);
             const isWatcherRunning = watcherTimer !== null;
+            const shouldLogThisSearch = shouldLogResults && !isWatcherRunning;
 
             // Only clear results if watcher is not running (to avoid flickering during updates)
             if (!isWatcherRunning) {
@@ -1714,7 +1787,18 @@
                 }
                 const data = await res.json();
                 lastBestValueData = data;
-                
+
+                if (shouldLogThisSearch) {
+                    logSearchResultsToFile(data, {
+                        sportKeys,
+                        markets,
+                        targetBook,
+                        compareBook,
+                        maxResults: requestMaxResults,
+                        useDummyData
+                    });
+                }
+
                 // If watcher is running, filter to show only hedge opportunities
                 renderBestValuePlays(data, isWatcherRunning);
 
@@ -1772,6 +1856,7 @@
                 compareBook: document.getElementById("best-compare-book-select").value,
                 maxResults: document.getElementById("best-max-results-input").value,
                 dummyData: document.getElementById("dummy-data-checkbox").checked,
+                logResults: document.getElementById("log-results-checkbox").checked,
                 watcherInterval: document.getElementById("watcher-interval-input").value
             };
             localStorage.setItem("arbitrageFinderSelections", JSON.stringify(selections));
@@ -1811,6 +1896,9 @@
                 }
                 if (selections.dummyData !== undefined) {
                     document.getElementById("dummy-data-checkbox").checked = selections.dummyData;
+                }
+                if (selections.logResults !== undefined) {
+                    document.getElementById("log-results-checkbox").checked = selections.logResults;
                 }
                 if (selections.watcherInterval) {
                     document.getElementById("watcher-interval-input").value = selections.watcherInterval;
@@ -1925,6 +2013,7 @@
             document.getElementById("best-compare-book-select").addEventListener("change", saveFormSelections);
             document.getElementById("best-max-results-input").addEventListener("change", saveFormSelections);
             document.getElementById("dummy-data-checkbox").addEventListener("change", saveFormSelections);
+            document.getElementById("log-results-checkbox").addEventListener("change", saveFormSelections);
             document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
 
             // Load dummy data setting from localStorage
