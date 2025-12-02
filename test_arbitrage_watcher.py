@@ -13,6 +13,11 @@ import requests
 import json
 from typing import Optional
 
+import pytest
+
+pytestmark = pytest.mark.skip(
+    reason="Utility CLI script; skip during automated pytest runs."
+)
 
 BASE_URL = "http://localhost:8000"
 
