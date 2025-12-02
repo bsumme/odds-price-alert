@@ -14,7 +14,6 @@ from pydantic import BaseModel
 from services.odds_api import get_api_key, fetch_odds, BASE_URL
 from services.odds_utils import (
     american_to_decimal,
-    american_to_prob,
     estimate_ev_percent,
     points_match,
     apply_vig_adjustment,

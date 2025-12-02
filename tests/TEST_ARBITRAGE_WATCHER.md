@@ -30,19 +30,19 @@ This document explains how to easily test the arbitrage watcher text (SMS) featu
 2. Run the test script:
    ```bash
    # Test SMS directly
-   python test_arbitrage_watcher.py --phone 5551234567
+   python tests/test_arbitrage_watcher.py --phone 5551234567
    
    # Test with custom message
-   python test_arbitrage_watcher.py --phone 5551234567 --message "Your custom message here"
+   python tests/test_arbitrage_watcher.py --phone 5551234567 --message "Your custom message here"
    
    # Just get a mock arbitrage play (no SMS)
-   python test_arbitrage_watcher.py --phone 5551234567 --test-mock
+   python tests/test_arbitrage_watcher.py --phone 5551234567 --test-mock
    
    # Test the full flow (get mock play + send SMS)
-   python test_arbitrage_watcher.py --phone 5551234567 --full-flow
+   python tests/test_arbitrage_watcher.py --phone 5551234567 --full-flow
    
    # Use a different server URL
-   python test_arbitrage_watcher.py --phone 5551234567 --base-url http://localhost:8000
+   python tests/test_arbitrage_watcher.py --phone 5551234567 --base-url http://localhost:8000
    ```
 
 ### Option 3: API Endpoints Directly

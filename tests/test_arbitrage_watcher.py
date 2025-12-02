@@ -3,9 +3,9 @@
 Simple command-line test script for the arbitrage watcher text feature.
 
 Usage:
-    python test_arbitrage_watcher.py --phone 5551234567
-    python test_arbitrage_watcher.py --phone 5551234567 --test-mock
-    python test_arbitrage_watcher.py --phone 5551234567 --full-flow
+    python tests/test_arbitrage_watcher.py --phone 5551234567
+    python tests/test_arbitrage_watcher.py --phone 5551234567 --test-mock
+    python tests/test_arbitrage_watcher.py --phone 5551234567 --full-flow
 """
 
 import argparse
