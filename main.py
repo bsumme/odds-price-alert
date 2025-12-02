@@ -943,6 +943,12 @@ def collect_value_plays(
             # Apply vig adjustment to target book odds (makes them less favorable)
             adjusted_price = apply_vig_adjustment(price, target_book)
 
+            # Totals (and spreads) should stay in a realistic price band around -110.
+            # Vig adjustments can otherwise push a -110 line to something extreme like -300,
+            # which is not a valid total price and results in misleading EV values.
+            if market_key in ("totals", "spreads"):
+                adjusted_price = max(-150, min(150, adjusted_price))
+
             # For player props, match by name, description (player), and point
             matching_compare = None
             if is_player_prop and description:
