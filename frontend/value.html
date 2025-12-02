@@ -248,7 +248,27 @@
                 <option value="h2h">Moneyline (h2h)</option>
                 <option value="spreads">Spreads</option>
                 <option value="totals">Totals</option>
+                <option value="player_props">Player Props (NBA)</option>
             </select>
+
+            <div id="player-props-fields" style="display: none; margin-top: 0.75rem;">
+                <label for="prop-team-select">Team (NBA)</label>
+                <select id="prop-team-select">
+                    <option value="">Select a team</option>
+                </select>
+
+                <label for="prop-player-select">Player</label>
+                <select id="prop-player-select" disabled>
+                    <option value="">Select a team first</option>
+                </select>
+
+                <label for="prop-market-select" id="prop-market-label" style="display: none;">Player prop market</label>
+                <select id="prop-market-select" style="display: none;">
+                    <option value="player_points">Player Points</option>
+                    <option value="player_assists">Player Assists</option>
+                    <option value="player_rebounds">Player Rebounds</option>
+                </select>
+            </div>
 
             <label for="book-select">Target book</label>
             <select id="book-select">
@@ -313,6 +333,40 @@
 
     <script>
         let valuePollTimer = null;
+        let lastValueData = null;
+
+        const NBA_TEAM_PLAYERS = {
+            "Atlanta Hawks": ["Trae Young", "Dejounte Murray", "Bogdan Bogdanovic", "Clint Capela"],
+            "Boston Celtics": ["Jayson Tatum", "Jaylen Brown", "Kristaps Porzingis", "Jrue Holiday"],
+            "Brooklyn Nets": ["Mikal Bridges", "Cam Thomas", "Nic Claxton", "Ben Simmons"],
+            "Charlotte Hornets": ["LaMelo Ball", "Terry Rozier", "Miles Bridges", "Mark Williams"],
+            "Chicago Bulls": ["Zach LaVine", "DeMar DeRozan", "Nikola Vucevic", "Coby White"],
+            "Cleveland Cavaliers": ["Donovan Mitchell", "Darius Garland", "Evan Mobley", "Jarrett Allen"],
+            "Dallas Mavericks": ["Luka Doncic", "Kyrie Irving", "Tim Hardaway Jr.", "Grant Williams"],
+            "Denver Nuggets": ["Nikola Jokic", "Jamal Murray", "Michael Porter Jr.", "Aaron Gordon"],
+            "Detroit Pistons": ["Cade Cunningham", "Jaden Ivey", "Bojan Bogdanovic", "Jalen Duren"],
+            "Golden State Warriors": ["Stephen Curry", "Klay Thompson", "Draymond Green", "Andrew Wiggins"],
+            "Houston Rockets": ["Jalen Green", "Fred VanVleet", "Alperen Sengun", "Dillon Brooks"],
+            "Indiana Pacers": ["Tyrese Haliburton", "Myles Turner", "Buddy Hield", "Bennedict Mathurin"],
+            "LA Clippers": ["Kawhi Leonard", "Paul George", "Russell Westbrook", "James Harden"],
+            "Los Angeles Lakers": ["LeBron James", "Anthony Davis", "D'Angelo Russell", "Austin Reaves"],
+            "Memphis Grizzlies": ["Ja Morant", "Desmond Bane", "Jaren Jackson Jr.", "Marcus Smart"],
+            "Miami Heat": ["Jimmy Butler", "Bam Adebayo", "Tyler Herro", "Duncan Robinson"],
+            "Milwaukee Bucks": ["Giannis Antetokounmpo", "Damian Lillard", "Khris Middleton", "Brook Lopez"],
+            "Minnesota Timberwolves": ["Anthony Edwards", "Karl-Anthony Towns", "Rudy Gobert", "Mike Conley"],
+            "New Orleans Pelicans": ["Zion Williamson", "Brandon Ingram", "CJ McCollum", "Jonas Valanciunas"],
+            "New York Knicks": ["Jalen Brunson", "Julius Randle", "RJ Barrett", "Mitchell Robinson"],
+            "Oklahoma City Thunder": ["Shai Gilgeous-Alexander", "Chet Holmgren", "Jalen Williams", "Josh Giddey"],
+            "Orlando Magic": ["Paolo Banchero", "Franz Wagner", "Wendell Carter Jr.", "Markelle Fultz"],
+            "Philadelphia 76ers": ["Joel Embiid", "Tyrese Maxey", "Tobias Harris", "Kelly Oubre Jr."],
+            "Phoenix Suns": ["Devin Booker", "Kevin Durant", "Bradley Beal", "Jusuf Nurkic"],
+            "Portland Trail Blazers": ["Anfernee Simons", "Scoot Henderson", "Jerami Grant", "Deandre Ayton"],
+            "Sacramento Kings": ["De'Aaron Fox", "Domantas Sabonis", "Kevin Huerter", "Keegan Murray"],
+            "San Antonio Spurs": ["Victor Wembanyama", "Devin Vassell", "Keldon Johnson", "Jeremy Sochan"],
+            "Toronto Raptors": ["Pascal Siakam", "Scottie Barnes", "OG Anunoby", "Dennis Schroder"],
+            "Utah Jazz": ["Lauri Markkanen", "Jordan Clarkson", "Collin Sexton", "John Collins"],
+            "Washington Wizards": ["Kyle Kuzma", "Jordan Poole", "Tyus Jones", "Deni Avdija"]
+        };
 
         function setStatus(msg) {
             document.getElementById("status-bar").textContent = msg;
@@ -378,6 +432,87 @@
         // Legacy function for backwards compatibility
         function formatAmericanOdds(odds) {
             return formatOdds(odds);
+        }
+
+        function populatePropTeams() {
+            const teamSelect = document.getElementById("prop-team-select");
+            teamSelect.innerHTML = '<option value="">Select a team</option>';
+            Object.keys(NBA_TEAM_PLAYERS).sort().forEach(team => {
+                const option = document.createElement("option");
+                option.value = team;
+                option.textContent = team;
+                teamSelect.appendChild(option);
+            });
+            document.getElementById("prop-player-select").innerHTML = '<option value="">Select a team first</option>';
+            document.getElementById("prop-player-select").disabled = true;
+        }
+
+        function updatePropPlayers() {
+            const teamSelect = document.getElementById("prop-team-select");
+            const playerSelect = document.getElementById("prop-player-select");
+            const propMarketSelect = document.getElementById("prop-market-select");
+            const propMarketLabel = document.getElementById("prop-market-label");
+
+            const team = teamSelect.value;
+            playerSelect.innerHTML = '';
+            propMarketSelect.style.display = "none";
+            propMarketLabel.style.display = "none";
+
+            if (!team || !NBA_TEAM_PLAYERS[team]) {
+                playerSelect.innerHTML = '<option value="">Select a team first</option>';
+                playerSelect.disabled = true;
+                return;
+            }
+
+            playerSelect.disabled = false;
+            playerSelect.innerHTML = '<option value="">Select a player</option>';
+            NBA_TEAM_PLAYERS[team].forEach(player => {
+                const option = document.createElement("option");
+                option.value = player;
+                option.textContent = player;
+                playerSelect.appendChild(option);
+            });
+        }
+
+        function handlePlayerChange() {
+            const playerSelect = document.getElementById("prop-player-select");
+            const propMarketSelect = document.getElementById("prop-market-select");
+            const propMarketLabel = document.getElementById("prop-market-label");
+
+            if (playerSelect.value) {
+                propMarketSelect.style.display = "block";
+                propMarketLabel.style.display = "block";
+            } else {
+                propMarketSelect.style.display = "none";
+                propMarketLabel.style.display = "none";
+            }
+        }
+
+        function togglePlayerPropsVisibility() {
+            const market = document.getElementById("market-select").value;
+            const sportSelect = document.getElementById("sport-select");
+            const fields = document.getElementById("player-props-fields");
+
+            if (market === "player_props") {
+                // Lock sport to NBA for the first version of player props
+                sportSelect.querySelectorAll("option").forEach(opt => {
+                    opt.disabled = opt.value !== "basketball_nba";
+                });
+                if (sportSelect.value !== "basketball_nba") {
+                    sportSelect.value = "basketball_nba";
+                    setStatus("Player props currently search NBA only. Sport reset to NBA.");
+                }
+
+                fields.style.display = "block";
+                populatePropTeams();
+                updatePropPlayers();
+                handlePlayerChange();
+            } else {
+                sportSelect.querySelectorAll("option").forEach(opt => {
+                    opt.disabled = false;
+                });
+                fields.style.display = "none";
+            }
         }
 
         function renderValuePlays(data) {
@@ -453,27 +588,58 @@
             const book = document.getElementById("book-select").value;
             const compareBook = document.getElementById("compare-book-select").value;
             const maxResults = Number(document.getElementById("max-results-input").value) || 7;
+            const playerPropsTeam = document.getElementById("prop-team-select").value;
+            const playerPropsPlayer = document.getElementById("prop-player-select").value;
+            const playerPropsMarket = document.getElementById("prop-market-select").value;
 
             if (book === compareBook) {
                 setStatus("Error: Target book and comparison book cannot be the same.");
                 return;
             }
 
+            if (market === "player_props") {
+                if (!playerPropsTeam) {
+                    setStatus("Select a team to search player props.");
+                    return;
+                }
+                if (!playerPropsPlayer) {
+                    setStatus("Select a player to search player props.");
+                    return;
+                }
+                if (!playerPropsMarket) {
+                    setStatus("Choose a player prop market.");
+                    return;
+                }
+            }
+
             if (singleRun) {
                 clearResults();
             }
-            setStatus("Fetching value plays...");
+            setStatus(market === "player_props" ? "Fetching player prop value plays..." : "Fetching value plays...");
             try {
-                const res = await fetch("/api/value-plays", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
+                const endpoint = market === "player_props" ? "/api/player-props" : "/api/value-plays";
+                const payload = market === "player_props"
+                    ? {
+                        sport_key: sport,
+                        team: playerPropsTeam,
+                        player_name: playerPropsPlayer,
+                        market: playerPropsMarket,
+                        target_book: book,
+                        compare_book: compareBook,
+                        max_results: maxResults
+                    }
+                    : {
                         sport_key: sport,
                         market,
                         target_book: book,
                         compare_book: compareBook,
                         max_results: maxResults
-                    }),
+                    };
+
+                const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
                 });
                 if (!res.ok) {
                     const text = await res.text();
@@ -484,7 +650,12 @@
                 renderValuePlays(data);
                 const playsCount = (data.plays || []).length;
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked").textContent;
-                setSummary(`Showing top ${playsCount} value plays for ${book} in market "${market}" vs ${compareBookLabel}.`);
+                if (market === "player_props") {
+                    const propLabel = document.querySelector('#prop-market-select option:checked')?.textContent || playerPropsMarket;
+                    setSummary(`Showing ${playsCount} player prop value plays for ${playerPropsPlayer} (${playerPropsTeam}) in "${propLabel}" vs ${compareBookLabel}.`);
+                } else {
+                    setSummary(`Showing top ${playsCount} value plays for ${book} in market "${market}" vs ${compareBookLabel}.`);
+                }
                 setStatus("Done.");
             } catch (e) {
                 console.error(e);
@@ -523,8 +694,6 @@
             document.getElementById("stop-loop-btn").disabled = true;
         }
 
-        let lastValueData = null;
-
         // Save form selections to localStorage
         function saveFormSelections() {
             const selections = {
@@ -533,7 +702,10 @@
                 targetBook: document.getElementById("book-select").value,
                 compareBook: document.getElementById("compare-book-select").value,
                 maxResults: document.getElementById("max-results-input").value,
-                interval: document.getElementById("interval-input").value
+                interval: document.getElementById("interval-input").value,
+                propTeam: document.getElementById("prop-team-select").value,
+                propPlayer: document.getElementById("prop-player-select").value,
+                propMarket: document.getElementById("prop-market-select").value
             };
             localStorage.setItem("valueFinderSelections", JSON.stringify(selections));
         }
@@ -542,8 +714,8 @@
         function loadFormSelections() {
             try {
                 const saved = localStorage.getItem("valueFinderSelections");
-                if (!saved) return;
-                
+                if (!saved) return null;
+
                 const selections = JSON.parse(saved);
                 
                 if (selections.sport) {
@@ -564,8 +736,19 @@
                 if (selections.interval) {
                     document.getElementById("interval-input").value = selections.interval;
                 }
+                if (selections.propTeam) {
+                    document.getElementById("prop-team-select").value = selections.propTeam;
+                }
+                if (selections.propPlayer) {
+                    document.getElementById("prop-player-select").value = selections.propPlayer;
+                }
+                if (selections.propMarket) {
+                    document.getElementById("prop-market-select").value = selections.propMarket;
+                }
+                return selections;
             } catch (e) {
                 console.error("Failed to load form selections:", e);
+                return null;
             }
         }
 
@@ -585,15 +768,43 @@
             });
 
             // Load saved form selections
-            loadFormSelections();
+            const savedSelections = loadFormSelections();
+
+            togglePlayerPropsVisibility();
+            if (savedSelections && savedSelections.market === "player_props") {
+                if (savedSelections.propTeam) {
+                    document.getElementById("prop-team-select").value = savedSelections.propTeam;
+                    updatePropPlayers();
+                }
+                if (savedSelections.propPlayer) {
+                    document.getElementById("prop-player-select").value = savedSelections.propPlayer;
+                }
+                handlePlayerChange();
+                if (savedSelections.propMarket) {
+                    document.getElementById("prop-market-select").value = savedSelections.propMarket;
+                }
+            }
 
             // Save form selections when they change
             document.getElementById("sport-select").addEventListener("change", saveFormSelections);
-            document.getElementById("market-select").addEventListener("change", saveFormSelections);
+            document.getElementById("market-select").addEventListener("change", () => {
+                togglePlayerPropsVisibility();
+                saveFormSelections();
+            });
             document.getElementById("book-select").addEventListener("change", saveFormSelections);
             document.getElementById("compare-book-select").addEventListener("change", saveFormSelections);
             document.getElementById("max-results-input").addEventListener("change", saveFormSelections);
             document.getElementById("interval-input").addEventListener("change", saveFormSelections);
+            document.getElementById("prop-team-select").addEventListener("change", () => {
+                updatePropPlayers();
+                handlePlayerChange();
+                saveFormSelections();
+            });
+            document.getElementById("prop-player-select").addEventListener("change", () => {
+                handlePlayerChange();
+                saveFormSelections();
+            });
+            document.getElementById("prop-market-select").addEventListener("change", saveFormSelections);
 
             document.getElementById("find-btn").onclick = () => fetchValuePlays(true);
             document.getElementById("clear-btn").onclick = clearResults;
