@@ -195,14 +195,6 @@
             color: #fecaca;
         }
 
-        .sgp-card {
-            margin-top: 0.75rem;
-            padding: 0.9rem;
-            border-radius: 0.5rem;
-            background: #111827;
-            border: 1px solid #1f2937;
-        }
-
         @media (max-width: 900px) {
             main {
                 grid-template-columns: minmax(0, 1fr);
@@ -277,11 +269,6 @@
             <label for="max-results-input">Max value plays to show</label>
             <input id="max-results-input" type="number" min="5" max="100" step="5" value="25" />
 
-            <label>
-                <input type="checkbox" id="sgp-checkbox" />
-                Suggest high-EV 3-leg parlay (cross-game) from top edges
-            </label>
-
             <label for="interval-input">Polling interval (seconds)</label>
             <input id="interval-input" type="number" min="15" step="15" value="60" />
 
@@ -321,7 +308,6 @@
                 </table>
             </div>
 
-            <div id="sgp-container"></div>
         </section>
     </main>
 
@@ -339,7 +325,6 @@
         function clearResults() {
             const body = document.getElementById("results-body");
             body.innerHTML = '<tr><td colspan="8" class="small-text">No results yet.</td></tr>';
-            document.getElementById("sgp-container").innerHTML = "";
             setSummary("");
         }
 
@@ -462,52 +447,12 @@
             });
         }
 
-        function renderSGP(sgp, bookLabel) {
-            const container = document.getElementById("sgp-container");
-            container.innerHTML = "";
-            if (!sgp) return;
-
-            const card = document.createElement("div");
-            card.className = "sgp-card";
-
-            const header = document.createElement("div");
-            header.innerHTML = `<strong>3-Leg High-EV Parlay Suggestion @ ${bookLabel}</strong>`;
-            card.appendChild(header);
-
-            const legsList = document.createElement("ul");
-            legsList.className = "small-text";
-            sgp.legs.forEach((leg, idx) => {
-                const li = document.createElement("li");
-                let text = `[Leg ${idx + 1}] ${leg.matchup}: ${leg.outcome_name}`;
-                if (leg.point !== null && leg.point !== undefined) {
-                    text += ` @ ${leg.point}`;
-                }
-                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-                text += ` | Book: ${formatOdds(leg.book_price)}, ${compareBookLabel}: ${formatOdds(leg.novig_price)}, EV: ${leg.ev_percent}%`;
-                li.textContent = text;
-                legsList.appendChild(li);
-            });
-            card.appendChild(legsList);
-
-            const footer = document.createElement("div");
-            footer.className = "small-text";
-            const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-            footer.innerHTML = `
-        Approx parlay decimal odds: <strong>${sgp.approx_parlay_decimal_odds}</strong><br />
-        Approx parlay EV: <strong>${sgp.approx_parlay_ev_percent}%</strong> (vs ${compareBookLabel} as sharp)
-      `;
-            card.appendChild(footer);
-
-            container.appendChild(card);
-        }
-
         async function fetchValuePlays(singleRun = false) {
             const sport = document.getElementById("sport-select").value;
             const market = document.getElementById("market-select").value;
             const book = document.getElementById("book-select").value;
             const compareBook = document.getElementById("compare-book-select").value;
             const maxResults = Number(document.getElementById("max-results-input").value) || 7;
-            const includeSGP = document.getElementById("sgp-checkbox").checked;
 
             if (book === compareBook) {
                 setStatus("Error: Target book and comparison book cannot be the same.");
@@ -527,7 +472,6 @@
                         market,
                         target_book: book,
                         compare_book: compareBook,
-                        include_sgp: includeSGP,
                         max_results: maxResults
                     }),
                 });
@@ -541,8 +485,6 @@
                 const playsCount = (data.plays || []).length;
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked").textContent;
                 setSummary(`Showing top ${playsCount} value plays for ${book} in market "${market}" vs ${compareBookLabel}.`);
-                const bookLabel = document.querySelector("#book-select option:checked").textContent;
-                renderSGP(data.sgp_suggestion, bookLabel);
                 setStatus("Done.");
             } catch (e) {
                 console.error(e);
@@ -591,7 +533,6 @@
                 targetBook: document.getElementById("book-select").value,
                 compareBook: document.getElementById("compare-book-select").value,
                 maxResults: document.getElementById("max-results-input").value,
-                includeSGP: document.getElementById("sgp-checkbox").checked,
                 interval: document.getElementById("interval-input").value
             };
             localStorage.setItem("valueFinderSelections", JSON.stringify(selections));
@@ -619,9 +560,6 @@
                 }
                 if (selections.maxResults) {
                     document.getElementById("max-results-input").value = selections.maxResults;
-                }
-                if (selections.includeSGP !== undefined) {
-                    document.getElementById("sgp-checkbox").checked = selections.includeSGP;
                 }
                 if (selections.interval) {
                     document.getElementById("interval-input").value = selections.interval;
@@ -655,7 +593,6 @@
             document.getElementById("book-select").addEventListener("change", saveFormSelections);
             document.getElementById("compare-book-select").addEventListener("change", saveFormSelections);
             document.getElementById("max-results-input").addEventListener("change", saveFormSelections);
-            document.getElementById("sgp-checkbox").addEventListener("change", saveFormSelections);
             document.getElementById("interval-input").addEventListener("change", saveFormSelections);
 
             document.getElementById("find-btn").onclick = () => fetchValuePlays(true);

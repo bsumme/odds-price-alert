@@ -19,11 +19,7 @@ flowchart TD
     M --> N[Compute EV %, hedge, and arb margin]
     N --> O[Filter to future games]
     O --> P[Sort by hedge margin; trim max results]
-    P --> Q{Include SGP?}
-    Q -->|Yes| R[Build 3-leg parlay suggestion]
-    Q -->|No| S[Skip]
-    R --> T[Respond with value plays + parlay]
-    S --> T
+    P --> T[Respond with value plays]
 
     E --> U[Loop sports & markets]
     U --> V[Repeat value-play collection per combo]

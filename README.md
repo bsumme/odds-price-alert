@@ -205,7 +205,6 @@ Compare a target sportsbook to a comparison book for value plays.
   "target_book": "draftkings",
   "compare_book": "novig",
   "market": "h2h",
-  "include_sgp": false,
   "max_results": 25
 }
 ```
