@@ -552,11 +552,12 @@ def fetch_odds_with_dummy(
 
     if player_markets_requested:
         return fetch_player_props(
-            api_key,
-            sport_key,
-            regions,
-            markets,
-            bookmaker_keys,
+            api_key=api_key,
+            sport_key=sport_key,
+            regions=regions,
+            markets=markets,
+            bookmaker_keys=bookmaker_keys,
+            team=team,
             use_dummy_data=False,
         )
 
@@ -1254,15 +1255,23 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
             regions=regions,
             markets=market_key,
             bookmaker_keys=bookmaker_keys,
+            team=payload.team,
             use_dummy_data=False,
         )
 
         # Filter by team if specified
         if payload.team:
             before_team_filter = len(events)
+            team_lower = payload.team.lower()
+
+            def _matches_team(event_team: str) -> bool:
+                name = event_team.lower()
+                return team_lower in name or name in team_lower
+
             events = [
                 e for e in events
-                if payload.team in (e.get("home_team", ""), e.get("away_team", ""))
+                if _matches_team(e.get("home_team", ""))
+                or _matches_team(e.get("away_team", ""))
             ]
             logger.info(
                 "Filtered player props events by team '%s': %d -> %d",
