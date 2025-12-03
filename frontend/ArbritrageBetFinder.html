@@ -796,19 +796,16 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Player & Prop</th>
+                                <th>Recommended Bet</th>
                                 <th>Matchup</th>
                                 <th>Start Time</th>
-                                <th>Line</th>
-                                <th>Target Book</th>
                                 <th>Hedge Bet</th>
                                 <th>Arbitrage Margin</th>
-                                <th>EV%</th>
                             </tr>
                         </thead>
                         <tbody id="player-props-results-body">
                             <tr>
-                                <td colspan="8" class="small-text">No player prop results yet.</td>
+                                <td colspan="5" class="small-text">No player prop results yet.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1745,7 +1742,7 @@
 
         function clearPlayerPropsResults() {
             const body = document.getElementById("player-props-results-body");
-            body.innerHTML = '<tr><td colspan="8" class="small-text">No player prop results yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="5" class="small-text">No player prop results yet.</td></tr>';
             document.getElementById("player-props-results-section").style.display = "none";
             setPlayerPropsSummary("");
             lastPlayerPropsData = null;
@@ -2035,7 +2032,7 @@
             document.getElementById("player-props-results-section").style.display = "block";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="8" class="small-text">No player prop value plays found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="5" class="small-text">No player prop value plays found.</td></tr>';
                 return;
             }
 
@@ -2043,7 +2040,9 @@
                 const tr = document.createElement("tr");
 
                 const playerCell = document.createElement("td");
-                playerCell.textContent = play.outcome_name || "";
+                const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
+                const lineText = play.point !== null && play.point !== undefined ? play.point : "-";
+                playerCell.innerHTML = `<strong>${play.outcome_name || ""}</strong><br><span class="small-text">Line: ${lineText}</span><br><span class="small-text">${formatOdds(play.book_price)} @ ${targetBookLabel}</span>`;
                 tr.appendChild(playerCell);
 
                 const matchupCell = document.createElement("td");
@@ -2053,15 +2052,6 @@
                 const startCell = document.createElement("td");
                 startCell.textContent = formatStartTime(play.start_time) || "";
                 tr.appendChild(startCell);
-
-                const lineCell = document.createElement("td");
-                lineCell.textContent = play.point !== null && play.point !== undefined ? play.point : "-";
-                tr.appendChild(lineCell);
-
-                const targetCell = document.createElement("td");
-                const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
-                targetCell.innerHTML = `<strong>${formatOdds(play.book_price)}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
-                tr.appendChild(targetCell);
 
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
                 const hedgeCell = document.createElement("td");
@@ -2081,12 +2071,6 @@
                     arbCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(arbCell);
-
-                const evCell = document.createElement("td");
-                const evRounded = Math.round((play.ev_percent || 0) * 100) / 100;
-                const evClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
-                evCell.innerHTML = `<span class="${evClass}">${evRounded}%</span>`;
-                tr.appendChild(evCell);
 
                 body.appendChild(tr);
             });
