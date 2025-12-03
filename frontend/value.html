@@ -456,9 +456,10 @@
                 return "";
             }
 
-            if (numOdds >= 150) return "odds-plus";
-            if (numOdds <= -130) return "odds-favorite";
-            return "odds-neutral";
+            if (numOdds >= 150) return "odds-plus"; // Big plus money
+            if (numOdds >= -125 && numOdds <= -95) return "odds-neutral"; // Close to -110
+            if (numOdds < 0) return "odds-favorite"; // Negative money favorites
+            return "";
         }
 
         function formatOddsWithColor(odds) {
