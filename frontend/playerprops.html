@@ -248,6 +248,21 @@
             background: #7f1d1d;
             color: #fecaca;
         }
+
+        .odds-plus {
+            color: #22c55e;
+            font-weight: 700;
+        }
+
+        .odds-favorite {
+            color: #f87171;
+            font-weight: 700;
+        }
+
+        .odds-neutral {
+            color: #d1d5db;
+            font-weight: 700;
+        }
     </style>
 </head>
 
@@ -575,6 +590,24 @@
             }
         }
 
+        function getOddsColorClass(odds) {
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (numOdds === null || numOdds === undefined || isNaN(numOdds)) {
+                return "";
+            }
+
+            if (numOdds >= 150) return "odds-plus";
+            if (numOdds <= -130) return "odds-favorite";
+            return "odds-neutral";
+        }
+
+        function formatOddsWithColor(odds) {
+            const formatted = formatOdds(odds);
+            const className = getOddsColorClass(odds);
+            if (!className) return formatted;
+            return `<span class="${className}">${formatted}</span>`;
+        }
+
         let lastData = null;
 
         function renderResults(data) {
@@ -612,13 +645,13 @@
 
                 const targetCell = document.createElement("td");
                 const targetBookLabel = document.querySelector("#target-book-select option:checked")?.textContent || data.target_book || "Target";
-                const formattedTargetOdds = formatOdds(play.book_price);
+                const formattedTargetOdds = formatOddsWithColor(play.book_price);
                 targetCell.innerHTML = `<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(targetCell);
 
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_name && play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
-                    const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
+                    const formattedHedgeOdds = formatOddsWithColor(play.novig_reverse_price);
                     hedgeCell.innerHTML = `<strong>${play.novig_reverse_name} ${formattedHedgeOdds}</strong>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
@@ -627,7 +660,7 @@
 
                 const compareCell = document.createElement("td");
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatOdds(play.novig_price);
+                const formattedCompareOdds = formatOddsWithColor(play.novig_price);
                 compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 tr.appendChild(compareCell);
 
