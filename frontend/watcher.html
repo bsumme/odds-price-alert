@@ -334,6 +334,21 @@
             margin-left: 0.25rem;
         }
 
+        .odds-plus {
+            color: #22c55e;
+            font-weight: 700;
+        }
+
+        .odds-favorite {
+            color: #f87171;
+            font-weight: 700;
+        }
+
+        .odds-neutral {
+            color: #d1d5db;
+            font-weight: 700;
+        }
+
 
         /* Alert popup styles */
         .alert-overlay {
@@ -637,6 +652,24 @@
             return formatOdds(odds);
         }
 
+        function getOddsColorClass(odds) {
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (numOdds === null || numOdds === undefined || isNaN(numOdds)) {
+                return "";
+            }
+
+            if (numOdds >= 150) return "odds-plus";
+            if (numOdds <= -130) return "odds-favorite";
+            return "odds-neutral";
+        }
+
+        function formatOddsWithColor(odds) {
+            const formatted = formatOdds(odds);
+            const className = getOddsColorClass(odds);
+            if (!className) return formatted;
+            return `<span class="${className}">${formatted}</span>`;
+        }
+
         function renderBetList() {
             const listEl = document.getElementById("bet-list");
             listEl.innerHTML = "";
@@ -791,7 +824,7 @@
                         <strong>Bookmaker:</strong> ${alertData.bookmaker_name}
                     </div>
                     <div class="alert-detail">
-                        <strong>Price:</strong> ${formatOdds(alertData.price)} (Target: ${formatOdds(alertData.target_odds)} or better)
+                        <strong>Price:</strong> ${formatOddsWithColor(alertData.price)} (Target: ${formatOddsWithColor(alertData.target_odds)} or better)
                     </div>
                     ${alertData.matchup ? `<div class="alert-detail"><strong>Matchup:</strong> ${alertData.matchup}</div>` : ''}
                 </div>
@@ -862,7 +895,7 @@
                             if (price === null || price === undefined) {
                                 inner += '<span class="small-text">(no line)</span>';
                             } else {
-                                inner += formatOdds(price);
+                                inner += formatOddsWithColor(price);
                             }
 
                             const hit = (price !== null && price >= bet.target_odds); // "or better" logic
@@ -896,7 +929,7 @@
                         if (game.best_bookmaker_name && game.best_price !== null) {
                             const summary = document.createElement("div");
                             summary.className = "small-text";
-                            summary.textContent = `Best current price: ${game.best_bookmaker_name} ${game.best_price}`;
+                            summary.innerHTML = `Best current price: ${game.best_bookmaker_name} ${formatOddsWithColor(game.best_price)}`;
                             pricesCell.appendChild(summary);
                         }
                     }
