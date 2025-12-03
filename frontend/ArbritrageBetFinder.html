@@ -379,19 +379,13 @@
         th:nth-child(4),
         td:nth-child(4) {
             width: auto;
-            min-width: 120px; /* Start Time */
+            min-width: 130px; /* Arbitrage Margin - ensure it's always visible */
         }
 
         th:nth-child(5),
         td:nth-child(5) {
             width: auto;
-            min-width: 130px; /* Arbitrage Margin - ensure it's always visible */
-        }
-
-        th:nth-child(6),
-        td:nth-child(6) {
-            width: auto;
-            min-width: 100px; /* Compare Price */
+            min-width: 120px; /* Start Time */
         }
 
         th {
@@ -787,7 +781,6 @@
                                 <th>Hedge Bet</th>
                                 <th>Arbitrage Margin</th>
                                 <th>Start Time</th>
-                                <th>Compare Price</th>
                             </tr>
                         </thead>
                         <tbody id="best-results-body">
@@ -808,7 +801,6 @@
                                 <th>Start Time</th>
                                 <th>Line</th>
                                 <th>Target Book</th>
-                                <th>Compare Book</th>
                                 <th>Hedge Bet</th>
                                 <th>Arbitrage Margin</th>
                                 <th>EV%</th>
@@ -816,7 +808,7 @@
                         </thead>
                         <tbody id="player-props-results-body">
                             <tr>
-                                <td colspan="9" class="small-text">No player prop results yet.</td>
+                                <td colspan="8" class="small-text">No player prop results yet.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1753,7 +1745,7 @@
 
         function clearPlayerPropsResults() {
             const body = document.getElementById("player-props-results-body");
-            body.innerHTML = '<tr><td colspan="9" class="small-text">No player prop results yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="8" class="small-text">No player prop results yet.</td></tr>';
             document.getElementById("player-props-results-section").style.display = "none";
             setPlayerPropsSummary("");
             lastPlayerPropsData = null;
@@ -1773,7 +1765,7 @@
             section.style.display = "block";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="6" class="small-text">No arbitrage opportunities found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="5" class="small-text">No arbitrage opportunities found.</td></tr>';
                 return;
             }
 
@@ -1789,7 +1781,7 @@
                     p.novig_reverse_price !== undefined
                 );
                 if (plays.length === 0) {
-                    body.innerHTML = '<tr><td colspan="6" class="small-text">No hedge opportunities found (arbitrage margin ≥ 0%).</td></tr>';
+                    body.innerHTML = '<tr><td colspan="5" class="small-text">No hedge opportunities found (arbitrage margin ≥ 0%).</td></tr>';
                     return;
                 }
             }
@@ -1912,11 +1904,6 @@
                 const startCell = document.createElement("td");
                 startCell.textContent = formatStartTime(play.start_time);
                 tr.appendChild(startCell);
-
-                const compareCell = document.createElement("td");
-                const formattedCompareOdds = formatOdds(play.novig_price);
-                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
-                tr.appendChild(compareCell);
 
                 body.appendChild(tr);
             });
@@ -2048,7 +2035,7 @@
             document.getElementById("player-props-results-section").style.display = "block";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="9" class="small-text">No player prop value plays found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="8" class="small-text">No player prop value plays found.</td></tr>';
                 return;
             }
 
@@ -2076,14 +2063,10 @@
                 targetCell.innerHTML = `<strong>${formatOdds(play.book_price)}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(targetCell);
 
-                const compareCell = document.createElement("td");
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                compareCell.innerHTML = `<strong>${formatOdds(play.novig_price)}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
-                tr.appendChild(compareCell);
-
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_name && play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
-                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name} ${formatOdds(play.novig_reverse_price)}</strong>`;
+                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name} ${formatOdds(play.novig_reverse_price)}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }

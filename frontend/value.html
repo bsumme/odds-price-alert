@@ -314,7 +314,6 @@
                             <th>Outcome (Book)</th>
                             <th>Matchup</th>
                             <th>Start Time</th>
-                            <th>Compare Price</th>
                             <th>Opposite Side</th>
                             <th>Hedge Price</th>
                             <th>Book Price</th>
@@ -323,7 +322,7 @@
                     </thead>
                     <tbody id="results-body">
                         <tr>
-                            <td colspan="8" class="small-text">No results yet.</td>
+                            <td colspan="7" class="small-text">No results yet.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -379,7 +378,7 @@
 
         function clearResults() {
             const body = document.getElementById("results-body");
-            body.innerHTML = '<tr><td colspan="8" class="small-text">No results yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="7" class="small-text">No results yet.</td></tr>';
             setSummary("");
         }
 
@@ -522,7 +521,7 @@
 
             if (!data || !data.plays || data.plays.length === 0) {
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-                body.innerHTML = `<tr><td colspan="8" class="small-text">No value plays found (maybe market is empty or ${compareBookLabel} not available).</td></tr>`;
+                body.innerHTML = `<tr><td colspan="7" class="small-text">No value plays found (maybe market is empty or ${compareBookLabel} not available).</td></tr>`;
                 return;
             }
 
@@ -544,12 +543,6 @@
                 const startCell = document.createElement("td");
                 startCell.textContent = play.start_time || "";
                 tr.appendChild(startCell);
-
-                const compareCell = document.createElement("td");
-                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatOdds(play.novig_price);
-                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
-                tr.appendChild(compareCell);
 
                 const oppCell = document.createElement("td");
                 if (play.novig_reverse_name) {
