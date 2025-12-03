@@ -441,7 +441,7 @@
         }
 
         .odds-hedge-neutral {
-            color: #facc15;
+            color: #cbd5e1;
         }
 
         .odds-hedge-negative {
@@ -1458,7 +1458,7 @@
             if (margin === null || margin === undefined) return "odds-hedge-neutral";
             if (margin >= 5) return "odds-hedge-strong";
             if (margin >= 0) return "odds-hedge-positive";
-            if (margin > -2) return "odds-hedge-neutral";
+            if (margin >= -2) return "odds-hedge-neutral";
             return "odds-hedge-negative";
         }
 
