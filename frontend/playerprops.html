@@ -685,6 +685,13 @@
                     }),
                 });
                 if (!res.ok) {
+                    if (res.status === 404) {
+                        const message = "Search was correct, but no player prop markets were found at the moment.";
+                        alert(message);
+                        setStatus(message);
+                        return;
+                    }
+
                     const text = await res.text();
                     throw new Error(text || ("HTTP " + res.status));
                 }
