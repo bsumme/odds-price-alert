@@ -179,6 +179,51 @@ def fetch_player_props(
         "bookmakers": ",".join(bookmaker_keys),
     }
 
+    def _fetch_player_props_via_odds_endpoint() -> List[Dict[str, Any]]:
+        """
+        Fallback to the sport odds endpoint when the event odds endpoint rejects
+        player prop markets (e.g., returns INVALID_MARKET 422 errors).
+        """
+        logger.warning(
+            "Falling back to /odds endpoint for player props: sport=%s markets=%s",
+            sport_key,
+            markets,
+        )
+        try:
+            fallback_events = fetch_odds(
+                api_key=api_key,
+                sport_key=sport_key,
+                regions=regions,
+                markets=markets,
+                bookmaker_keys=bookmaker_keys,
+                use_dummy_data=False,
+            )
+        except HTTPException as exc:
+            logger.error(
+                "Fallback /odds call for player props failed: status=%s detail=%s",
+                exc.status_code,
+                exc.detail,
+            )
+            return []
+
+        # If the caller filtered events by team, respect that here as well.
+        if team:
+            allowed_event_ids = {e.get("id") for e in events if e.get("id")}
+            fallback_events = [
+                e for e in fallback_events if e.get("id") in allowed_event_ids
+            ]
+
+        _log_real_api_response(
+            sport_key=sport_key,
+            regions=regions,
+            markets=markets,
+            bookmaker_keys=bookmaker_keys,
+            payload=fallback_events,
+            endpoint="odds_player_props_fallback",
+        )
+
+        return fallback_events
+
     collected_events: List[Dict[str, Any]] = []
     for event in events:
         event_id = event.get("id")
@@ -196,6 +241,9 @@ def fetch_player_props(
             bookmaker_keys,
         )
         response = requests.get(event_url, params=odds_params, timeout=15)
+        if response.status_code == 422 and "Invalid markets" in response.text:
+            return _fetch_player_props_via_odds_endpoint()
+
         if response.status_code != 200:
             logger.error(
                 "Event odds API error for player props: status=%s body=%s",
