@@ -150,10 +150,22 @@ def fetch_player_props(
 
     events: List[Dict[str, Any]] = events_response.json()
     if team:
+        team_lower = team.lower()
+
+        def _matches_team(event_team: str) -> bool:
+            name = event_team.lower()
+            return team_lower in name or name in team_lower
+
+        before_team_filter = len(events)
         events = [
-            e for e in events if team in (e.get("home_team", ""), e.get("away_team", ""))
+            e
+            for e in events
+            if _matches_team(e.get("home_team", ""))
+            or _matches_team(e.get("away_team", ""))
         ]
-        logger.info("Filtered events by team '%s': %d remaining", team, len(events))
+        logger.info(
+            "Filtered events by team '%s': %d -> %d", team, before_team_filter, len(events)
+        )
 
     if not events:
         logger.info("No events found for sport=%s after filtering; returning empty list", sport_key)
