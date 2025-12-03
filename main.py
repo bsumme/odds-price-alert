@@ -1450,6 +1450,20 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
 
     logger.info("Collected %d player props events before pricing", len(events))
 
+    if not events:
+        detail_parts = [
+            f"sport={payload.sport_key}",
+            f"markets={market_param}",
+        ]
+        if payload.team:
+            detail_parts.append(f"team={payload.team}")
+        if payload.player_name:
+            detail_parts.append(f"player={payload.player_name}")
+
+        message = "No player props lines found for " + ", ".join(detail_parts)
+        logger.warning(message)
+        raise HTTPException(status_code=404, detail=message)
+
     all_filtered: List[ValuePlayOutcome] = []
     now_utc = datetime.now(timezone.utc)
 
