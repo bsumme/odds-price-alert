@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,9 @@ from services.odds_utils import (
 )
 from utils.regions import compute_regions_for_books
 from utils.formatting import pretty_book_label, format_start_time_est
+
+# Use the uvicorn logger so messages show alongside existing INFO entries.
+logger = logging.getLogger("uvicorn.error")
 
 # -------------------------------------------------------------------
 # Pydantic Models
@@ -1190,6 +1194,17 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
     compare_book = payload.compare_book
     market_key = payload.market
 
+    logger.info(
+        "Player props request received: sport=%s market=%s target=%s compare=%s team=%s player=%s use_dummy=%s",
+        payload.sport_key,
+        market_key,
+        target_book,
+        compare_book,
+        payload.team,
+        payload.player_name,
+        payload.use_dummy_data,
+    )
+
     if target_book == compare_book:
         raise HTTPException(
             status_code=400,
@@ -1206,7 +1221,18 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
     bookmaker_keys = [target_book, compare_book]
     regions = compute_regions_for_books(bookmaker_keys)
 
+    logger.info(
+        "Computed regions for player props: regions=%s bookmaker_keys=%s",
+        regions,
+        bookmaker_keys,
+    )
+
     if payload.use_dummy_data:
+        logger.info(
+            "Using dummy player props data for sport=%s market=%s",
+            payload.sport_key,
+            market_key,
+        )
         events = generate_dummy_player_props_data(
             sport_key=payload.sport_key,
             market=market_key,
@@ -1215,6 +1241,12 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
             bookmaker_keys=bookmaker_keys,
         )
     else:
+        logger.info(
+            "Fetching real player props: sport=%s market=%s regions=%s",
+            payload.sport_key,
+            market_key,
+            regions,
+        )
         # Fetch real odds from API
         events = fetch_player_props(
             api_key=api_key,
@@ -1224,16 +1256,24 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
             bookmaker_keys=bookmaker_keys,
             use_dummy_data=False,
         )
-        
+
         # Filter by team if specified
         if payload.team:
+            before_team_filter = len(events)
             events = [
                 e for e in events
                 if payload.team in (e.get("home_team", ""), e.get("away_team", ""))
             ]
-        
+            logger.info(
+                "Filtered player props events by team '%s': %d -> %d",
+                payload.team,
+                before_team_filter,
+                len(events),
+            )
+
         # Filter by player name if specified
         if payload.player_name:
+            before_player_filter = len(events)
             filtered_events = []
             for event in events:
                 for bookmaker in event.get("bookmakers", []):
@@ -1249,9 +1289,23 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
                     if event in filtered_events:
                         break
             events = filtered_events
+            logger.info(
+                "Filtered player props events by player '%s': %d -> %d",
+                payload.player_name,
+                before_player_filter,
+                len(events),
+            )
+
+    logger.info("Collected %d player props events before pricing", len(events))
 
     raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
-    
+
+    logger.info(
+        "Computed %d raw player props plays for market=%s",
+        len(raw_plays),
+        market_key,
+    )
+
     # Filter by player name in outcomes if specified
     if payload.player_name:
         raw_plays = [
@@ -1284,6 +1338,11 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
         return -1_000_000.0 + play.ev_percent
 
     top_plays = sorted(filtered_plays, key=ev_sort_key, reverse=True)
+
+    logger.info(
+        "Returning %d player props plays after filtering and sorting",
+        len(top_plays),
+    )
 
     return ValuePlaysResponse(
         target_book=target_book,
