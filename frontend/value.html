@@ -642,6 +642,13 @@
                     body: JSON.stringify(payload),
                 });
                 if (!res.ok) {
+                    if (res.status === 404 && market === "player_props") {
+                        const message = "Search was correct, but no player prop markets were found at the moment.";
+                        alert(message);
+                        setStatus(message);
+                        return;
+                    }
+
                     const text = await res.text();
                     throw new Error(text || ("HTTP " + res.status));
                 }
