@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # Import shared utilities
-from services.odds_api import get_api_key, fetch_odds, BASE_URL
+from services.odds_api import get_api_key, fetch_odds, fetch_player_props, BASE_URL
 from services.odds_utils import (
     american_to_decimal,
     estimate_ev_percent,
@@ -521,12 +521,41 @@ def fetch_odds_with_dummy(
     markets: str,
     bookmaker_keys: List[str],
     use_dummy_data: bool = False,
+    team: Optional[str] = None,
+    player_name: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Wrapper around fetch_odds that handles dummy data generation.
     """
+    player_markets_requested = any(
+        m.strip().startswith("player_") for m in markets.split(",") if m.strip()
+    )
+
     if use_dummy_data:
+        if player_markets_requested:
+            primary_market = next(
+                (m.strip() for m in markets.split(",") if m.strip().startswith("player_")),
+                markets,
+            )
+            return generate_dummy_player_props_data(
+                sport_key=sport_key,
+                market=primary_market,
+                team=team,
+                player_name=player_name,
+                bookmaker_keys=bookmaker_keys,
+            )
         return generate_dummy_odds_data(sport_key, markets, bookmaker_keys)
+
+    if player_markets_requested:
+        return fetch_player_props(
+            api_key,
+            sport_key,
+            regions,
+            markets,
+            bookmaker_keys,
+            use_dummy_data=False,
+        )
+
     return fetch_odds(api_key, sport_key, regions, markets, bookmaker_keys, use_dummy_data=False)
 
 
@@ -1187,7 +1216,7 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
         )
     else:
         # Fetch real odds from API
-        events = fetch_odds(
+        events = fetch_player_props(
             api_key=api_key,
             sport_key=payload.sport_key,
             regions=regions,

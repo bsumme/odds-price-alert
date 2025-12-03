@@ -28,6 +28,7 @@ def _log_real_api_response(
     markets: str,
     bookmaker_keys: List[str],
     payload: List[Dict[str, Any]],
+    endpoint: str = "odds",
 ) -> None:
     """
     Append the real API response to a local text file so it can be
@@ -48,6 +49,7 @@ def _log_real_api_response(
             "regions": regions,
             "markets": markets,
             "bookmaker_keys": bookmaker_keys,
+            "endpoint": endpoint,
             "response": payload,
         }
 
@@ -100,6 +102,54 @@ def fetch_odds(
         markets=markets,
         bookmaker_keys=bookmaker_keys,
         payload=data,
+    )
+
+    return data
+
+
+def fetch_player_props(
+    api_key: str,
+    sport_key: str,
+    regions: str,
+    markets: str,
+    bookmaker_keys: List[str],
+    use_dummy_data: bool = False,
+    dummy_data_generator=None,
+) -> List[Dict[str, Any]]:
+    """
+    Call the dedicated player props endpoint (/v4/sports/{sport_key}/player_props).
+
+    Player prop markets (e.g., player_points, player_assists) are not supported by the
+    standard odds endpoint and must use this route instead.
+    """
+    if use_dummy_data and dummy_data_generator:
+        return dummy_data_generator(sport_key, markets, bookmaker_keys)
+
+    params = {
+        "apiKey": api_key,
+        "regions": regions,
+        "markets": markets,
+        "oddsFormat": "american",
+        "bookmakers": ",".join(bookmaker_keys),
+    }
+
+    url = f"{BASE_URL}/sports/{sport_key}/player_props"
+    response = requests.get(url, params=params, timeout=15)
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error from The Odds API: {response.status_code}, {response.text}",
+        )
+
+    data: List[Dict[str, Any]] = response.json()
+
+    _log_real_api_response(
+        sport_key=sport_key,
+        regions=regions,
+        markets=markets,
+        bookmaker_keys=bookmaker_keys,
+        payload=data,
+        endpoint="player_props",
     )
 
     return data
