@@ -1,6 +1,7 @@
 """The Odds API client wrapper."""
 
 import json
+import logging
 import os
 from datetime import datetime
 from typing import List, Dict, Any
@@ -9,6 +10,8 @@ import requests
 from fastapi import HTTPException
 
 BASE_URL = "https://api.the-odds-api.com/v4"
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def get_api_key() -> str:
@@ -134,14 +137,33 @@ def fetch_player_props(
     }
 
     url = f"{BASE_URL}/sports/{sport_key}/player_props"
+    logger.info(
+        "Calling The Odds API player_props: url=%s regions=%s markets=%s bookmakers=%s",
+        url,
+        regions,
+        markets,
+        bookmaker_keys,
+    )
     response = requests.get(url, params=params, timeout=15)
     if response.status_code != 200:
+        logger.error(
+            "Player props API error: status=%s body=%s",
+            response.status_code,
+            response.text,
+        )
         raise HTTPException(
             status_code=502,
             detail=f"Error from The Odds API: {response.status_code}, {response.text}",
         )
 
     data: List[Dict[str, Any]] = response.json()
+
+    logger.info(
+        "Player props API returned %d events for sport=%s market=%s",
+        len(data),
+        sport_key,
+        markets,
+    )
 
     _log_real_api_response(
         sport_key=sport_key,
