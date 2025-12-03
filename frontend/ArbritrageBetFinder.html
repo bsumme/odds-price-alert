@@ -224,6 +224,21 @@
             overflow: hidden;
         }
 
+        .filter-card-content {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 0.25rem;
+        }
+
+        .filter-actions {
+            position: sticky;
+            bottom: 0;
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, #1e293b 40%);
+            padding-top: 0.5rem;
+            margin-top: 0.5rem;
+            border-top: 1px solid #334155;
+        }
+
         .card h2 {
             margin-top: 0;
             font-size: 0.95rem;
@@ -604,127 +619,125 @@
         <!-- Filter Panel -->
         <div class="filter-panel">
             <section class="card">
-                <h2>Arbitrage Bet Finder</h2>
-                <div class="small-text" style="margin-bottom: 0.75rem;">
-                    Discover arbitrage opportunities across multiple sports and markets by comparing odds between sportsbooks
-                </div>
+                <div class="filter-card-content">
+                    <h2>Arbitrage Bet Finder</h2>
+                    <div class="small-text" style="margin-bottom: 0.75rem;">
+                        Discover arbitrage opportunities across multiple sports and markets by comparing odds between sportsbooks
+                    </div>
 
-                <label>Select Sports</label>
-                <div style="margin-bottom: 0.5rem;">
-                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="sport-checkbox" value="basketball_nba" checked />
-                        <span style="margin-left: 0.5rem;">NBA</span>
-                    </label>
-                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" checked />
-                        <span style="margin-left: 0.5rem;">NFL</span>
-                    </label>
-                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" checked />
-                        <span style="margin-left: 0.5rem;">NCAAB</span>
-                    </label>
-                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" checked />
-                        <span style="margin-left: 0.5rem;">NCAAF</span>
-                    </label>
-                </div>
+                    <label>Select Sports</label>
+                    <div style="margin-bottom: 0.5rem;">
+                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                            <input type="checkbox" class="sport-checkbox" value="basketball_nba" checked />
+                            <span style="margin-left: 0.5rem;">NBA</span>
+                        </label>
+                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                            <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" checked />
+                            <span style="margin-left: 0.5rem;">NFL</span>
+                        </label>
+                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                            <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" checked />
+                            <span style="margin-left: 0.5rem;">NCAAB</span>
+                        </label>
+                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                            <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" checked />
+                            <span style="margin-left: 0.5rem;">NCAAF</span>
+                        </label>
+                    </div>
 
-                <label>Select Markets</label>
-                <div style="margin-bottom: 0.5rem;">
-                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="market-checkbox" value="h2h" checked />
-                        <span style="margin-left: 0.5rem;">Moneyline</span>
-                    </label>
-                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="market-checkbox" value="spreads" checked />
-                        <span style="margin-left: 0.5rem;">Spreads</span>
-                    </label>
-                    <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                        <input type="checkbox" class="market-checkbox" value="totals" checked />
-                        <span style="margin-left: 0.5rem;">Totals</span>
-                    </label>
-                </div>
+                    <label>Select Markets</label>
+                    <div style="margin-bottom: 0.5rem;">
+                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                            <input type="checkbox" class="market-checkbox" value="h2h" checked />
+                            <span style="margin-left: 0.5rem;">Moneyline</span>
+                        </label>
+                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                            <input type="checkbox" class="market-checkbox" value="spreads" checked />
+                            <span style="margin-left: 0.5rem;">Spreads</span>
+                        </label>
+                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                            <input type="checkbox" class="market-checkbox" value="totals" checked />
+                            <span style="margin-left: 0.5rem;">Totals</span>
+                        </label>
+                    </div>
 
-                <div style="margin: 0.75rem 0; padding: 0.75rem; border: 1px solid #334155; border-radius: 0.5rem; background: #0f172a;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
-                        <label style="margin: 0;">Player Props Search</label>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <label style="display: flex; align-items: center; gap: 0.3rem; margin: 0;">
-                                <input type="radio" name="search-mode" value="standard" checked />
-                                <span>Standard</span>
+                    <div style="margin: 0.75rem 0; padding: 0.75rem; border: 1px solid #334155; border-radius: 0.5rem; background: #0f172a;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                            <label style="margin: 0;">Player Props Search</label>
+                            <label style="display: flex; align-items: center; gap: 0.4rem; margin: 0;">
+                                <input type="checkbox" id="player-props-toggle" />
+                                <span>Enable player props</span>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 0.3rem; margin: 0;">
-                                <input type="radio" name="search-mode" value="player_props" />
-                                <span>Player props</span>
-                            </label>
+                        </div>
+
+                        <div id="player-props-filter-section" style="margin-top: 0.5rem; display: none;">
+                            <label for="prop-sport-select">Sport</label>
+                            <select id="prop-sport-select">
+                                <option value="basketball_nba">NBA</option>
+                                <option value="americanfootball_nfl">NFL</option>
+                            </select>
+
+                            <label for="prop-team-select">Team (optional)</label>
+                            <select id="prop-team-select">
+                                <option value="">All Teams</option>
+                            </select>
+
+                            <label for="prop-player-select">Player (optional)</label>
+                            <select id="prop-player-select">
+                                <option value="">All Players</option>
+                            </select>
+
+                            <label for="prop-market-select">Prop market</label>
+                            <select id="prop-market-select">
+                                <option value="player_points">Player Points</option>
+                                <option value="player_assists">Player Assists (NBA only)</option>
+                                <option value="player_rebounds">Player Rebounds (NBA only)</option>
+                                <option value="player_reception_yards">Reception Yards (NFL only)</option>
+                                <option value="player_passing_yards">Passing Yards (NFL only)</option>
+                                <option value="player_rushing_yards">Rushing Yards (NFL only)</option>
+                                <option value="player_touchdowns">Touchdowns (NFL only)</option>
+                            </select>
                         </div>
                     </div>
 
-                    <div id="player-props-filter-section" style="margin-top: 0.5rem; display: none;">
-                        <label for="prop-sport-select">Sport</label>
-                        <select id="prop-sport-select">
-                            <option value="basketball_nba">NBA</option>
-                            <option value="americanfootball_nfl">NFL</option>
-                        </select>
+                    <label for="best-target-book-select">Target book</label>
+                    <select id="best-target-book-select">
+                        <option value="draftkings">DraftKings</option>
+                        <option value="fanduel">FanDuel</option>
+                        <option value="fliff">Fliff</option>
+                        <option value="novig">Novig</option>
+                    </select>
 
-                        <label for="prop-team-select">Team (optional)</label>
-                        <select id="prop-team-select">
-                            <option value="">All Teams</option>
-                        </select>
+                    <label for="best-compare-book-select">Compare against</label>
+                    <select id="best-compare-book-select">
+                        <option value="novig" selected>Novig</option>
+                        <option value="draftkings">DraftKings</option>
+                        <option value="fanduel">FanDuel</option>
+                        <option value="fliff">Fliff</option>
+                    </select>
 
-                        <label for="prop-player-select">Player (optional)</label>
-                        <select id="prop-player-select">
-                            <option value="">All Players</option>
-                        </select>
+                    <label for="best-max-results-input">Max results</label>
+                    <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="10" />
 
-                        <label for="prop-market-select">Prop market</label>
-                        <select id="prop-market-select">
-                            <option value="player_points">Player Points</option>
-                            <option value="player_assists">Player Assists (NBA only)</option>
-                            <option value="player_rebounds">Player Rebounds (NBA only)</option>
-                            <option value="player_reception_yards">Reception Yards (NFL only)</option>
-                            <option value="player_passing_yards">Passing Yards (NFL only)</option>
-                            <option value="player_rushing_yards">Rushing Yards (NFL only)</option>
-                            <option value="player_touchdowns">Touchdowns (NFL only)</option>
-                        </select>
+                    <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                        <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
+                        <span>Use Dummy Data (for development when API credits are exhausted)</span>
+                    </label>
+
+                    <label style="display: flex; align-items: center; margin-top: 0.5rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                        <input type="checkbox" id="log-results-checkbox" style="margin-right: 0.5rem;" />
+                        <span>Save search results as JSON</span>
+                    </label>
+
+                    <div class="filter-actions">
+                        <div style="margin-top: 0.25rem;">
+                            <button class="btn btn-primary" id="find-best-btn">Find Arbitrage Opportunities</button>
+                            <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
+                        </div>
+
+                        <div class="status-bar" id="best-status-bar">Ready.</div>
                     </div>
                 </div>
-
-                <label for="best-target-book-select">Target book</label>
-                <select id="best-target-book-select">
-                    <option value="draftkings">DraftKings</option>
-                    <option value="fanduel">FanDuel</option>
-                    <option value="fliff">Fliff</option>
-                    <option value="novig">Novig</option>
-                </select>
-
-                <label for="best-compare-book-select">Compare against</label>
-                <select id="best-compare-book-select">
-                    <option value="novig" selected>Novig</option>
-                    <option value="draftkings">DraftKings</option>
-                    <option value="fanduel">FanDuel</option>
-                    <option value="fliff">Fliff</option>
-                </select>
-
-                <label for="best-max-results-input">Max results</label>
-                <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="10" />
-
-                <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
-                    <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
-                    <span>Use Dummy Data (for development when API credits are exhausted)</span>
-                </label>
-
-                <label style="display: flex; align-items: center; margin-top: 0.5rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
-                    <input type="checkbox" id="log-results-checkbox" style="margin-right: 0.5rem;" />
-                    <span>Save search results as JSON</span>
-                </label>
-
-                <div style="margin-top: 0.75rem;">
-                    <button class="btn btn-primary" id="find-best-btn">Find Arbitrage Opportunities</button>
-                    <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
-                </div>
-
-                <div class="status-bar" id="best-status-bar">Ready.</div>
             </section>
         </div>
 
@@ -1064,7 +1077,8 @@
         }
 
         function isPlayerPropsMode() {
-            return document.querySelector('input[name="search-mode"][value="player_props"]').checked;
+            const toggle = document.getElementById("player-props-toggle");
+            return toggle ? toggle.checked : false;
         }
 
         function toggleSearchModeUI() {
@@ -2231,6 +2245,7 @@
 
         // Save form selections to localStorage
         function saveFormSelections() {
+            const playerPropsEnabled = isPlayerPropsMode();
             const selections = {
                 sports: Array.from(document.querySelectorAll(".sport-checkbox:checked")).map(cb => cb.value),
                 markets: Array.from(document.querySelectorAll(".market-checkbox:checked")).map(cb => cb.value),
@@ -2240,7 +2255,8 @@
                 dummyData: document.getElementById("dummy-data-checkbox").checked,
                 logResults: document.getElementById("log-results-checkbox").checked,
                 watcherInterval: document.getElementById("watcher-interval-input").value,
-                searchMode: document.querySelector('input[name="search-mode"]:checked')?.value || "standard",
+                playerPropsEnabled,
+                searchMode: playerPropsEnabled ? "player_props" : "standard",
                 propSport: document.getElementById("prop-sport-select").value,
                 propTeam: document.getElementById("prop-team-select").value,
                 propPlayer: document.getElementById("prop-player-select").value,
@@ -2291,9 +2307,10 @@
                     document.getElementById("watcher-interval-input").value = selections.watcherInterval;
                 }
 
-                if (selections.searchMode === "player_props") {
-                    const propsRadio = document.querySelector('input[name="search-mode"][value="player_props"]');
-                    if (propsRadio) propsRadio.checked = true;
+                const propsToggle = document.getElementById("player-props-toggle");
+                if (propsToggle) {
+                    const isPropsEnabled = selections.playerPropsEnabled ?? selections.searchMode === "player_props";
+                    propsToggle.checked = Boolean(isPropsEnabled);
                 }
 
                 updatePropMarketDropdown(selections.propMarket);
@@ -2415,17 +2432,19 @@
 
             // Load saved form selections
             loadFormSelections();
+            toggleSearchModeUI();
 
             // Save form selections when they change
             document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
                 el.addEventListener("change", saveFormSelections);
             });
-            document.querySelectorAll('input[name="search-mode"]').forEach(radio => {
-                radio.addEventListener("change", () => {
+            const playerPropsToggle = document.getElementById("player-props-toggle");
+            if (playerPropsToggle) {
+                playerPropsToggle.addEventListener("change", () => {
                     toggleSearchModeUI();
                     saveFormSelections();
                 });
-            });
+            }
             document.getElementById("prop-sport-select").addEventListener("change", () => {
                 updatePropMarketDropdown();
                 updatePropTeamDropdown();
