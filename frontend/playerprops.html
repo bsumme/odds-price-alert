@@ -390,6 +390,8 @@
             }
         };
 
+        const ALL_PLAYER_PROPS_VALUE = "all_player_props";
+
         const marketOptions = {
             basketball_nba: [
                 { value: "player_points", label: "Points" },
@@ -399,7 +401,7 @@
             ],
             americanfootball_nfl: [
                 { value: "player_passing_yards", label: "Passing Yards" },
-                { value: "player_reception_yards", label: "Receiving Yards" },
+                { value: "player_receiving_yards", label: "Receiving Yards" },
                 { value: "player_rushing_yards", label: "Rushing Yards" },
                 { value: "player_touchdowns", label: "Anytime TD" },
                 { value: "player_passing_tds", label: "Passing TDs" },
@@ -409,7 +411,9 @@
         const marketLabelLookup = Object.values(marketOptions).flat().reduce((acc, opt) => {
             acc[opt.value] = opt.label;
             return acc;
-        }, {});
+        }, {
+            [ALL_PLAYER_PROPS_VALUE]: "All player props",
+        });
 
         function updateTeamDropdown() {
             const sport = document.getElementById("sport-select").value;
@@ -457,7 +461,11 @@
             const container = document.getElementById("market-options");
             container.innerHTML = "";
 
-            const options = marketOptions[sport] || [];
+            const options = [
+                { value: ALL_PLAYER_PROPS_VALUE, label: "All player props" },
+                ...(marketOptions[sport] || []),
+            ];
+
             options.forEach((opt, index) => {
                 const wrapper = document.createElement("label");
                 wrapper.className = "market-chip";
@@ -466,6 +474,25 @@
                 input.type = "checkbox";
                 input.value = opt.value;
                 input.checked = index === 0;
+
+                input.addEventListener("change", () => {
+                    if (input.value === ALL_PLAYER_PROPS_VALUE) {
+                        const shouldCheckAll = input.checked;
+                        container.querySelectorAll('input[type="checkbox"]').forEach(box => {
+                            box.checked = shouldCheckAll;
+                        });
+                        return;
+                    }
+
+                    const selectAllBox = container.querySelector(`input[value="${ALL_PLAYER_PROPS_VALUE}"]`);
+                    if (!selectAllBox) return;
+
+                    const everyMarketChecked = Array.from(container.querySelectorAll('input[type="checkbox"]'))
+                        .filter(box => box.value !== ALL_PLAYER_PROPS_VALUE)
+                        .every(box => box.checked);
+
+                    selectAllBox.checked = everyMarketChecked;
+                });
 
                 const text = document.createElement("span");
                 text.textContent = opt.label;
@@ -479,6 +506,10 @@
 
         function getSelectedMarkets() {
             const container = document.getElementById("market-options");
+            const selectAllBox = container.querySelector(`input[value="${ALL_PLAYER_PROPS_VALUE}"]`);
+            if (selectAllBox && selectAllBox.checked) {
+                return [ALL_PLAYER_PROPS_VALUE];
+            }
             return Array.from(container.querySelectorAll('input[type="checkbox"]'))
                 .filter(box => box.checked)
                 .map(box => box.value);

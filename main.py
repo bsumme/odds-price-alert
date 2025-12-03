@@ -3,7 +3,7 @@ import logging
 import os
 import random
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any, Set, Optional
+from typing import ClassVar, List, Dict, Any, Set, Optional
 
 import requests
 from fastapi import FastAPI, HTTPException
@@ -170,6 +170,32 @@ class PlayerPropsRequest(BaseModel):
     compare_book: str
     use_dummy_data: bool = False
 
+    # Map legacy or alias markets to their canonical names
+    PLAYER_PROP_MARKET_ALIASES: ClassVar[Dict[str, str]] = {
+        "player_reception_yards": "player_receiving_yards",
+    }
+
+    # Define the supported player prop markets for each sport
+    PLAYER_PROP_MARKETS_BY_SPORT: ClassVar[Dict[str, List[str]]] = {
+        "basketball_nba": [
+            "player_points",
+            "player_assists",
+            "player_rebounds",
+            "player_threes",
+        ],
+        "americanfootball_nfl": [
+            "player_passing_yards",
+            "player_receiving_yards",
+            "player_rushing_yards",
+            "player_touchdowns",
+            "player_passing_tds",
+        ],
+    }
+
+    ALL_PLAYER_PROP_MARKETS: ClassVar[List[str]] = sorted(
+        {m for markets in PLAYER_PROP_MARKETS_BY_SPORT.values() for m in markets}
+    )
+
     @model_validator(mode="before")
     def ensure_markets(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Allow legacy single-market payloads while enforcing at least one market."""
@@ -202,6 +228,45 @@ class PlayerPropsRequest(BaseModel):
 
         data["markets"] = normalized
         return data
+
+    def resolve_markets(self) -> List[str]:
+        """
+        Expand aliases and the special "all_player_props" flag to the supported markets
+        for the selected sport. Falls back to all known player prop markets if the
+        sport is unrecognized.
+        """
+
+        def _normalize_market(market: str) -> Optional[str]:
+            if not market:
+                return None
+            key = market.strip()
+            return self.PLAYER_PROP_MARKET_ALIASES.get(key, key)
+
+        expanded: List[str] = []
+        seen: set[str] = set()
+
+        for market in self.markets:
+            normalized = _normalize_market(market)
+            if not normalized or normalized in seen:
+                continue
+
+            if normalized in ("all", "all_player_props"):
+                sport_markets = self.PLAYER_PROP_MARKETS_BY_SPORT.get(
+                    self.sport_key, self.ALL_PLAYER_PROP_MARKETS
+                )
+                for sport_market in sport_markets:
+                    if sport_market not in seen:
+                        expanded.append(sport_market)
+                        seen.add(sport_market)
+                continue
+
+            expanded.append(normalized)
+            seen.add(normalized)
+
+        if not expanded:
+            raise ValueError("At least one valid market must be provided")
+
+        return expanded
 
 
 class PlayerPropsResponse(BaseModel):
@@ -477,7 +542,7 @@ def generate_dummy_player_props_data(
         "player_assists": (5.5, 12.5),
         "player_rebounds": (8.5, 15.5),
         "player_threes": (2.5, 6.5),
-        "player_reception_yards": (50.5, 120.5),
+        "player_receiving_yards": (50.5, 120.5),
         "player_passing_yards": (200.5, 350.5),
         "player_rushing_yards": (50.5, 120.5),
         "player_touchdowns": (0.5, 2.5),
@@ -856,7 +921,7 @@ def collect_value_plays(
                 "player_assists": "assists",
                 "player_rebounds": "rebounds",
                 "player_threes": "3-pointers",
-                "player_reception_yards": "receiving yards",
+                "player_receiving_yards": "receiving yards",
                 "player_passing_yards": "passing yards",
                 "player_rushing_yards": "rushing yards",
                 "player_touchdowns": "touchdowns",
@@ -1264,7 +1329,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     """
     target_book = payload.target_book
     compare_book = payload.compare_book
-    market_keys = payload.markets
+    market_keys = payload.resolve_markets()
 
     logger.info(
         "Player props request received: sport=%s markets=%s target=%s compare=%s team=%s player=%s use_dummy=%s",
