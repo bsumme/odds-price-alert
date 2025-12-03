@@ -26,6 +26,9 @@ from utils.formatting import pretty_book_label, format_start_time_est
 # Use the uvicorn logger so messages show alongside existing INFO entries.
 logger = logging.getLogger("uvicorn.error")
 
+# Odds API subscription limit for calculating credit usage display
+API_REQUEST_LIMIT = 20_000
+
 # -------------------------------------------------------------------
 # Pydantic Models
 # -------------------------------------------------------------------
@@ -1619,15 +1622,17 @@ def get_api_credits():
         if response.status_code == 200:
             used = response.headers.get("x-requests-used")
             remaining = response.headers.get("x-requests-remaining")
-            
+
             if used is not None and remaining is not None:
                 try:
                     used_int = int(used)
                     remaining_int = int(remaining)
-                    total = used_int + remaining_int
+                    total_from_headers = used_int + remaining_int
+                    total = max(total_from_headers, API_REQUEST_LIMIT)
+                    remaining_calculated = max(remaining_int, total - used_int)
                     api_credits = {
                         "used": used_int,
-                        "remaining": remaining_int,
+                        "remaining": remaining_calculated,
                         "total": total,
                         "display": f"{used_int}/{total}"
                     }
