@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Odds Widgets</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #0b1220;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            padding: 1rem 1.5rem;
+            background: #0f172a;
+            border-bottom: 1px solid #1f2937;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        header .small-text {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 0.35rem 0.6rem;
+            border-radius: 0.4rem;
+            border: 1px solid transparent;
+        }
+
+        nav a:hover {
+            color: #e5e7eb;
+            border-color: #1f2937;
+            background: #111827;
+        }
+
+        nav a.active {
+            color: #e5e7eb;
+            font-weight: 600;
+            border-color: #2563eb;
+            background: #111827;
+        }
+
+        main {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .card {
+            background: #0b1220;
+            border-radius: 0.75rem;
+            border: 1px solid #1f2937;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card p {
+            margin-top: 0;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+
+        .widget-frame {
+            margin-top: 0.75rem;
+            border: 1px solid #1f2937;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background: #020617;
+        }
+
+        .widget-frame iframe {
+            width: 100%;
+            min-height: 26rem;
+            border: none;
+        }
+
+        .info-list {
+            margin: 0.5rem 0 0;
+            padding-left: 1.25rem;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .info-list li {
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div>
+            <h1>Odds Widgets</h1>
+            <div class="small-text">Drop-in widgets powered by The Odds API for quick embeds.</div>
+        </div>
+        <nav>
+            <a href="/ArbritrageBetFinder.html">Arbitrage Finder</a>
+            <a href="/watcher.html">Watcher</a>
+            <a href="/linetracker.html">Line Tracker</a>
+            <a href="/value.html">Value Finder</a>
+            <a href="/playerprops.html">Player Props</a>
+            <a href="/widgets.html" class="active">Widgets</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>Live NFL Odds Widget</h2>
+            <p>
+                Use this embedded widget to surface live NFL odds, including moneyline, spreads, and totals. It pulls directly
+                from The Odds API, so you can drop it into other pages or dashboards without additional setup.
+            </p>
+            <ul class="info-list">
+                <li>Bookmaker: FanDuel</li>
+                <li>Markets: Moneyline, Spreads, Totals</li>
+                <li>Odds format: American</li>
+            </ul>
+            <div class="widget-frame">
+                <iframe
+                    title="Sports Odds Widget"
+                    src="https://widget.the-odds-api.com/v1/sports/americanfootball_nfl/events/?accessKey=wk_f2a726b485eb07d04e3649dab44d7b5f&bookmakerKeys=fanduel&oddsFormat=american&markets=h2h%2Cspreads%2Ctotals&marketNames=h2h%3AMoneyline%2Cspreads%3ASpreads%2Ctotals%3AOver%2FUnder">
+                </iframe>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>
