@@ -9,7 +9,7 @@ import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 # Import shared utilities
 from services.odds_api import get_api_key, fetch_odds, fetch_player_props, BASE_URL
@@ -72,6 +72,7 @@ class ValuePlayOutcome(BaseModel):
     start_time: Optional[str]
     outcome_name: str        # e.g. "New York Knicks" or "LeBron James"
     point: Optional[float]   # spread/total/prop line (if applicable)
+    market: Optional[str] = None
     novig_price: int
     novig_reverse_name: Optional[str]
     novig_reverse_price: Optional[int]
@@ -155,7 +156,8 @@ class PlayerPropsRequest(BaseModel):
       - sport_key: e.g. "basketball_nba" or "americanfootball_nfl"
       - team: team name to filter by (optional, can be None to search all teams)
       - player_name: player name to filter by (optional, can be None to search all players)
-      - market: player prop market like "player_points", "player_assists", "player_rebounds", etc.
+      - markets: list of player prop markets like "player_points", "player_assists",
+        "player_rebounds", etc.
       - target_book: e.g. "draftkings"
       - compare_book: e.g. "novig" (the book to compare against)
       - use_dummy_data: if True, use mock data instead of real API calls
@@ -163,10 +165,50 @@ class PlayerPropsRequest(BaseModel):
     sport_key: str
     team: Optional[str] = None
     player_name: Optional[str] = None
-    market: str
+    markets: List[str]
     target_book: str
     compare_book: str
     use_dummy_data: bool = False
+
+    @model_validator(mode="before")
+    def ensure_markets(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Allow legacy single-market payloads while enforcing at least one market."""
+        if data is None:
+            raise ValueError("Payload is required")
+
+        # Support legacy payloads that used a single 'market' field.
+        if "markets" not in data or data.get("markets") is None:
+            legacy_market = data.get("market")
+            if legacy_market:
+                data["markets"] = [legacy_market]
+
+        markets = data.get("markets")
+        if not markets:
+            raise ValueError("At least one market must be specified for player props")
+
+        # Normalize to a unique, ordered list of strings.
+        normalized: List[str] = []
+        for m in markets:
+            if not m:
+                continue
+            if not isinstance(m, str):
+                raise ValueError("Market entries must be strings")
+            trimmed = m.strip()
+            if trimmed and trimmed not in normalized:
+                normalized.append(trimmed)
+
+        if not normalized:
+            raise ValueError("At least one valid market must be provided")
+
+        data["markets"] = normalized
+        return data
+
+
+class PlayerPropsResponse(BaseModel):
+    target_book: str
+    compare_book: str
+    markets: List[str]
+    plays: List[ValuePlayOutcome]
 
 
 def get_textbelt_api_key() -> Optional[str]:
@@ -384,7 +426,7 @@ def generate_dummy_odds_data(
 
 def generate_dummy_player_props_data(
     sport_key: str,
-    market: str,
+    markets: List[str],
     team: Optional[str],
     player_name: Optional[str],
     bookmaker_keys: List[str],
@@ -428,18 +470,21 @@ def generate_dummy_player_props_data(
         teams_to_use = list(player_map.keys())[:3]  # Use first 3 teams
     
     # Market-specific point ranges
+    selected_markets = markets or ["player_points"]
+
     point_ranges = {
         "player_points": (20.5, 35.5) if sport_key == "basketball_nba" else (50.5, 300.5),
         "player_assists": (5.5, 12.5),
         "player_rebounds": (8.5, 15.5),
+        "player_threes": (2.5, 6.5),
         "player_reception_yards": (50.5, 120.5),
         "player_passing_yards": (200.5, 350.5),
         "player_rushing_yards": (50.5, 120.5),
         "player_touchdowns": (0.5, 2.5),
+        "player_passing_tds": (1.5, 3.5),
     }
-    
+
     default_range = (20.5, 35.5)
-    point_range = point_ranges.get(market, default_range)
     
     now = datetime.now(timezone.utc)
     events = []
@@ -459,51 +504,50 @@ def generate_dummy_player_props_data(
             event_id = f"dummy_{sport_key}_{team_name}_{player}_{int(now.timestamp())}"
             
             # Generate point line
-            point = round(random.uniform(point_range[0], point_range[1]) * 2) / 2  # Round to 0.5
-            
+            def build_outcomes(market_key: str) -> Dict[str, Any]:
+                market_range = point_ranges.get(market_key, default_range)
+                point_value = round(random.uniform(market_range[0], market_range[1]) * 2) / 2
+                return {
+                    "key": market_key,
+                    "outcomes": [
+                        {"name": "Over", "description": player, "price": over_price, "point": point_value},
+                        {"name": "Under", "description": player, "price": under_price, "point": point_value},
+                    ],
+                }
+
             # Generate opponent team (simplified)
             opponent = random.choice([t for t in player_map.keys() if t != team_name])
             home_team = random.choice([team_name, opponent])
             away_team = opponent if home_team == team_name else team_name
-            
+
             bookmakers = []
-            
+
             # Generate Novig odds first (best)
             for book_key in bookmaker_keys:
                 if book_key.lower() == "novig":
-                    over_odds = -105
-                    under_odds = -105
+                    over_price = -105
+                    under_price = -105
+                    novig_markets = [build_outcomes(market_key) for market_key in selected_markets]
                     bookmakers.append({
                         "key": book_key,
                         "title": book_key.title(),
-                        "markets": [{
-                            "key": market,
-                            "outcomes": [
-                                {"name": "Over", "description": player, "price": over_odds, "point": point},
-                                {"name": "Under", "description": player, "price": under_odds, "point": point},
-                            ]
-                        }]
+                        "markets": novig_markets,
                     })
                     break
-            
+
             # Generate other books' odds (worse)
             for book_key in bookmaker_keys:
                 if book_key.lower() == "novig":
                     continue
-                
-                over_odds = random.choice([-110, -115])
-                under_odds = random.choice([-110, -115])
-                
+
+                over_price = random.choice([-110, -115])
+                under_price = random.choice([-110, -115])
+                market_payloads = [build_outcomes(market_key) for market_key in selected_markets]
+
                 bookmakers.append({
                     "key": book_key,
                     "title": book_key.title(),
-                    "markets": [{
-                        "key": market,
-                        "outcomes": [
-                            {"name": "Over", "description": player, "price": over_odds, "point": point},
-                            {"name": "Under", "description": player, "price": under_odds, "point": point},
-                        ]
-                    }]
+                    "markets": market_payloads,
                 })
             
             events.append({
@@ -531,19 +575,16 @@ def fetch_odds_with_dummy(
     """
     Wrapper around fetch_odds that handles dummy data generation.
     """
+    requested_markets = [m.strip() for m in markets.split(",") if m.strip()]
     player_markets_requested = any(
-        m.strip().startswith("player_") for m in markets.split(",") if m.strip()
+        m.startswith("player_") for m in requested_markets
     )
 
     if use_dummy_data:
         if player_markets_requested:
-            primary_market = next(
-                (m.strip() for m in markets.split(",") if m.strip().startswith("player_")),
-                markets,
-            )
             return generate_dummy_player_props_data(
                 sport_key=sport_key,
-                market=primary_market,
+                markets=requested_markets or [markets],
                 team=team,
                 player_name=player_name,
                 bookmaker_keys=bookmaker_keys,
@@ -814,10 +855,12 @@ def collect_value_plays(
                 "player_points": "points",
                 "player_assists": "assists",
                 "player_rebounds": "rebounds",
-                "player_reception_yards": "reception yards",
+                "player_threes": "3-pointers",
+                "player_reception_yards": "receiving yards",
                 "player_passing_yards": "passing yards",
                 "player_rushing_yards": "rushing yards",
                 "player_touchdowns": "touchdowns",
+                "player_passing_tds": "passing TDs",
             }
             if is_player_prop and description:
                 line_suffix = ""
@@ -854,6 +897,7 @@ def collect_value_plays(
                     start_time=start_time,
                     outcome_name=outcome_display_name,
                     point=point,
+                    market=market_key,
                     novig_price=compare_price,
                     novig_reverse_name=reverse_display_name,
                     novig_reverse_price=novig_reverse_price,
@@ -1212,20 +1256,20 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
     )
 
 
-@app.post("/api/player-props", response_model=ValuePlaysResponse)
-def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
+@app.post("/api/player-props", response_model=PlayerPropsResponse)
+def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     """
     Get player prop value plays for a specific sport, team, player, and market.
     Filters events to only include those matching the specified team and player.
     """
     target_book = payload.target_book
     compare_book = payload.compare_book
-    market_key = payload.market
+    market_keys = payload.markets
 
     logger.info(
-        "Player props request received: sport=%s market=%s target=%s compare=%s team=%s player=%s use_dummy=%s",
+        "Player props request received: sport=%s markets=%s target=%s compare=%s team=%s player=%s use_dummy=%s",
         payload.sport_key,
-        market_key,
+        ",".join(market_keys),
         target_book,
         compare_book,
         payload.team,
@@ -1255,24 +1299,26 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
         bookmaker_keys,
     )
 
+    market_param = ",".join(market_keys)
+
     if payload.use_dummy_data:
         logger.info(
-            "Using dummy player props data for sport=%s market=%s",
+            "Using dummy player props data for sport=%s markets=%s",
             payload.sport_key,
-            market_key,
+            market_param,
         )
         events = generate_dummy_player_props_data(
             sport_key=payload.sport_key,
-            market=market_key,
+            markets=market_keys,
             team=payload.team,
             player_name=payload.player_name,
             bookmaker_keys=bookmaker_keys,
         )
     else:
         logger.info(
-            "Fetching real player props: sport=%s market=%s regions=%s",
+            "Fetching real player props: sport=%s markets=%s regions=%s",
             payload.sport_key,
-            market_key,
+            market_param,
             regions,
         )
         # Fetch real odds from API
@@ -1280,7 +1326,7 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
             api_key=api_key,
             sport_key=payload.sport_key,
             regions=regions,
-            markets=market_key,
+            markets=market_param,
             bookmaker_keys=bookmaker_keys,
             team=payload.team,
             use_dummy_data=False,
@@ -1311,18 +1357,23 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
         if payload.player_name:
             before_player_filter = len(events)
             filtered_events = []
+            markets_set = set(market_keys)
+            player_lower = payload.player_name.lower()
             for event in events:
+                found_player = False
                 for bookmaker in event.get("bookmakers", []):
                     for market in bookmaker.get("markets", []):
-                        if market.get("key") == market_key:
-                            for outcome in market.get("outcomes", []):
-                                description = outcome.get("description", "")
-                                if payload.player_name.lower() in description.lower():
-                                    filtered_events.append(event)
-                                    break
-                            if event in filtered_events:
+                        if market.get("key") not in markets_set:
+                            continue
+                        for outcome in market.get("outcomes", []):
+                            description = outcome.get("description", "")
+                            if description and player_lower in description.lower():
+                                filtered_events.append(event)
+                                found_player = True
                                 break
-                    if event in filtered_events:
+                        if found_player:
+                            break
+                    if found_player:
                         break
             events = filtered_events
             logger.info(
@@ -1334,56 +1385,57 @@ def get_player_props(payload: PlayerPropsRequest) -> ValuePlaysResponse:
 
     logger.info("Collected %d player props events before pricing", len(events))
 
-    raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
-
-    logger.info(
-        "Computed %d raw player props plays for market=%s",
-        len(raw_plays),
-        market_key,
-    )
-
-    # Filter by player name in outcomes if specified
-    if payload.player_name:
-        raw_plays = [
-            p for p in raw_plays
-            if payload.player_name.lower() in p.outcome_name.lower()
-        ]
-
-    # Filter out live events and games that have already started
+    all_filtered: List[ValuePlayOutcome] = []
     now_utc = datetime.now(timezone.utc)
-    filtered_plays: List[ValuePlayOutcome] = []
-    for p in raw_plays:
-        if not p.start_time:
-            continue
-        try:
-            dt = datetime.fromisoformat(p.start_time.replace("Z", "+00:00"))
-            if dt > now_utc:
-                filtered_plays.append(p)
-        except Exception:
-            continue
 
-    # Convert start_time into an easy-to-read EST string for display
-    for p in filtered_plays:
-        if p.start_time:
-            p.start_time = format_start_time_est(p.start_time)
+    for market_key in market_keys:
+        raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
 
-    # Sort by EV percent descending
+        logger.info(
+            "Computed %d raw player props plays for market=%s",
+            len(raw_plays),
+            market_key,
+        )
+
+        if payload.player_name:
+            raw_plays = [
+                p for p in raw_plays
+                if payload.player_name.lower() in p.outcome_name.lower()
+            ]
+
+        for p in raw_plays:
+            if not p.start_time:
+                continue
+            try:
+                dt = datetime.fromisoformat(p.start_time.replace("Z", "+00:00"))
+            except Exception:
+                continue
+            if dt <= now_utc:
+                continue
+
+            if p.start_time:
+                p.start_time = format_start_time_est(p.start_time)
+            if not p.market:
+                p.market = market_key
+            all_filtered.append(p)
+
+    # Sort by hedge opportunity (arb margin) then EV
     def ev_sort_key(play: ValuePlayOutcome) -> float:
         if play.arb_margin_percent is not None:
             return play.arb_margin_percent
         return -1_000_000.0 + play.ev_percent
 
-    top_plays = sorted(filtered_plays, key=ev_sort_key, reverse=True)
+    top_plays = sorted(all_filtered, key=ev_sort_key, reverse=True)
 
     logger.info(
         "Returning %d player props plays after filtering and sorting",
         len(top_plays),
     )
 
-    return ValuePlaysResponse(
+    return PlayerPropsResponse(
         target_book=target_book,
         compare_book=compare_book,
-        market=market_key,
+        markets=market_keys,
         plays=top_plays,
     )
 
