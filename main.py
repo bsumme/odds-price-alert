@@ -155,7 +155,7 @@ class PlayerPropsRequest(BaseModel):
     Request body for /api/player-props:
       - sport_key: e.g. "basketball_nba" or "americanfootball_nfl"
       - team: team name to filter by (optional, can be None to search all teams)
-      - player_name: player name to filter by (optional, can be None to search all players)
+      - player_name: deprecated and currently ignored; retained for backward compatibility
       - markets: list of player prop markets like "player_points", "player_assists",
         "player_rebounds", etc.
       - target_book: e.g. "draftkings"
@@ -555,12 +555,6 @@ def generate_dummy_player_props_data(
     events = []
     for team_name in teams_to_use:
         players = player_map[team_name]
-        
-        # Filter by player_name if specified
-        if player_name:
-            players = [p for p in players if player_name.lower() in p.lower()]
-            if not players:
-                continue
         
         # Generate event for each player (up to 2 players per team)
         for player in players[:2]:
@@ -1324,23 +1318,28 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
 @app.post("/api/player-props", response_model=PlayerPropsResponse)
 def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     """
-    Get player prop value plays for a specific sport, team, player, and market.
-    Filters events to only include those matching the specified team and player.
+    Get player prop value plays for a specific sport and market.
+    Events can be narrowed by team but are not filtered by player name.
     """
     target_book = payload.target_book
     compare_book = payload.compare_book
-    market_keys = payload.resolve_markets()
+    requested_markets = payload.resolve_markets()
 
     logger.info(
-        "Player props request received: sport=%s markets=%s target=%s compare=%s team=%s player=%s use_dummy=%s",
+        "Player props request received: sport=%s markets=%s target=%s compare=%s team=%s use_dummy=%s",
         payload.sport_key,
-        ",".join(market_keys),
+        ",".join(requested_markets),
         target_book,
         compare_book,
         payload.team,
-        payload.player_name,
         payload.use_dummy_data,
     )
+
+    if payload.player_name:
+        logger.info(
+            "Player filter provided (%s) but ignored; player props now search all players",
+            payload.player_name,
+        )
 
     if target_book == compare_book:
         raise HTTPException(
@@ -1364,17 +1363,54 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         bookmaker_keys,
     )
 
-    market_param = ",".join(market_keys)
+    market_param = ",".join(requested_markets)
+    discovery_markets = payload.PLAYER_PROP_MARKETS_BY_SPORT.get(
+        payload.sport_key, payload.ALL_PLAYER_PROP_MARKETS
+    )
+    discovery_market_param = ",".join(discovery_markets)
+
+    def _collect_available_markets(
+        events_payload: List[Dict[str, Any]],
+    ) -> tuple[set[str], set[str]]:
+        """
+        Return a tuple of (all_markets_seen, markets_available_for_both_books).
+        The second set only includes markets where both the target and comparison
+        books have prices in at least one event.
+        """
+
+        all_seen: set[str] = set()
+        comparable: set[str] = set()
+
+        for event in events_payload:
+            target_markets: set[str] = set()
+            compare_markets: set[str] = set()
+            for bookmaker in event.get("bookmakers", []):
+                book_key = bookmaker.get("key")
+                market_keys = {
+                    m.get("key")
+                    for m in bookmaker.get("markets", [])
+                    if m.get("key")
+                }
+                all_seen.update(market_keys)
+
+                if book_key == target_book:
+                    target_markets.update(market_keys)
+                if book_key == compare_book:
+                    compare_markets.update(market_keys)
+
+            comparable.update(target_markets & compare_markets)
+
+        return all_seen, comparable
 
     if payload.use_dummy_data:
         logger.info(
             "Using dummy player props data for sport=%s markets=%s",
             payload.sport_key,
-            market_param,
+            discovery_market_param,
         )
         events = generate_dummy_player_props_data(
             sport_key=payload.sport_key,
-            markets=market_keys,
+            markets=discovery_markets,
             team=payload.team,
             player_name=payload.player_name,
             bookmaker_keys=bookmaker_keys,
@@ -1383,7 +1419,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         logger.info(
             "Fetching real player props: sport=%s markets=%s regions=%s",
             payload.sport_key,
-            market_param,
+            discovery_market_param,
             regions,
         )
         # Fetch real odds from API
@@ -1391,7 +1427,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             api_key=api_key,
             sport_key=payload.sport_key,
             regions=regions,
-            markets=market_param,
+            markets=discovery_market_param,
             bookmaker_keys=bookmaker_keys,
             team=payload.team,
             use_dummy_data=False,
@@ -1418,37 +1454,29 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
                 len(events),
             )
 
-        # Filter by player name if specified
-        if payload.player_name:
-            before_player_filter = len(events)
-            filtered_events = []
-            markets_set = set(market_keys)
-            player_lower = payload.player_name.lower()
-            for event in events:
-                found_player = False
-                for bookmaker in event.get("bookmakers", []):
-                    for market in bookmaker.get("markets", []):
-                        if market.get("key") not in markets_set:
-                            continue
-                        for outcome in market.get("outcomes", []):
-                            description = outcome.get("description", "")
-                            if description and player_lower in description.lower():
-                                filtered_events.append(event)
-                                found_player = True
-                                break
-                        if found_player:
-                            break
-                    if found_player:
-                        break
-            events = filtered_events
-            logger.info(
-                "Filtered player props events by player '%s': %d -> %d",
-                payload.player_name,
-                before_player_filter,
-                len(events),
-            )
-
     logger.info("Collected %d player props events before pricing", len(events))
+
+    all_markets_seen, comparable_markets = _collect_available_markets(events)
+
+    if payload.sport_key in ("basketball_nba", "americanfootball_nfl"):
+        logger.info(
+            "Available player prop markets for %s: %s",
+            payload.sport_key,
+            ", ".join(sorted(all_markets_seen)) if all_markets_seen else "(none)",
+        )
+
+    logger.info(
+        "Markets with prices from both %s and %s: %s",
+        target_book,
+        compare_book,
+        ", ".join(sorted(comparable_markets)) if comparable_markets else "(none)",
+    )
+
+    markets_to_process = [m for m in requested_markets if m in comparable_markets]
+    if not markets_to_process:
+        markets_to_process = [m for m in requested_markets if m in all_markets_seen]
+    if not markets_to_process:
+        markets_to_process = requested_markets
 
     if not events:
         detail_parts = [
@@ -1457,8 +1485,6 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         ]
         if payload.team:
             detail_parts.append(f"team={payload.team}")
-        if payload.player_name:
-            detail_parts.append(f"player={payload.player_name}")
 
         message = "No player props lines found for " + ", ".join(detail_parts)
         logger.warning(message)
@@ -1467,7 +1493,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     all_filtered: List[ValuePlayOutcome] = []
     now_utc = datetime.now(timezone.utc)
 
-    for market_key in market_keys:
+    for market_key in markets_to_process:
         raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
 
         logger.info(
@@ -1475,12 +1501,6 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             len(raw_plays),
             market_key,
         )
-
-        if payload.player_name:
-            raw_plays = [
-                p for p in raw_plays
-                if payload.player_name.lower() in p.outcome_name.lower()
-            ]
 
         for p in raw_plays:
             if not p.start_time:
@@ -1514,7 +1534,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     return PlayerPropsResponse(
         target_book=target_book,
         compare_book=compare_book,
-        markets=market_keys,
+        markets=markets_to_process,
         plays=top_plays,
     )
 
