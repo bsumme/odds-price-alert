@@ -172,12 +172,7 @@ class PlayerPropsRequest(BaseModel):
 
     # Map legacy or alias markets to their canonical names
     PLAYER_PROP_MARKET_ALIASES: ClassVar[Dict[str, str]] = {
-        "player_reception_yards": "player_rec_yards",  # legacy name
-        "player_receiving_yards": "player_rec_yards",  # align to Odds API key
-        "player_passing_yards": "player_pass_yards",
-        "player_rushing_yards": "player_rush_yards",
-        "player_passing_tds": "player_pass_tds",
-        "player_touchdowns": "player_td_anytime",
+        "player_reception_yards": "player_receiving_yards",
     }
 
     # Define the supported player prop markets for each sport
@@ -189,11 +184,11 @@ class PlayerPropsRequest(BaseModel):
             "player_threes",
         ],
         "americanfootball_nfl": [
-            "player_pass_yards",
-            "player_rec_yards",
-            "player_rush_yards",
-            "player_td_anytime",
-            "player_pass_tds",
+            "player_passing_yards",
+            "player_receiving_yards",
+            "player_rushing_yards",
+            "player_touchdowns",
+            "player_passing_tds",
         ],
     }
 
@@ -547,11 +542,11 @@ def generate_dummy_player_props_data(
         "player_assists": (5.5, 12.5),
         "player_rebounds": (8.5, 15.5),
         "player_threes": (2.5, 6.5),
-        "player_rec_yards": (50.5, 120.5),
-        "player_pass_yards": (200.5, 350.5),
-        "player_rush_yards": (50.5, 120.5),
-        "player_td_anytime": (0.5, 2.5),
-        "player_pass_tds": (1.5, 3.5),
+        "player_receiving_yards": (50.5, 120.5),
+        "player_passing_yards": (200.5, 350.5),
+        "player_rushing_yards": (50.5, 120.5),
+        "player_touchdowns": (0.5, 2.5),
+        "player_passing_tds": (1.5, 3.5),
     }
 
     default_range = (20.5, 35.5)
@@ -926,11 +921,11 @@ def collect_value_plays(
                 "player_assists": "assists",
                 "player_rebounds": "rebounds",
                 "player_threes": "3-pointers",
-                "player_rec_yards": "receiving yards",
-                "player_pass_yards": "passing yards",
-                "player_rush_yards": "rushing yards",
-                "player_td_anytime": "touchdowns",
-                "player_pass_tds": "passing TDs",
+                "player_receiving_yards": "receiving yards",
+                "player_passing_yards": "passing yards",
+                "player_rushing_yards": "rushing yards",
+                "player_touchdowns": "touchdowns",
+                "player_passing_tds": "passing TDs",
             }
             if is_player_prop and description:
                 line_suffix = ""
