@@ -334,19 +334,46 @@
             margin-left: 0.25rem;
         }
 
-        .odds-plus {
-            color: #22c55e;
+        .odds-chip {
+            display: inline-block;
+            padding: 0.1rem 0.45rem;
+            border-radius: 0.4rem;
             font-weight: 700;
+        }
+
+        .odds-plus-strong {
+            background: #14532d;
+            color: #bbf7d0;
+        }
+
+        .odds-plus {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .odds-plus-light {
+            background: #15803d;
+            color: #dcfce7;
+        }
+
+        .odds-favorite-strong {
+            background: #7f1d1d;
+            color: #fecdd3;
         }
 
         .odds-favorite {
-            color: #f87171;
-            font-weight: 700;
+            background: #991b1b;
+            color: #fecaca;
+        }
+
+        .odds-favorite-light {
+            background: #b91c1c;
+            color: #fee2e2;
         }
 
         .odds-neutral {
-            color: #d1d5db;
-            font-weight: 700;
+            background: #374151;
+            color: #e5e7eb;
         }
 
 
@@ -658,17 +685,28 @@
                 return "";
             }
 
-            if (numOdds >= 150) return "odds-plus"; // Big plus money
-            if (numOdds >= -125 && numOdds <= -95) return "odds-neutral"; // Close to -110
-            if (numOdds < 0) return "odds-favorite"; // Negative money favorites
-            return "";
+            const absOdds = Math.abs(numOdds);
+
+            if (absOdds <= 115) return "odds-neutral"; // Around even (-110 to +110)
+
+            if (numOdds > 0) {
+                if (numOdds >= 350) return "odds-plus-strong"; // Longshots
+                if (numOdds >= 200) return "odds-plus"; // Strong plus money
+                if (numOdds >= 120) return "odds-plus-light"; // Mild plus money
+                return "odds-neutral";
+            }
+
+            if (numOdds <= -350) return "odds-favorite-strong"; // Heavy favorites
+            if (numOdds <= -200) return "odds-favorite"; // Strong favorites
+            if (numOdds <= -120) return "odds-favorite-light"; // Mild favorites
+            return "odds-neutral";
         }
 
         function formatOddsWithColor(odds) {
             const formatted = formatOdds(odds);
             const className = getOddsColorClass(odds);
             if (!className) return formatted;
-            return `<span class="${className}">${formatted}</span>`;
+            return `<span class="odds-chip ${className}">${formatted}</span>`;
         }
 
         function renderBetList() {
