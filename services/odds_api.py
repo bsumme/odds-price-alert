@@ -150,17 +150,8 @@ def fetch_player_props(
 
     events: List[Dict[str, Any]] = events_response.json()
     if team:
-        team_lower = team.lower()
-
-        def _matches_team(event_team: str) -> bool:
-            team_name = event_team.lower()
-            return team_lower in team_name or team_name in team_lower
-
         events = [
-            e
-            for e in events
-            if _matches_team(e.get("home_team", ""))
-            or _matches_team(e.get("away_team", ""))
+            e for e in events if team in (e.get("home_team", ""), e.get("away_team", ""))
         ]
         logger.info("Filtered events by team '%s': %d remaining", team, len(events))
 
