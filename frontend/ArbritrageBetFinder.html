@@ -439,6 +439,39 @@
             font-weight: 800;
         }
 
+        .bet-pair-container {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
+
+        .bet-block {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 0.6rem;
+            min-width: 220px;
+            flex: 1 1 220px;
+        }
+
+        .bet-block-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: #cbd5e1;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.35rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .bet-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
         .badge {
             display: inline-block;
             border-radius: 999px;
@@ -751,8 +784,7 @@
                         <thead>
                             <tr>
                                 <th>Sport</th>
-                                <th>Recommended Bet</th>
-                                <th>Hedge Bet</th>
+                                <th>Target &amp; Hedge Bets</th>
                                 <th>Start Time</th>
                                 <th>Arbitrage Margin</th>
                                 <th>Compare Price</th>
@@ -1768,7 +1800,7 @@
                 sportCell.textContent = sportLabels[play.sport_key] || play.sport_key;
                 tr.appendChild(sportCell);
 
-                const bookCell = document.createElement("td");
+                const betsCell = document.createElement("td");
                 const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
                 let teamName = parseTeamFromOutcome(play.outcome_name);
@@ -1782,13 +1814,22 @@
                     // Use the first team (away team) for the logo
                     logoTeamName = teams.away || teams.home || null;
                 }
-                
-                // Create container for recommended bet with logo
-                const betContainer = document.createElement("div");
-                betContainer.style.display = "flex";
-                betContainer.style.alignItems = "center";
-                betContainer.style.gap = "0.4rem";
-                
+
+                const betPairContainer = document.createElement("div");
+                betPairContainer.className = "bet-pair-container";
+
+                // Target bet block
+                const targetBlock = document.createElement("div");
+                targetBlock.className = "bet-block";
+
+                const targetLabelEl = document.createElement("div");
+                targetLabelEl.className = "bet-block-label";
+                targetLabelEl.textContent = "Target Bet";
+                targetBlock.appendChild(targetLabelEl);
+
+                const targetRow = document.createElement("div");
+                targetRow.className = "bet-row";
+
                 // Add logo if we have a team name
                 if (logoTeamName) {
                     const logo = document.createElement("img");
@@ -1798,9 +1839,9 @@
                     logo.onerror = function() {
                         this.style.display = "none";
                     };
-                    betContainer.appendChild(logo);
+                    targetRow.appendChild(logo);
                 }
-                
+
                 // Add bet description
                 const betText = document.createElement("span");
                 let betDescription = "";
@@ -1818,19 +1859,29 @@
                         betDescription += ` ${play.point > 0 ? "+" : ""}${play.point}`;
                     }
                 }
-                betText.innerHTML = `<strong>${betDescription} <span class="odds-highlight">${formattedOdds}</span></strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
-                betContainer.appendChild(betText);
+                betText.innerHTML = `<div><strong>${betDescription} <span class="odds-highlight">${formattedOdds}</span></strong></div><div class="small-text">@ ${targetBookLabel}</div>`;
+                targetRow.appendChild(betText);
 
-                bookCell.appendChild(betContainer);
-                tr.appendChild(bookCell);
+                targetBlock.appendChild(targetRow);
+                betPairContainer.appendChild(targetBlock);
 
-                const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined && play.novig_reverse_name) {
+                    const hedgeBlock = document.createElement("div");
+                    hedgeBlock.className = "bet-block";
+
+                    const hedgeLabelEl = document.createElement("div");
+                    hedgeLabelEl.className = "bet-block-label";
+                    hedgeLabelEl.textContent = "Hedge Bet";
+                    hedgeBlock.appendChild(hedgeLabelEl);
+
+                    const hedgeRow = document.createElement("div");
+                    hedgeRow.className = "bet-row";
+
                     const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
 
                     // Parse the opposite side name to format it properly
                     let oppositeTeamName = parseTeamFromOutcome(play.novig_reverse_name);
-                    const marketLabel = marketLabels[play.market] || play.market;
+                    const hedgeMarketLabel = marketLabels[play.market] || play.market;
                     
                     // Format the opposite side bet description
                     let hedgeDescription = "";
@@ -1839,7 +1890,7 @@
                         hedgeDescription = play.novig_reverse_name;
                     } else if (play.market === "spreads") {
                         // For spreads, format as "Team Spread +/-X"
-                        hedgeDescription = `${oppositeTeamName || ""} ${marketLabel === "Spreads" ? "Spread" : marketLabel}`;
+                        hedgeDescription = `${oppositeTeamName || ""} ${hedgeMarketLabel === "Spreads" ? "Spread" : hedgeMarketLabel}`;
                         if (play.point !== null && play.point !== undefined) {
                             // For spreads, the opposite side has the opposite point
                             const oppositePoint = -play.point;
@@ -1849,12 +1900,17 @@
                         // For moneylines, format as "Team ML"
                         hedgeDescription = `${oppositeTeamName || ""} ML`;
                     }
-                    
-                    hedgeCell.innerHTML = `<strong>${hedgeDescription} <span class="odds-highlight">${formattedHedgeOdds}</span></strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
-                } else {
-                    hedgeCell.innerHTML = '<span class="small-text">-</span>';
+
+                    const hedgeText = document.createElement("span");
+                    hedgeText.innerHTML = `<div><strong>${hedgeDescription} <span class="odds-highlight">${formattedHedgeOdds}</span></strong></div><div class="small-text">@ ${compareBookLabel}</div>`;
+
+                    hedgeRow.appendChild(hedgeText);
+                    hedgeBlock.appendChild(hedgeRow);
+                    betPairContainer.appendChild(hedgeBlock);
                 }
-                tr.appendChild(hedgeCell);
+
+                betsCell.appendChild(betPairContainer);
+                tr.appendChild(betsCell);
 
                 const startCell = document.createElement("td");
                 startCell.textContent = formatStartTime(play.start_time);
