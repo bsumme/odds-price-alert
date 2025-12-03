@@ -346,8 +346,8 @@
                             <th>Start Time</th>
                             <th>Line</th>
                             <th>Target Book</th>
-                            <th>Compare Book</th>
                             <th>Hedge Bet</th>
+                            <th>Compare Book</th>
                             <th>Arbitrage Margin</th>
                             <th>EV%</th>
                         </tr>
@@ -616,12 +616,6 @@
                 targetCell.innerHTML = `<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(targetCell);
 
-                const compareCell = document.createElement("td");
-                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatOdds(play.novig_price);
-                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
-                tr.appendChild(compareCell);
-
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_name && play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
                     const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
@@ -630,6 +624,12 @@
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(hedgeCell);
+
+                const compareCell = document.createElement("td");
+                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
+                const formattedCompareOdds = formatOdds(play.novig_price);
+                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
+                tr.appendChild(compareCell);
 
                 const arbCell = document.createElement("td");
                 if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
