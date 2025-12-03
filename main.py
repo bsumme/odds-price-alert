@@ -722,6 +722,10 @@ def collect_value_plays(
                 # -110 to unrealistic values (e.g., -300) after vig adjustments.
                 adjusted_price = price
                 adjusted_price = max(-150, min(150, adjusted_price))
+            elif is_player_prop:
+                # For player props, keep the raw price so we display the true odds
+                # from the sportsbook instead of an exaggerated vig-adjusted number.
+                adjusted_price = price
             else:
                 # Apply vig adjustment to target book odds (makes them less favorable)
                 adjusted_price = apply_vig_adjustment(price, target_book)
@@ -804,10 +808,24 @@ def collect_value_plays(
                     is_arb = True
 
 
-            # For player props, include player name in outcome_name
+            # For player props, include player name and line in outcome_name
             outcome_display_name = name
+            player_prop_units = {
+                "player_points": "points",
+                "player_assists": "assists",
+                "player_rebounds": "rebounds",
+                "player_reception_yards": "reception yards",
+                "player_passing_yards": "passing yards",
+                "player_rushing_yards": "rushing yards",
+                "player_touchdowns": "touchdowns",
+            }
             if is_player_prop and description:
-                outcome_display_name = f"{description} {name}"
+                line_suffix = ""
+                if point is not None:
+                    stat_unit = player_prop_units.get(market_key, "")
+                    stat_label = f" {stat_unit}" if stat_unit else ""
+                    line_suffix = f" {point}{stat_label}"
+                outcome_display_name = f"{description} {name}{line_suffix}"
             # For totals, include the point value in outcome_name (e.g., "Over 225.5")
             elif market_key == "totals" and point is not None:
                 outcome_display_name = f"{name} {point}"
@@ -815,7 +833,16 @@ def collect_value_plays(
             reverse_display_name = novig_reverse_name
             if is_player_prop and other_compare and other_compare.get("description"):
                 reverse_desc = other_compare.get("description")
-                reverse_display_name = f"{reverse_desc} {novig_reverse_name}" if novig_reverse_name else None
+                reverse_line_suffix = ""
+                if point is not None:
+                    stat_unit = player_prop_units.get(market_key, "")
+                    stat_label = f" {stat_unit}" if stat_unit else ""
+                    reverse_line_suffix = f" {point}{stat_label}"
+                reverse_display_name = (
+                    f"{reverse_desc} {novig_reverse_name}{reverse_line_suffix}"
+                    if novig_reverse_name
+                    else None
+                )
             # For totals, include the point value in reverse outcome_name
             elif market_key == "totals" and novig_reverse_name and point is not None:
                 reverse_display_name = f"{novig_reverse_name} {point}"
