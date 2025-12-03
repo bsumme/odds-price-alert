@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 import requests
 from fastapi import HTTPException
@@ -116,19 +116,50 @@ def fetch_player_props(
     regions: str,
     markets: str,
     bookmaker_keys: List[str],
+    team: Optional[str] = None,
     use_dummy_data: bool = False,
     dummy_data_generator=None,
 ) -> List[Dict[str, Any]]:
     """
-    Call the dedicated player props endpoint (/v4/sports/{sport_key}/player_props).
+    Retrieve player prop markets by first fetching events, then requesting event odds.
 
-    Player prop markets (e.g., player_points, player_assists) are not supported by the
-    standard odds endpoint and must use this route instead.
+    The Odds API serves player props through the event odds endpoint rather than a
+    dedicated player props route. We fetch the list of events for the sport, optionally
+    filter by team, and then request odds for each event with the desired player prop
+    markets enabled.
     """
     if use_dummy_data and dummy_data_generator:
         return dummy_data_generator(sport_key, markets, bookmaker_keys)
 
-    params = {
+    events_url = f"{BASE_URL}/sports/{sport_key}/events"
+    logger.info("Fetching events for player props: url=%s", events_url)
+    events_response = requests.get(events_url, params={"apiKey": api_key}, timeout=15)
+    if events_response.status_code != 200:
+        logger.error(
+            "Player props events API error: status=%s body=%s",
+            events_response.status_code,
+            events_response.text,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Error fetching events from The Odds API: "
+                f"{events_response.status_code}, {events_response.text}"
+            ),
+        )
+
+    events: List[Dict[str, Any]] = events_response.json()
+    if team:
+        events = [
+            e for e in events if team in (e.get("home_team", ""), e.get("away_team", ""))
+        ]
+        logger.info("Filtered events by team '%s': %d remaining", team, len(events))
+
+    if not events:
+        logger.info("No events found for sport=%s after filtering; returning empty list", sport_key)
+        return []
+
+    odds_params = {
         "apiKey": api_key,
         "regions": regions,
         "markets": markets,
@@ -136,31 +167,46 @@ def fetch_player_props(
         "bookmakers": ",".join(bookmaker_keys),
     }
 
-    url = f"{BASE_URL}/sports/{sport_key}/player_props"
-    logger.info(
-        "Calling The Odds API player_props: url=%s regions=%s markets=%s bookmakers=%s",
-        url,
-        regions,
-        markets,
-        bookmaker_keys,
-    )
-    response = requests.get(url, params=params, timeout=15)
-    if response.status_code != 200:
-        logger.error(
-            "Player props API error: status=%s body=%s",
-            response.status_code,
-            response.text,
-        )
-        raise HTTPException(
-            status_code=502,
-            detail=f"Error from The Odds API: {response.status_code}, {response.text}",
-        )
+    collected_events: List[Dict[str, Any]] = []
+    for event in events:
+        event_id = event.get("id")
+        if not event_id:
+            logger.warning("Skipping event without id: %s", event)
+            continue
 
-    data: List[Dict[str, Any]] = response.json()
+        event_url = f"{BASE_URL}/sports/{sport_key}/events/{event_id}/odds"
+        logger.info(
+            "Calling event odds for player props: url=%s event_id=%s regions=%s markets=%s bookmakers=%s",
+            event_url,
+            event_id,
+            regions,
+            markets,
+            bookmaker_keys,
+        )
+        response = requests.get(event_url, params=odds_params, timeout=15)
+        if response.status_code != 200:
+            logger.error(
+                "Event odds API error for player props: status=%s body=%s",
+                response.status_code,
+                response.text,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Error from The Odds API when fetching player props: "
+                    f"{response.status_code}, {response.text}"
+                ),
+            )
+
+        event_data = response.json()
+        if isinstance(event_data, list):
+            collected_events.extend(event_data)
+        else:
+            collected_events.append(event_data)
 
     logger.info(
         "Player props API returned %d events for sport=%s market=%s",
-        len(data),
+        len(collected_events),
         sport_key,
         markets,
     )
@@ -170,11 +216,11 @@ def fetch_player_props(
         regions=regions,
         markets=markets,
         bookmaker_keys=bookmaker_keys,
-        payload=data,
-        endpoint="player_props",
+        payload=collected_events,
+        endpoint="event_player_props",
     )
 
-    return data
+    return collected_events
 
 
 
