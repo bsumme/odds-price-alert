@@ -326,18 +326,16 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Outcome (Book)</th>
-                            <th>Matchup</th>
+                            <th>Sport</th>
+                            <th>Recommended Bet</th>
+                            <th>Hedge Bet</th>
+                            <th>Arbitrage Margin</th>
                             <th>Start Time</th>
-                            <th>Opposite Side</th>
-                            <th>Hedge Price</th>
-                            <th>Book Price</th>
-                            <th>EV% (approx)</th>
                         </tr>
                     </thead>
                     <tbody id="results-body">
                         <tr>
-                            <td colspan="7" class="small-text">No results yet.</td>
+                            <td colspan="5" class="small-text">No results yet.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -393,7 +391,7 @@
 
         function clearResults() {
             const body = document.getElementById("results-body");
-            body.innerHTML = '<tr><td colspan="7" class="small-text">No results yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="5" class="small-text">No results yet.</td></tr>';
             setSummary("");
         }
 
@@ -555,62 +553,52 @@
 
             if (!data || !data.plays || data.plays.length === 0) {
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || "comparison book";
-                body.innerHTML = `<tr><td colspan="7" class="small-text">No value plays found (maybe market is empty or ${compareBookLabel} not available).</td></tr>`;
+                body.innerHTML = `<tr><td colspan="5" class="small-text">No value plays found (maybe market is empty or ${compareBookLabel} not available).</td></tr>`;
                 return;
             }
+
+            const sportLabel = document.querySelector("#sport-select option:checked")?.textContent || data.sport_key || "";
+            const targetBookLabel = document.querySelector("#book-select option:checked")?.textContent || data.target_book || "Target";
+            const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
 
             data.plays.forEach(play => {
                 const tr = document.createElement("tr");
 
-                const outcomeCell = document.createElement("td");
+                const sportCell = document.createElement("td");
+                sportCell.textContent = sportLabel;
+                tr.appendChild(sportCell);
+
+                const recommendedCell = document.createElement("td");
                 let outcomeText = play.outcome_name;
                 if (play.point !== null && play.point !== undefined) {
                     outcomeText += " @ " + play.point;
                 }
-                outcomeCell.textContent = outcomeText;
-                tr.appendChild(outcomeCell);
-
-                const matchupCell = document.createElement("td");
-                matchupCell.textContent = play.matchup || "";
-                tr.appendChild(matchupCell);
-
-                const startCell = document.createElement("td");
-                startCell.textContent = play.start_time || "";
-                tr.appendChild(startCell);
-
-                const compareCell = document.createElement("td");
-                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatOddsWithColor(play.novig_price);
-                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
-                tr.appendChild(compareCell);
-
-                const oppCell = document.createElement("td");
-                if (play.novig_reverse_name) {
-                    oppCell.textContent = play.novig_reverse_name;
-                } else {
-                    oppCell.innerHTML = '<span class="small-text">-</span>';
-                }
-                tr.appendChild(oppCell);
+                const formattedBookOdds = formatOddsWithColor(play.book_price);
+                recommendedCell.innerHTML = `<strong>${outcomeText}</strong><br>${formattedBookOdds}<br><span class="small-text">@ ${targetBookLabel}</span>`;
+                tr.appendChild(recommendedCell);
 
                 const hedgeCell = document.createElement("td");
-                if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
+                if (play.novig_reverse_name && play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
                     const formattedHedgeOdds = formatOddsWithColor(play.novig_reverse_price);
-                    hedgeCell.innerHTML = formattedHedgeOdds;
+                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name}</strong><br>${formattedHedgeOdds}<br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(hedgeCell);
 
-                const bookCell = document.createElement("td");
-                const formattedBookOdds = formatOddsWithColor(play.book_price);
-                bookCell.innerHTML = formattedBookOdds;
-                tr.appendChild(bookCell);
+                const arbCell = document.createElement("td");
+                if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
+                    const arbRounded = Math.round(play.arb_margin_percent * 100) / 100;
+                    const badgeClass = arbRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                    arbCell.innerHTML = `<span class="${badgeClass}">${arbRounded}%</span>`;
+                } else {
+                    arbCell.innerHTML = '<span class="small-text">-</span>';
+                }
+                tr.appendChild(arbCell);
 
-                const evCell = document.createElement("td");
-                const evRounded = Math.round(play.ev_percent * 100) / 100;
-                let badgeClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
-                evCell.innerHTML = `<span class="${badgeClass}">${evRounded}%</span>`;
-                tr.appendChild(evCell);
+                const startCell = document.createElement("td");
+                startCell.textContent = play.start_time || "";
+                tr.appendChild(startCell);
 
                 body.appendChild(tr);
             });

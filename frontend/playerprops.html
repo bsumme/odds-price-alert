@@ -356,20 +356,15 @@
                     <thead>
                         <tr>
                             <th>Player & Prop</th>
-                            <th>Market</th>
-                            <th>Matchup</th>
-                            <th>Start Time</th>
-                            <th>Line</th>
-                            <th>Target Book</th>
+                            <th>Recommended Bet</th>
                             <th>Hedge Bet</th>
-                            <th>Compare Book</th>
                             <th>Arbitrage Margin</th>
-                            <th>EV%</th>
+                            <th>Start Time</th>
                         </tr>
                     </thead>
                     <tbody id="results-body">
                         <tr>
-                            <td colspan="10" class="small-text">No results yet.</td>
+                            <td colspan="5" class="small-text">No results yet.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -545,7 +540,7 @@
 
         function clearResults() {
             const body = document.getElementById("results-body");
-            body.innerHTML = '<tr><td colspan="10" class="small-text">No results yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="5" class="small-text">No results yet.</td></tr>';
             setSummary("");
         }
 
@@ -616,54 +611,36 @@
             body.innerHTML = "";
 
             if (!data || !data.plays || data.plays.length === 0) {
-                body.innerHTML = '<tr><td colspan="10" class="small-text">No player prop value plays found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="5" class="small-text">No player prop value plays found.</td></tr>';
                 return;
             }
+
+            const targetBookLabel = document.querySelector("#target-book-select option:checked")?.textContent || data.target_book || "Target";
+            const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
 
             data.plays.forEach(play => {
                 const tr = document.createElement("tr");
 
                 const playerCell = document.createElement("td");
-                playerCell.textContent = play.outcome_name || "";
+                const marketLabel = getMarketLabel(play.market || "");
+                const lineText = play.point !== null && play.point !== undefined ? ` @ ${play.point}` : "";
+                playerCell.innerHTML = `<strong>${play.outcome_name || ""}</strong><br><span class="small-text">${marketLabel}${lineText}</span>`;
                 tr.appendChild(playerCell);
 
-                const marketCell = document.createElement("td");
-                const marketLabel = getMarketLabel(play.market || "");
-                marketCell.textContent = marketLabel;
-                tr.appendChild(marketCell);
-
-                const matchupCell = document.createElement("td");
-                matchupCell.textContent = play.matchup || "";
-                tr.appendChild(matchupCell);
-
-                const startCell = document.createElement("td");
-                startCell.textContent = play.start_time || "";
-                tr.appendChild(startCell);
-
-                const lineCell = document.createElement("td");
-                lineCell.textContent = play.point !== null && play.point !== undefined ? play.point : "-";
-                tr.appendChild(lineCell);
-
                 const targetCell = document.createElement("td");
-                const targetBookLabel = document.querySelector("#target-book-select option:checked")?.textContent || data.target_book || "Target";
                 const formattedTargetOdds = formatOddsWithColor(play.book_price);
-                targetCell.innerHTML = `<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
+                const matchupText = play.matchup ? `<span class="small-text">${play.matchup}</span><br>` : "";
+                targetCell.innerHTML = `${matchupText}<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(targetCell);
 
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_name && play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
                     const formattedHedgeOdds = formatOddsWithColor(play.novig_reverse_price);
-                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name} ${formattedHedgeOdds}</strong>`;
+                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name}</strong><br>${formattedHedgeOdds}<br><span class="small-text">@ ${compareBookLabel}</span>`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }
                 tr.appendChild(hedgeCell);
-
-                const compareCell = document.createElement("td");
-                const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const formattedCompareOdds = formatOddsWithColor(play.novig_price);
-                compareCell.innerHTML = `<strong>${formattedCompareOdds}</strong><br><span class="small-text">@ ${compareBookLabel}</span>`;
-                tr.appendChild(compareCell);
 
                 const arbCell = document.createElement("td");
                 if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
@@ -675,11 +652,9 @@
                 }
                 tr.appendChild(arbCell);
 
-                const evCell = document.createElement("td");
-                const evRounded = Math.round(play.ev_percent * 100) / 100;
-                const evClass = evRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
-                evCell.innerHTML = `<span class="${evClass}">${evRounded}%</span>`;
-                tr.appendChild(evCell);
+                const startCell = document.createElement("td");
+                startCell.textContent = play.start_time || "";
+                tr.appendChild(startCell);
 
                 body.appendChild(tr);
             });
