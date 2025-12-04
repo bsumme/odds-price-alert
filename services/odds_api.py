@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -132,6 +133,26 @@ def fetch_sport_events(api_key: str, sport_key: str) -> List[Dict[str, Any]]:
     return response.json()
 
 
+def _parse_invalid_markets(error_text: str) -> List[str]:
+    """Extract the rejected market keys from a 422 error payload."""
+
+    try:
+        parsed = json.loads(error_text)
+        message = parsed.get("message", "") if isinstance(parsed, dict) else ""
+    except Exception:
+        message = ""
+
+    if not message:
+        message = error_text or ""
+
+    match = re.search(r"Invalid markets:\s*([^\"]+)", message)
+    if not match:
+        return []
+
+    markets_raw = match.group(1)
+    return [m.strip() for m in markets_raw.split(",") if m.strip()]
+
+
 def fetch_player_props(
     api_key: str,
     sport_key: str,
@@ -203,6 +224,8 @@ def fetch_player_props(
         if not events:
             return []
 
+    requested_markets: List[str] = [m.strip() for m in markets.split(",") if m.strip()]
+
     odds_params = {
         "apiKey": api_key,
         "regions": regions,
@@ -211,7 +234,7 @@ def fetch_player_props(
         "bookmakers": ",".join(bookmaker_keys),
     }
 
-    def _fetch_player_props_via_odds_endpoint() -> List[Dict[str, Any]]:
+    def _fetch_player_props_via_odds_endpoint(markets_param: str) -> List[Dict[str, Any]]:
         """
         Fallback to the sport odds endpoint when the event odds endpoint rejects
         player prop markets (e.g., returns INVALID_MARKET 422 errors).
@@ -219,14 +242,14 @@ def fetch_player_props(
         logger.warning(
             "Falling back to /odds endpoint for player props: sport=%s markets=%s",
             sport_key,
-            markets,
+            markets_param,
         )
         try:
             fallback_events = fetch_odds(
                 api_key=api_key,
                 sport_key=sport_key,
                 regions=regions,
-                markets=markets,
+                markets=markets_param,
                 bookmaker_keys=bookmaker_keys,
                 use_dummy_data=False,
             )
@@ -248,7 +271,7 @@ def fetch_player_props(
         _log_real_api_response(
             sport_key=sport_key,
             regions=regions,
-            markets=markets,
+            markets=markets_param,
             bookmaker_keys=bookmaker_keys,
             payload=fallback_events,
             endpoint="odds_player_props_fallback",
@@ -257,6 +280,8 @@ def fetch_player_props(
         return fallback_events
 
     collected_events: List[Dict[str, Any]] = []
+    active_markets: List[str] = list(requested_markets)
+
     for event in events:
         event_id = event.get("id")
         if not event_id:
@@ -264,23 +289,47 @@ def fetch_player_props(
             continue
 
         event_url = f"{BASE_URL}/sports/{sport_key}/events/{event_id}/odds"
+        odds_params["markets"] = ",".join(active_markets)
+
         logger.info(
             "Calling event odds for player props: url=%s event_id=%s regions=%s markets=%s bookmakers=%s",
             event_url,
             event_id,
             regions,
-            markets,
+            odds_params["markets"],
             bookmaker_keys,
         )
         response = requests.get(event_url, params=odds_params, timeout=15)
+
+        if response.status_code == 422:
+            invalid_markets = _parse_invalid_markets(response.text)
+            if invalid_markets:
+                active_markets = [m for m in active_markets if m not in invalid_markets]
+                logger.warning(
+                    "Retrying player props for event %s without invalid markets: %s",
+                    event_id,
+                    ",".join(sorted(invalid_markets)),
+                )
+
+                if not active_markets:
+                    logger.error(
+                        "All requested player prop markets were rejected for event %s; skipping",
+                        event_id,
+                    )
+                    continue
+
+                odds_params["markets"] = ",".join(active_markets)
+                response = requests.get(event_url, params=odds_params, timeout=15)
+
+            if response.status_code == 422 and "Invalid markets" in response.text:
+                return _fetch_player_props_via_odds_endpoint(odds_params["markets"])
+
         logger.info(
             "Event odds API response for player props (event_id=%s): status=%s body=%s",
             event_id,
             response.status_code,
             response.text,
         )
-        if response.status_code == 422 and "Invalid markets" in response.text:
-            return _fetch_player_props_via_odds_endpoint()
 
         if response.status_code != 200:
             logger.error(
@@ -306,13 +355,13 @@ def fetch_player_props(
         "Player props API returned %d events for sport=%s market=%s",
         len(collected_events),
         sport_key,
-        markets,
+        odds_params.get("markets", markets),
     )
 
     _log_real_api_response(
         sport_key=sport_key,
         regions=regions,
-        markets=markets,
+        markets=odds_params.get("markets", markets),
         bookmaker_keys=bookmaker_keys,
         payload=collected_events,
         endpoint="event_player_props",

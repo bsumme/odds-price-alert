@@ -952,6 +952,11 @@
         }
 
         window.addEventListener("DOMContentLoaded", () => {
+            // Ensure the odds format radios are always clickable
+            document.querySelectorAll('input[name="odds-format"]').forEach(r => {
+                r.disabled = false;
+            });
+
             // Load and setup odds format toggle
             const savedFormat = localStorage.getItem("oddsFormat") || "american";
             const formatRadios = document.querySelectorAll('input[name="odds-format"]');
