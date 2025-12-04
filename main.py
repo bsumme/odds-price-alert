@@ -183,9 +183,8 @@ class PlayerPropsRequest(BaseModel):
     # Map legacy or alias markets to their canonical names
     PLAYER_PROP_MARKET_ALIASES: ClassVar[Dict[str, str]] = {
         "player_passing_yards": "player_pass_yds",
-        "player_receiving_yards": "player_reception_yds",
-        "player_reception_yards": "player_reception_yds",
-        "player_rec_yds": "player_reception_yds",
+        "player_receiving_yards": "player_rec_yds",
+        "player_reception_yards": "player_rec_yds",
         "player_rushing_yards": "player_rush_yds",
         "player_touchdowns": "player_anytime_td",
         "player_passing_tds": "player_pass_tds",
@@ -201,7 +200,7 @@ class PlayerPropsRequest(BaseModel):
         ],
         "americanfootball_nfl": [
             "player_pass_yds",
-            "player_reception_yds",
+            "player_rec_yds",
             "player_rush_yds",
             "player_anytime_td",
             "player_pass_tds",
@@ -579,7 +578,7 @@ def generate_dummy_player_props_data(
         "player_assists": (5.5, 12.5),
         "player_rebounds": (8.5, 15.5),
         "player_threes": (2.5, 6.5),
-        "player_reception_yds": (50.5, 120.5),
+        "player_rec_yds": (50.5, 120.5),
         "player_pass_yds": (200.5, 350.5),
         "player_rush_yds": (50.5, 120.5),
         "player_anytime_td": (0.5, 2.5),
@@ -968,7 +967,7 @@ def collect_value_plays(
                 "player_assists": "assists",
                 "player_rebounds": "rebounds",
                 "player_threes": "3-pointers",
-                "player_reception_yds": "receiving yards",
+                "player_rec_yds": "receiving yards",
                 "player_pass_yds": "passing yards",
                 "player_rush_yds": "rushing yards",
                 "player_anytime_td": "touchdowns",

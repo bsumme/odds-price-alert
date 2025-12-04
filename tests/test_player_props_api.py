@@ -18,7 +18,7 @@ def test_player_props_returns_404_when_no_lines(monkeypatch):
 
     payload = main.PlayerPropsRequest(
         sport_key="americanfootball_nfl",
-        markets=["player_reception_yds"],
+        markets=["player_rec_yds"],
         target_book="fanduel",
         compare_book="novig",
         use_dummy_data=False,
@@ -43,7 +43,7 @@ def test_player_props_filters_by_event_id(monkeypatch):
 
     payload = main.PlayerPropsRequest(
         sport_key="americanfootball_nfl",
-        markets=["player_reception_yds"],
+        markets=["player_rec_yds"],
         target_book="fanduel",
         compare_book="novig",
         event_id="desired-event",
