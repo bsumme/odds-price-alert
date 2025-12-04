@@ -396,20 +396,24 @@
             font-weight: 800;
         }
 
-        .odds-hedge-strong {
-            color: #4ade80;
-        }
-
-        .odds-hedge-positive {
-            color: #bef264;
-        }
-
         .odds-hedge-neutral {
             color: #cbd5e1;
         }
 
-        .odds-hedge-negative {
+        .odds-hedge-light-green {
+            color: #4ade80;
+        }
+
+        .odds-hedge-dark-green {
+            color: #166534;
+        }
+
+        .odds-hedge-light-red {
             color: #f87171;
+        }
+
+        .odds-hedge-dark-red {
+            color: #7f1d1d;
         }
 
         .bet-cell {
@@ -1423,12 +1427,18 @@
             return numOdds > 0 ? `+${numOdds}` : String(numOdds);
         }
 
-        function getHedgeOddsClass(margin) {
-            if (margin === null || margin === undefined) return "odds-hedge-neutral";
-            if (margin >= 5) return "odds-hedge-strong";
-            if (margin >= 0) return "odds-hedge-positive";
-            if (margin >= -2) return "odds-hedge-neutral";
-            return "odds-hedge-negative";
+        function getOddsHighlightClass(odds) {
+            if (odds === null || odds === undefined) return "odds-hedge-neutral";
+
+            const numericOdds = typeof odds === "string" ? parseInt(odds, 10) : Number(odds);
+            if (Number.isNaN(numericOdds)) return "odds-hedge-neutral";
+
+            if (numericOdds <= -200) return "odds-hedge-dark-red";
+            if (numericOdds < -115) return "odds-hedge-light-red";
+            if (numericOdds >= 200) return "odds-hedge-dark-green";
+            if (numericOdds > 115) return "odds-hedge-light-green";
+
+            return "odds-hedge-neutral";
         }
 
         // Legacy function for backwards compatibility
@@ -1778,7 +1788,7 @@
                 hedgeCell.className = "bet-cell";
                 const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const oddsClass = getHedgeOddsClass(play.arb_margin_percent);
+                const betOddsClass = getOddsHighlightClass(play.book_price);
                 let teamName = parseTeamFromOutcome(play.outcome_name);
                 const marketLabel = marketLabels[play.market] || play.market;
                 const formattedOdds = formatOdds(play.book_price);
@@ -1819,7 +1829,7 @@
                         betDescription += ` ${play.point > 0 ? "+" : ""}${play.point}`;
                     }
                 }
-                betText.innerHTML = `<div><strong>${betDescription} <span class="odds-highlight ${oddsClass}">${formattedOdds}</span></strong></div><div class="small-text">@ ${targetBookLabel}</div>`;
+                betText.innerHTML = `<div><strong>${betDescription} <span class="odds-highlight ${betOddsClass}">${formattedOdds}</span></strong></div><div class="small-text">@ ${targetBookLabel}</div>`;
                 targetRow.appendChild(betText);
 
                 recommendedCell.appendChild(targetRow);
@@ -1830,6 +1840,7 @@
                     hedgeRow.className = "bet-row";
 
                     const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
+                    const hedgeOddsClass = getOddsHighlightClass(play.novig_reverse_price);
                     let oppositeTeamName = parseTeamFromOutcome(play.novig_reverse_name);
                     const hedgeMarketLabel = marketLabels[play.market] || play.market;
 
@@ -1848,7 +1859,7 @@
 
                     const hedgeText = document.createElement("div");
                     hedgeText.className = "bet-text";
-                    hedgeText.innerHTML = `<div><strong>${hedgeDescription} <span class="odds-highlight ${oddsClass}">${formattedHedgeOdds}</span></strong></div><div class="small-text">@ ${compareBookLabel}</div>`;
+                    hedgeText.innerHTML = `<div><strong>${hedgeDescription} <span class="odds-highlight ${hedgeOddsClass}">${formattedHedgeOdds}</span></strong></div><div class="small-text">@ ${compareBookLabel}</div>`;
 
                     hedgeRow.appendChild(hedgeText);
                     hedgeCell.appendChild(hedgeRow);
