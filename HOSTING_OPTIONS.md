@@ -54,7 +54,7 @@ This guide covers options for hosting your FastAPI application online so it can 
 
 6. **Access from iPhone**
    - Open Safari on iPhone
-   - Go to: `https://your-app.railway.app/ArbritrageBetFinder.html`
+   - Go to: `https://your-app.railway.app/ArbitrageBetFinder.html`
 
 ### Railway Configuration Files
 
@@ -106,7 +106,7 @@ web: uvicorn main:app --host 0.0.0.0 --port $PORT
    - Free tier: spins down after 15 min of inactivity (wakes up on next request)
 
 6. **Access**
-   - URL: `https://your-app.onrender.com/ArbritrageBetFinder.html`
+   - URL: `https://your-app.onrender.com/ArbitrageBetFinder.html`
 
 ## Alternative: Fly.io
 
@@ -159,7 +159,7 @@ web: uvicorn main:app --host 0.0.0.0 --port $PORT
    ```
 
 7. **Access**
-   - URL: `https://your-app.fly.dev/ArbritrageBetFinder.html`
+   - URL: `https://your-app.fly.dev/ArbitrageBetFinder.html`
 
 ## Alternative: PythonAnywhere
 
@@ -197,7 +197,7 @@ web: uvicorn main:app --host 0.0.0.0 --port $PORT
 
 6. **Reload Web App**
    - Click "Reload" button
-   - Access: `https://yourusername.pythonanywhere.com/ArbritrageBetFinder.html`
+   - Access: `https://yourusername.pythonanywhere.com/ArbitrageBetFinder.html`
 
 ## Alternative: Replit
 
@@ -215,7 +215,7 @@ web: uvicorn main:app --host 0.0.0.0 --port $PORT
 3. **Run**
    - Click "Run"
    - Replit provides a public URL
-   - Access: `https://your-repl-name.your-username.repl.co/ArbritrageBetFinder.html`
+   - Access: `https://your-repl-name.your-username.repl.co/ArbitrageBetFinder.html`
 
 ## Required Files for Hosting
 

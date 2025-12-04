@@ -605,7 +605,7 @@
             <div class="small-text">Compare sportsbook odds and uncover risk-free opportunities.</div>
         </div>
         <nav>
-            <a href="/ArbritrageBetFinder.html" class="active">Arbitrage Finder</a>
+            <a href="/ArbitrageBetFinder.html" class="active">Arbitrage Finder</a>
             <a href="/watcher.html">Watcher</a>
             <a href="/linetracker.html">Line Tracker</a>
             <a href="/value.html">Value Finder</a>
@@ -735,9 +735,13 @@
 
                 <label for="watcher-interval-input">Check interval (seconds)</label>
                 <input id="watcher-interval-input" type="number" min="30" max="300" step="10" value="60" />
-                
+
                 <label for="sms-phone-input" style="margin-top: 0.5rem;">SMS Phone (optional)</label>
                 <input id="sms-phone-input" type="tel" placeholder="5551234567" />
+
+                <label for="sms-threshold-input" style="margin-top: 0.5rem;">Min arbitrage margin for SMS (%)</label>
+                <input id="sms-threshold-input" type="number" step="0.1" value="0" />
+                <div class="small-text">Only send text alerts when arbitrage margin meets or exceeds this value.</div>
                 
                 <div style="margin-top: 0.5rem;">
                     <button class="btn btn-primary" id="start-watcher-btn">Start Watcher</button>
@@ -768,6 +772,7 @@
         let watcherTimer = null;
         let lastBestValueData = null;
         let alertedPlayIds = new Set(); // Track plays we've already alerted on
+        let smsAlertedPlayIds = new Set(); // Track plays that have triggered an SMS
 
         function formatStartTime(isoString) {
             if (!isoString) return "";
@@ -814,6 +819,12 @@
                 novig: "Novig"
             };
             return mapping[bookKey] || bookKey;
+        }
+
+        function getSmsMarginThreshold() {
+            const thresholdInput = document.getElementById("sms-threshold-input");
+            const value = thresholdInput ? Number(thresholdInput.value) : 0;
+            return Number.isNaN(value) ? 0 : value;
         }
 
         function buildLogFilename(markets, sports, targetBook, compareBook) {
@@ -1734,19 +1745,25 @@
             if (!plays || plays.length === 0) return;
 
             plays.forEach(play => {
+                const marginPercent = play.arb_margin_percent;
                 // Only alert for plays with arbitrage margin >= 0
-                if (play.arb_margin_percent !== null && 
-                    play.arb_margin_percent !== undefined && 
-                    play.arb_margin_percent >= 0 &&
+                if (marginPercent !== null &&
+                    marginPercent !== undefined &&
+                    marginPercent >= 0 &&
                     play.novig_reverse_price !== null &&
                     play.novig_reverse_price !== undefined) {
-                    
+
                     const playId = getPlayId(play);
-                    
+                    const meetsSmsThreshold = marginPercent >= getSmsMarginThreshold();
+
                     // Only alert if we haven't seen this play before
                     if (!alertedPlayIds.has(playId)) {
                         alertedPlayIds.add(playId);
                         showHedgeAlert(play);
+                    }
+
+                    if (meetsSmsThreshold && !smsAlertedPlayIds.has(playId)) {
+                        smsAlertedPlayIds.add(playId);
                         sendSMSAlert(play); // Send SMS alert
                     }
                 }
@@ -1889,7 +1906,8 @@
                 maxResults: document.getElementById("best-max-results-input").value,
                 dummyData: document.getElementById("dummy-data-checkbox").checked,
                 logResults: document.getElementById("log-results-checkbox").checked,
-                watcherInterval: document.getElementById("watcher-interval-input").value
+                watcherInterval: document.getElementById("watcher-interval-input").value,
+                smsThreshold: document.getElementById("sms-threshold-input").value
             };
             localStorage.setItem("arbitrageFinderSelections", JSON.stringify(selections));
         }
@@ -1934,6 +1952,9 @@
                 }
                 if (selections.watcherInterval) {
                     document.getElementById("watcher-interval-input").value = selections.watcherInterval;
+                }
+                if (selections.smsThreshold !== undefined) {
+                    document.getElementById("sms-threshold-input").value = selections.smsThreshold;
                 }
             } catch (e) {
                 console.error("Failed to load form selections:", e);
@@ -2047,6 +2068,7 @@
             document.getElementById("dummy-data-checkbox").addEventListener("change", saveFormSelections);
             document.getElementById("log-results-checkbox").addEventListener("change", saveFormSelections);
             document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
+            document.getElementById("sms-threshold-input").addEventListener("change", saveFormSelections);
 
             // Load dummy data setting from localStorage
             const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
@@ -2116,6 +2138,7 @@
 
                 // Clear previous alerts when starting fresh
                 alertedPlayIds.clear();
+                smsAlertedPlayIds.clear();
 
                 watcherStatusBar.textContent = `Starting watcher... Checking for hedge opportunities every ${intervalVal}s...`;
                 startWatcherBtn.disabled = true;

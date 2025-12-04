@@ -2268,7 +2268,14 @@ def get_test_arbitrage_alert():
 # Redirect root to the main page
 @app.get("/")
 async def root():
-    return RedirectResponse(url="/ArbritrageBetFinder.html")
+    return RedirectResponse(url="/ArbitrageBetFinder.html")
 
-# Static frontend (ArbritrageBetFinder.html, value.html, etc. under ./frontend)
+
+@app.get("/ArbritrageBetFinder.html")
+async def legacy_arbitrage_page():
+    """Redirect legacy URL with misspelling to the corrected filename."""
+    return RedirectResponse(url="/ArbitrageBetFinder.html", status_code=301)
+
+
+# Static frontend (ArbitrageBetFinder.html, value.html, etc. under ./frontend)
 app.mount("/", StaticFiles(directory="frontend", html=True), name="static")

@@ -22,7 +22,7 @@ This guide explains how to test the mobile version of the Arbitrage Bet Finder u
    - Start the server accessible from BlueStacks/network
    - Display the exact URL to use in BlueStacks
 
-3. In BlueStacks, open a browser and navigate to the URL shown (e.g., `http://192.168.1.100:8000/ArbritrageBetFinder.html`)
+3. In BlueStacks, open a browser and navigate to the URL shown (e.g., `http://192.168.1.100:8000/ArbitrageBetFinder.html`)
 
 ### Method 2: Manual Setup
 
@@ -46,13 +46,13 @@ This guide explains how to test the mobile version of the Arbitrage Bet Finder u
 
 3. **Access from BlueStacks:**
    - Open a browser in BlueStacks (Chrome, Firefox, etc.)
-   - Navigate to: `http://YOUR_PC_IP:8000/ArbritrageBetFinder.html`
-   - Replace `YOUR_PC_IP` with your PC's local IP (e.g., `http://192.168.1.100:8000/ArbritrageBetFinder.html`)
+   - Navigate to: `http://YOUR_PC_IP:8000/ArbitrageBetFinder.html`
+   - Replace `YOUR_PC_IP` with your PC's local IP (e.g., `http://192.168.1.100:8000/ArbitrageBetFinder.html`)
 
 ## What to Test
 
 ### ✅ Mobile Detection & Redirect
-- Visiting the main page (`ArbritrageBetFinder.html`) should automatically redirect to the mobile version (`ArbritrageBetFinder-mobile.html`)
+- Visiting the main page (`ArbitrageBetFinder.html`) should automatically redirect to the mobile version (`ArbritrageBetFinder-mobile.html`)
 - The redirect happens based on:
   - User agent detection (mobile device strings)
   - Screen width (< 768px)
@@ -160,7 +160,7 @@ The same process works for physical mobile devices:
 2. Start the server with `--host 0.0.0.0`
 3. Find your PC's IP address
 4. Open a browser on your mobile device
-5. Navigate to `http://YOUR_PC_IP:8000/ArbritrageBetFinder.html`
+5. Navigate to `http://YOUR_PC_IP:8000/ArbitrageBetFinder.html`
 
 ## Server Configuration
 
@@ -179,7 +179,7 @@ The same process works for physical mobile devices:
 
 ## Files Reference
 
-- **Desktop version:** `frontend/ArbritrageBetFinder.html`
+- **Desktop version:** `frontend/ArbitrageBetFinder.html`
 - **Mobile version:** `frontend/ArbritrageBetFinder-mobile.html`
 - **Testing script:** `start_server_for_mobile_test.ps1`
 - **Server script:** `restart_server.ps1`
