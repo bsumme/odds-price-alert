@@ -657,6 +657,17 @@
             document.getElementById("summary-bar").textContent = msg;
         }
 
+        function showWarnings(warnings) {
+            if (!Array.isArray(warnings)) {
+                return;
+            }
+
+            const filtered = warnings.filter(w => typeof w === "string" && w.trim().length);
+            if (filtered.length) {
+                alert(filtered.join("\n"));
+            }
+        }
+
         function clearResults() {
             const body = document.getElementById("results-body");
             body.innerHTML = '<tr><td colspan="5" class="small-text">No results yet.</td></tr>';
@@ -841,6 +852,7 @@
                     throw new Error(text || ("HTTP " + res.status));
                 }
                 const data = await res.json();
+                showWarnings(data.warnings);
                 lastData = data;
                 renderResults(data);
 

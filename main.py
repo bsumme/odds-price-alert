@@ -9,7 +9,7 @@ import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 # Import shared utilities
 from services.odds_api import (
@@ -284,6 +284,7 @@ class PlayerPropsResponse(BaseModel):
     compare_book: str
     markets: List[str]
     plays: List[ValuePlayOutcome]
+    warnings: List[str] = Field(default_factory=list)
 
 
 class PlayerPropEvent(BaseModel):
@@ -1585,19 +1586,36 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
 
     all_markets_seen, comparable_markets = _collect_available_markets(events)
 
-    if payload.sport_key in ("basketball_nba", "americanfootball_nfl"):
-        logger.info(
-            "Available player prop markets for %s: %s",
-            payload.sport_key,
-            ", ".join(sorted(all_markets_seen)) if all_markets_seen else "(none)",
-        )
+    warnings: List[str] = []
 
-    logger.info(
-        "Markets with prices from both %s and %s: %s",
-        target_book,
-        compare_book,
-        ", ".join(sorted(comparable_markets)) if comparable_markets else "(none)",
+    if payload.sport_key in ("basketball_nba", "americanfootball_nfl"):
+        available_markets_message = (
+            "Available player prop markets for %s: %s"
+            % (
+                payload.sport_key,
+                ", ".join(sorted(all_markets_seen))
+                if all_markets_seen
+                else "(none)",
+            )
+        )
+        logger.info(available_markets_message)
+        if not all_markets_seen:
+            warnings.append(available_markets_message)
+
+    markets_with_prices_message = (
+        "Markets with prices from both %s and %s: %s"
+        % (
+            target_book,
+            compare_book,
+            ", ".join(sorted(comparable_markets))
+            if comparable_markets
+            else "(none)",
+        )
     )
+
+    logger.info(markets_with_prices_message)
+    if not comparable_markets:
+        warnings.append(markets_with_prices_message)
 
     markets_to_process = [m for m in requested_markets if m in comparable_markets]
     if not markets_to_process:
@@ -1665,6 +1683,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         compare_book=compare_book,
         markets=markets_to_process,
         plays=top_plays,
+        warnings=warnings,
     )
 
 

@@ -1,5 +1,7 @@
 """Tests for player props API behaviors."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from fastapi import HTTPException
 
@@ -63,3 +65,36 @@ def test_list_player_prop_games_with_dummy_data():
     assert response.sport_key == payload.sport_key
     assert response.games
     assert all(game.event_id and game.matchup for game in response.games)
+
+
+def test_player_props_returns_market_warnings(monkeypatch):
+    monkeypatch.setattr(main, "get_api_key", lambda: "fake-key")
+
+    future_time = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+
+    def fake_fetch_player_props(**_: object):
+        return [
+            {
+                "id": "event-1",
+                "home_team": "Home Team",
+                "away_team": "Away Team",
+                "commence_time": future_time,
+                "bookmakers": [],
+            }
+        ]
+
+    monkeypatch.setattr(main, "fetch_player_props", fake_fetch_player_props)
+
+    payload = main.PlayerPropsRequest(
+        sport_key="basketball_nba",
+        markets=["player_points"],
+        target_book="draftkings",
+        compare_book="novig",
+        use_dummy_data=False,
+    )
+
+    response = main.get_player_props(payload)
+
+    assert response.warnings
+    assert any("Available player prop markets" in msg for msg in response.warnings)
+    assert any("Markets with prices from both" in msg for msg in response.warnings)
