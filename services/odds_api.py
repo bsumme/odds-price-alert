@@ -273,6 +273,12 @@ def fetch_player_props(
             bookmaker_keys,
         )
         response = requests.get(event_url, params=odds_params, timeout=15)
+        logger.info(
+            "Event odds API response for player props (event_id=%s): status=%s body=%s",
+            event_id,
+            response.status_code,
+            response.text,
+        )
         if response.status_code == 422 and "Invalid markets" in response.text:
             return _fetch_player_props_via_odds_endpoint()
 
