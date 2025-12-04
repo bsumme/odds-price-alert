@@ -153,13 +153,13 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Starting FastAPI server..." -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Server will be available at: http://127.0.0.1:8000/ArbritrageBetFinder.html" -ForegroundColor Green
+Write-Host "Server will be available at: http://127.0.0.1:8000/ArbitrageBetFinder.html" -ForegroundColor Green
 Write-Host "Press CTRL+C to stop the server" -ForegroundColor Yellow
 Write-Host ""
 
 # Open browser after a short delay
 Start-Sleep -Seconds 2
-Start-Process "http://127.0.0.1:8000/ArbritrageBetFinder.html"
+Start-Process "http://127.0.0.1:8000/ArbitrageBetFinder.html"
 
 # Start uvicorn server
 uvicorn main:app --reload --host 127.0.0.1 --port 8000

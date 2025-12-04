@@ -126,7 +126,7 @@ For development and testing when API credits are exhausted, the application incl
 odds-price-alert/
 ├── main.py              # FastAPI backend with API endpoints
 ├── frontend/
-│   ├── ArbritrageBetFinder.html       # Arbitrage Finder page
+│   ├── ArbitrageBetFinder.html       # Arbitrage Finder page
 │   ├── value.html       # Value Plays page
 │   └── watcher.html     # Bet Watcher page
 └── README.md            # This file

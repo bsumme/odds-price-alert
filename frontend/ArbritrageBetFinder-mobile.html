@@ -650,6 +650,10 @@
             <label for="sms-phone-input" style="margin-top: 1rem;">SMS Phone (optional)</label>
             <input id="sms-phone-input" type="tel" placeholder="5551234567" />
 
+            <label for="sms-threshold-input" style="margin-top: 1rem;">Min arbitrage margin for SMS (%)</label>
+            <input id="sms-threshold-input" type="number" step="0.1" value="0" />
+            <div class="small-text">Only send text alerts when arbitrage margin meets or exceeds this value.</div>
+
             <div style="margin-top: 1rem;">
                 <button class="btn btn-primary" id="start-watcher-btn">Start Watcher</button>
                 <button class="btn btn-secondary" id="stop-watcher-btn" disabled>Stop</button>
@@ -679,6 +683,7 @@
         let watcherTimer = null;
         let lastBestValueData = null;
         let alertedPlayIds = new Set();
+        let smsAlertedPlayIds = new Set();
         let touchStartY = 0;
         let touchEndY = 0;
         let isPulling = false;
@@ -699,6 +704,12 @@
             } catch (e) {
                 return isoString;
             }
+        }
+
+        function getSmsMarginThreshold() {
+            const thresholdInput = document.getElementById("sms-threshold-input");
+            const value = thresholdInput ? Number(thresholdInput.value) : 0;
+            return Number.isNaN(value) ? 0 : value;
         }
 
         function getTeamLogoUrl(teamName, sportKey = null) {
@@ -1406,17 +1417,23 @@
             if (!plays || plays.length === 0) return;
 
             plays.forEach(play => {
-                if (play.arb_margin_percent !== null && 
-                    play.arb_margin_percent !== undefined && 
-                    play.arb_margin_percent >= 0 &&
+                const marginPercent = play.arb_margin_percent;
+                if (marginPercent !== null &&
+                    marginPercent !== undefined &&
+                    marginPercent >= 0 &&
                     play.novig_reverse_price !== null &&
                     play.novig_reverse_price !== undefined) {
-                    
+
                     const playId = getPlayId(play);
-                    
+                    const meetsSmsThreshold = marginPercent >= getSmsMarginThreshold();
+
                     if (!alertedPlayIds.has(playId)) {
                         alertedPlayIds.add(playId);
                         showHedgeAlert(play);
+                    }
+
+                    if (meetsSmsThreshold && !smsAlertedPlayIds.has(playId)) {
+                        smsAlertedPlayIds.add(playId);
                         sendSMSAlert(play);
                     }
                 }
@@ -1538,7 +1555,8 @@
                 compareBook: document.getElementById("best-compare-book-select").value,
                 maxResults: document.getElementById("best-max-results-input").value,
                 dummyData: document.getElementById("dummy-data-checkbox").checked,
-                watcherInterval: document.getElementById("watcher-interval-input").value
+                watcherInterval: document.getElementById("watcher-interval-input").value,
+                smsThreshold: document.getElementById("sms-threshold-input").value
             };
             localStorage.setItem("arbitrageFinderSelections", JSON.stringify(selections));
         }
@@ -1576,6 +1594,9 @@
                 }
                 if (selections.watcherInterval) {
                     document.getElementById("watcher-interval-input").value = selections.watcherInterval;
+                }
+                if (selections.smsThreshold !== undefined) {
+                    document.getElementById("sms-threshold-input").value = selections.smsThreshold;
                 }
             } catch (e) {
                 console.error("Failed to load form selections:", e);
@@ -1672,6 +1693,7 @@
             document.getElementById("best-max-results-input").addEventListener("change", saveFormSelections);
             document.getElementById("dummy-data-checkbox").addEventListener("change", saveFormSelections);
             document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
+            document.getElementById("sms-threshold-input").addEventListener("change", saveFormSelections);
 
             const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
             const savedDummyData = localStorage.getItem("useDummyData");
@@ -1801,6 +1823,7 @@
                 }
 
                 alertedPlayIds.clear();
+                smsAlertedPlayIds.clear();
 
                 watcherStatusBar.textContent = `Starting watcher... Checking for hedge opportunities every ${intervalVal}s...`;
                 startWatcherBtn.disabled = true;
