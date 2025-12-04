@@ -182,12 +182,20 @@ class PlayerPropsRequest(BaseModel):
 
     # Map legacy or alias markets to their canonical names
     PLAYER_PROP_MARKET_ALIASES: ClassVar[Dict[str, str]] = {
-        "player_pass_yds": "player_passing_yards",
-        "player_rec_yds": "player_receiving_yards",
-        "player_reception_yards": "player_receiving_yards",
-        "player_rush_yds": "player_rushing_yards",
-        "player_anytime_td": "player_touchdowns",
-        "player_pass_tds": "player_passing_tds",
+        # Official Odds API market keys
+        "player_passing_yards": "player_pass_yds",
+        "player_receiving_yards": "player_rec_yds",
+        "player_rushing_yards": "player_rush_yds",
+        "player_touchdowns": "player_anytime_td",
+        "player_passing_tds": "player_pass_tds",
+
+        # Legacy or shorthand aliases
+        "player_pass_yds": "player_pass_yds",
+        "player_rec_yds": "player_rec_yds",
+        "player_reception_yards": "player_rec_yds",
+        "player_rush_yds": "player_rush_yds",
+        "player_anytime_td": "player_anytime_td",
+        "player_pass_tds": "player_pass_tds",
     }
 
     # Define the supported player prop markets for each sport
@@ -199,11 +207,11 @@ class PlayerPropsRequest(BaseModel):
             "player_threes",
         ],
         "americanfootball_nfl": [
-            "player_passing_yards",
-            "player_receiving_yards",
-            "player_rushing_yards",
-            "player_touchdowns",
-            "player_passing_tds",
+            "player_pass_yds",
+            "player_rec_yds",
+            "player_rush_yds",
+            "player_anytime_td",
+            "player_pass_tds",
         ],
     }
 
@@ -306,6 +314,18 @@ class PlayerPropGamesRequest(BaseModel):
 class PlayerPropGamesResponse(BaseModel):
     sport_key: str
     games: List[PlayerPropEvent]
+
+
+class PlayerPropMarketsRequest(BaseModel):
+    sport_key: str
+    target_book: Optional[str] = "draftkings"
+    compare_book: Optional[str] = "novig"
+    use_dummy_data: bool = False
+
+
+class PlayerPropMarketsResponse(BaseModel):
+    sport_key: str
+    available_markets: List[str]
 
 
 def get_textbelt_api_key() -> Optional[str]:
@@ -578,11 +598,11 @@ def generate_dummy_player_props_data(
         "player_assists": (5.5, 12.5),
         "player_rebounds": (8.5, 15.5),
         "player_threes": (2.5, 6.5),
-        "player_receiving_yards": (50.5, 120.5),
-        "player_passing_yards": (200.5, 350.5),
-        "player_rushing_yards": (50.5, 120.5),
-        "player_touchdowns": (0.5, 2.5),
-        "player_passing_tds": (1.5, 3.5),
+        "player_rec_yds": (50.5, 120.5),
+        "player_pass_yds": (200.5, 350.5),
+        "player_rush_yds": (50.5, 120.5),
+        "player_anytime_td": (0.5, 2.5),
+        "player_pass_tds": (1.5, 3.5),
     }
 
     default_range = (20.5, 35.5)
@@ -967,11 +987,11 @@ def collect_value_plays(
                 "player_assists": "assists",
                 "player_rebounds": "rebounds",
                 "player_threes": "3-pointers",
-                "player_receiving_yards": "receiving yards",
-                "player_passing_yards": "passing yards",
-                "player_rushing_yards": "rushing yards",
-                "player_touchdowns": "touchdowns",
-                "player_passing_tds": "passing TDs",
+                "player_rec_yds": "receiving yards",
+                "player_pass_yds": "passing yards",
+                "player_rush_yds": "rushing yards",
+                "player_anytime_td": "touchdowns",
+                "player_pass_tds": "passing TDs",
             }
             if is_player_prop and description:
                 line_suffix = ""
@@ -1389,6 +1409,43 @@ def _filter_upcoming_events_only(events: List[Dict[str, Any]]) -> List[Dict[str,
     return upcoming
 
 
+def collect_available_player_prop_markets(
+    events_payload: List[Dict[str, Any]],
+    target_book: Optional[str],
+    compare_book: Optional[str],
+) -> tuple[set[str], set[str]]:
+    """
+    Return a tuple of (all_markets_seen, markets_available_for_both_books).
+    The second set only includes markets where both the target and comparison
+    books have prices in at least one event.
+    """
+
+    all_seen: set[str] = set()
+    comparable: set[str] = set()
+
+    for event in events_payload:
+        target_markets: set[str] = set()
+        compare_markets: set[str] = set()
+        for bookmaker in event.get("bookmakers", []):
+            book_key = bookmaker.get("key")
+            market_keys = {
+                m.get("key")
+                for m in bookmaker.get("markets", [])
+                if m.get("key")
+            }
+            all_seen.update(market_keys)
+
+            if target_book and book_key == target_book:
+                target_markets.update(market_keys)
+            if compare_book and book_key == compare_book:
+                compare_markets.update(market_keys)
+
+        if target_book and compare_book:
+            comparable.update(target_markets & compare_markets)
+
+    return all_seen, comparable
+
+
 @app.post("/api/player-props/games", response_model=PlayerPropGamesResponse)
 def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesResponse:
     """Provide a list of upcoming games that have player props."""
@@ -1434,6 +1491,62 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
     games.sort(key=lambda g: g.commence_time or "")
 
     return PlayerPropGamesResponse(sport_key=payload.sport_key, games=games)
+
+
+@app.post("/api/player-props/markets", response_model=PlayerPropMarketsResponse)
+def list_player_prop_markets(
+    payload: PlayerPropMarketsRequest,
+) -> PlayerPropMarketsResponse:
+    """Discover available player prop markets for a sport."""
+
+    discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
+        payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
+    )
+
+    bookmaker_keys = [
+        book
+        for book in (payload.target_book, payload.compare_book)
+        if book is not None
+    ]
+    if not bookmaker_keys:
+        bookmaker_keys = ["novig", "draftkings"]
+
+    if payload.use_dummy_data:
+        events = generate_dummy_player_props_data(
+            sport_key=payload.sport_key,
+            markets=discovery_markets,
+            team=None,
+            player_name=None,
+            bookmaker_keys=bookmaker_keys,
+        )
+    else:
+        try:
+            api_key = get_api_key()
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+        regions = compute_regions_for_books(bookmaker_keys)
+        events = fetch_player_props(
+            api_key=api_key,
+            sport_key=payload.sport_key,
+            regions=regions,
+            markets=",".join(discovery_markets),
+            bookmaker_keys=bookmaker_keys,
+            team=None,
+            event_id=None,
+            use_dummy_data=False,
+        )
+
+    events = _filter_upcoming_events_only(events)
+    all_markets, _ = collect_available_player_prop_markets(
+        events, payload.target_book, payload.compare_book
+    )
+
+    available = sorted(all_markets) if all_markets else discovery_markets
+
+    return PlayerPropMarketsResponse(
+        sport_key=payload.sport_key, available_markets=available
+    )
 
 
 @app.post("/api/player-props", response_model=PlayerPropsResponse)
@@ -1490,39 +1603,6 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         payload.sport_key, payload.ALL_PLAYER_PROP_MARKETS
     )
     discovery_market_param = ",".join(discovery_markets)
-
-    def _collect_available_markets(
-        events_payload: List[Dict[str, Any]],
-    ) -> tuple[set[str], set[str]]:
-        """
-        Return a tuple of (all_markets_seen, markets_available_for_both_books).
-        The second set only includes markets where both the target and comparison
-        books have prices in at least one event.
-        """
-
-        all_seen: set[str] = set()
-        comparable: set[str] = set()
-
-        for event in events_payload:
-            target_markets: set[str] = set()
-            compare_markets: set[str] = set()
-            for bookmaker in event.get("bookmakers", []):
-                book_key = bookmaker.get("key")
-                market_keys = {
-                    m.get("key")
-                    for m in bookmaker.get("markets", [])
-                    if m.get("key")
-                }
-                all_seen.update(market_keys)
-
-                if book_key == target_book:
-                    target_markets.update(market_keys)
-                if book_key == compare_book:
-                    compare_markets.update(market_keys)
-
-            comparable.update(target_markets & compare_markets)
-
-        return all_seen, comparable
 
     if payload.use_dummy_data:
         logger.info(
@@ -1589,7 +1669,9 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
 
     logger.info("Collected %d player props events before pricing", len(events))
 
-    all_markets_seen, comparable_markets = _collect_available_markets(events)
+    all_markets_seen, comparable_markets = collect_available_player_prop_markets(
+        events, target_book, compare_book
+    )
 
     warnings: List[str] = []
 
