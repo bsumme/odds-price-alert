@@ -12,7 +12,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, model_validator
 
 # Import shared utilities
-from services.odds_api import get_api_key, fetch_odds, fetch_player_props, BASE_URL
+from services.odds_api import (
+    get_api_key,
+    fetch_odds,
+    fetch_player_props,
+    fetch_sport_events,
+    BASE_URL,
+)
 from services.odds_utils import (
     american_to_decimal,
     estimate_ev_percent,
@@ -168,6 +174,7 @@ class PlayerPropsRequest(BaseModel):
     sport_key: str
     team: Optional[str] = None
     player_name: Optional[str] = None
+    event_id: Optional[str] = None
     markets: List[str]
     target_book: str
     compare_book: str
@@ -277,6 +284,22 @@ class PlayerPropsResponse(BaseModel):
     compare_book: str
     markets: List[str]
     plays: List[ValuePlayOutcome]
+
+
+class PlayerPropEvent(BaseModel):
+    event_id: str
+    matchup: str
+    commence_time: Optional[str] = None
+
+
+class PlayerPropGamesRequest(BaseModel):
+    sport_key: str
+    use_dummy_data: bool = False
+
+
+class PlayerPropGamesResponse(BaseModel):
+    sport_key: str
+    games: List[PlayerPropEvent]
 
 
 def get_textbelt_api_key() -> Optional[str]:
@@ -502,6 +525,10 @@ def generate_dummy_player_props_data(
     """
     Generate dummy player props data for development.
     """
+
+    def _slugify(value: str) -> str:
+        return value.replace(" ", "_").lower()
+
     # Sample players by sport and team
     nba_players = {
         "Lakers": ["LeBron James", "Anthony Davis", "D'Angelo Russell", "Austin Reaves"],
@@ -515,7 +542,7 @@ def generate_dummy_player_props_data(
         "Mavericks": ["Luka Doncic", "Kyrie Irving", "Tim Hardaway Jr.", "Grant Williams"],
         "Clippers": ["Kawhi Leonard", "Paul George", "James Harden", "Russell Westbrook"],
     }
-    
+
     nfl_players = {
         "Chiefs": ["Patrick Mahomes", "Travis Kelce", "Isiah Pacheco", "Rashee Rice"],
         "Bills": ["Josh Allen", "Stefon Diggs", "James Cook", "Dawson Knox"],
@@ -528,15 +555,15 @@ def generate_dummy_player_props_data(
         "Eagles": ["Jalen Hurts", "A.J. Brown", "D'Andre Swift", "DeVonta Smith"],
         "Giants": ["Daniel Jones", "Saquon Barkley", "Darius Slayton", "Darren Waller"],
     }
-    
+
     player_map = nba_players if sport_key == "basketball_nba" else nfl_players
-    
+
     # Determine which teams and players to use
     if team and team in player_map:
         teams_to_use = [team]
     else:
         teams_to_use = list(player_map.keys())[:3]  # Use first 3 teams
-    
+
     # Market-specific point ranges
     selected_markets = markets or ["player_points"]
 
@@ -553,74 +580,88 @@ def generate_dummy_player_props_data(
     }
 
     default_range = (20.5, 35.5)
-    
+
     now = datetime.now(timezone.utc)
-    events = []
+    events: List[Dict[str, Any]] = []
     for team_name in teams_to_use:
-        players = player_map[team_name]
-        
-        # Generate event for each player (up to 2 players per team)
-        for player in players[:2]:
-            hours_ahead = random.randint(24, 168)
-            commence_time = (now + timedelta(hours=hours_ahead)).isoformat().replace("+00:00", "Z")
-            event_id = f"dummy_{sport_key}_{team_name}_{player}_{int(now.timestamp())}"
-            
-            # Generate point line
-            def build_outcomes(market_key: str) -> Dict[str, Any]:
-                market_range = point_ranges.get(market_key, default_range)
+        players = player_map[team_name][:3]
+
+        hours_ahead = random.randint(24, 168)
+        commence_time = (now + timedelta(hours=hours_ahead)).isoformat().replace("+00:00", "Z")
+
+        # Generate opponent team (simplified)
+        opponent = random.choice([t for t in player_map.keys() if t != team_name])
+        home_team = random.choice([team_name, opponent])
+        away_team = opponent if home_team == team_name else team_name
+
+        event_id = f"dummy_{sport_key}_{_slugify(away_team)}_at_{_slugify(home_team)}"
+
+        def build_outcomes(market_key: str, *, over_price: int, under_price: int) -> Dict[str, Any]:
+            market_range = point_ranges.get(market_key, default_range)
+            outcomes: List[Dict[str, Any]] = []
+            for player in players:
                 point_value = round(random.uniform(market_range[0], market_range[1]) * 2) / 2
-                return {
-                    "key": market_key,
-                    "outcomes": [
-                        {"name": "Over", "description": player, "price": over_price, "point": point_value},
-                        {"name": "Under", "description": player, "price": under_price, "point": point_value},
-                    ],
-                }
+                outcomes.append({
+                    "name": "Over",
+                    "description": player,
+                    "price": over_price,
+                    "point": point_value,
+                })
+                outcomes.append({
+                    "name": "Under",
+                    "description": player,
+                    "price": under_price,
+                    "point": point_value,
+                })
 
-            # Generate opponent team (simplified)
-            opponent = random.choice([t for t in player_map.keys() if t != team_name])
-            home_team = random.choice([team_name, opponent])
-            away_team = opponent if home_team == team_name else team_name
+            return {
+                "key": market_key,
+                "outcomes": outcomes,
+            }
 
-            bookmakers = []
+        bookmakers = []
 
-            # Generate Novig odds first (best)
-            for book_key in bookmaker_keys:
-                if book_key.lower() == "novig":
-                    over_price = -105
-                    under_price = -105
-                    novig_markets = [build_outcomes(market_key) for market_key in selected_markets]
-                    bookmakers.append({
-                        "key": book_key,
-                        "title": book_key.title(),
-                        "markets": novig_markets,
-                    })
-                    break
-
-            # Generate other books' odds (worse)
-            for book_key in bookmaker_keys:
-                if book_key.lower() == "novig":
-                    continue
-
-                over_price = random.choice([-110, -115])
-                under_price = random.choice([-110, -115])
-                market_payloads = [build_outcomes(market_key) for market_key in selected_markets]
-
+        # Generate Novig odds first (best)
+        for book_key in bookmaker_keys:
+            if book_key.lower() == "novig":
+                novig_markets = [
+                    build_outcomes(market_key, over_price=-105, under_price=-105)
+                    for market_key in selected_markets
+                ]
                 bookmakers.append({
                     "key": book_key,
                     "title": book_key.title(),
-                    "markets": market_payloads,
+                    "markets": novig_markets,
                 })
-            
-            events.append({
-                "id": event_id,
-                "sport_key": sport_key,
-                "home_team": home_team,
-                "away_team": away_team,
-                "commence_time": commence_time,
-                "bookmakers": bookmakers,
+                break
+
+        # Generate other books' odds (worse)
+        for book_key in bookmaker_keys:
+            if book_key.lower() == "novig":
+                continue
+
+            over_price = random.choice([-110, -115])
+            under_price = random.choice([-110, -115])
+            market_payloads = [
+                build_outcomes(market_key, over_price=over_price, under_price=under_price)
+                for market_key in selected_markets
+            ]
+
+            bookmakers.append({
+                "key": book_key,
+                "title": book_key.title(),
+                "markets": market_payloads,
             })
-    
+
+        events.append({
+            "id": event_id,
+            "sport_key": sport_key,
+            "home_team": home_team,
+            "away_team": away_team,
+            "commence_time": commence_time,
+            "bookmakers": bookmakers,
+        })
+
     return events
 
 
@@ -633,6 +674,7 @@ def fetch_odds_with_dummy(
     use_dummy_data: bool = False,
     team: Optional[str] = None,
     player_name: Optional[str] = None,
+    event_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Wrapper around fetch_odds that handles dummy data generation.
@@ -661,6 +703,7 @@ def fetch_odds_with_dummy(
             markets=markets,
             bookmaker_keys=bookmaker_keys,
             team=team,
+            event_id=event_id,
             use_dummy_data=False,
         )
 
@@ -1318,6 +1361,75 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
     )
 
 
+def _filter_upcoming_events_only(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return events that have not started yet."""
+
+    upcoming: List[Dict[str, Any]] = []
+    now_utc = datetime.now(timezone.utc)
+
+    for event in events:
+        start_time = event.get("commence_time")
+        if not start_time:
+            continue
+
+        try:
+            event_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+        except Exception:
+            continue
+
+        if event_dt > now_utc:
+            upcoming.append(event)
+
+    return upcoming
+
+
+@app.post("/api/player-props/games", response_model=PlayerPropGamesResponse)
+def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesResponse:
+    """Provide a list of upcoming games that have player props."""
+
+    discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
+        payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
+    )
+
+    if payload.use_dummy_data:
+        events = generate_dummy_player_props_data(
+            sport_key=payload.sport_key,
+            markets=discovery_markets,
+            team=None,
+            player_name=None,
+            bookmaker_keys=["novig", "draftkings", "fanduel"],
+        )
+    else:
+        try:
+            api_key = get_api_key()
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+        events = fetch_sport_events(api_key=api_key, sport_key=payload.sport_key)
+
+    events = _filter_upcoming_events_only(events)
+
+    games: List[PlayerPropEvent] = []
+    for event in events:
+        event_id = event.get("id")
+        home = event.get("home_team")
+        away = event.get("away_team")
+        if not event_id or not home or not away:
+            continue
+
+        games.append(
+            PlayerPropEvent(
+                event_id=event_id,
+                matchup=f"{away} @ {home}",
+                commence_time=event.get("commence_time"),
+            )
+        )
+
+    games.sort(key=lambda g: g.commence_time or "")
+
+    return PlayerPropGamesResponse(sport_key=payload.sport_key, games=games)
+
+
 @app.post("/api/player-props", response_model=PlayerPropsResponse)
 def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     """
@@ -1329,12 +1441,13 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     requested_markets = payload.resolve_markets()
 
     logger.info(
-        "Player props request received: sport=%s markets=%s target=%s compare=%s team=%s use_dummy=%s",
+        "Player props request received: sport=%s markets=%s target=%s compare=%s team=%s event_id=%s use_dummy=%s",
         payload.sport_key,
         ",".join(requested_markets),
         target_book,
         compare_book,
         payload.team,
+        payload.event_id,
         payload.use_dummy_data,
     )
 
@@ -1433,11 +1546,12 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             markets=discovery_market_param,
             bookmaker_keys=bookmaker_keys,
             team=payload.team,
+            event_id=payload.event_id,
             use_dummy_data=False,
         )
 
         # Filter by team if specified
-        if payload.team:
+        if payload.team and not payload.event_id:
             before_team_filter = len(events)
             team_lower = payload.team.lower()
 
@@ -1456,6 +1570,16 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
                 before_team_filter,
                 len(events),
             )
+
+    if payload.event_id:
+        before_event_filter = len(events)
+        events = [e for e in events if e.get("id") == payload.event_id]
+        logger.info(
+            "Filtered player props events by id '%s': %d -> %d",
+            payload.event_id,
+            before_event_filter,
+            len(events),
+        )
 
     logger.info("Collected %d player props events before pricing", len(events))
 
@@ -1488,6 +1612,8 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         ]
         if payload.team:
             detail_parts.append(f"team={payload.team}")
+        if payload.event_id:
+            detail_parts.append(f"event_id={payload.event_id}")
 
         message = "No player props lines found for " + ", ".join(detail_parts)
         logger.warning(message)

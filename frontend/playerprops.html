@@ -332,6 +332,14 @@
                 <option value="americanfootball_nfl">NFL</option>
             </select>
 
+            <label for="game-select">Game (optional - search all props for one matchup)</label>
+            <select id="game-select">
+                <option value="">All Games</option>
+            </select>
+            <div class="small-text" id="game-helper-text" style="margin-top: 0.25rem;">
+                Pick a game to fetch every available player prop for that matchup.
+            </div>
+
             <label for="team-select">Team (optional - leave blank for all teams)</label>
             <select id="team-select">
                 <option value="">All Teams</option>
@@ -453,6 +461,8 @@
             [ALL_PLAYER_PROPS_VALUE]: "All player props",
         });
 
+        let currentGames = [];
+
         function updateTeamDropdown() {
             const sport = document.getElementById("sport-select").value;
             const teamSelect = document.getElementById("team-select");
@@ -491,6 +501,88 @@
                     option.textContent = player;
                     playerSelect.appendChild(option);
                 });
+            }
+
+        }
+
+        function formatGameLabel(game) {
+            const date = game.commence_time ? new Date(game.commence_time) : null;
+            const dateText = date
+                ? date.toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                }) + " ET"
+                : "";
+            return dateText ? `${game.matchup} — ${dateText}` : game.matchup;
+        }
+
+        function toggleFiltersForGameSelection() {
+            const gameSelected = Boolean(document.getElementById("game-select").value);
+            document.getElementById("team-select").disabled = gameSelected;
+            document.getElementById("player-select").disabled = gameSelected;
+
+            document.querySelectorAll('#market-options input[type="checkbox"]').forEach(box => {
+                box.disabled = gameSelected;
+            });
+        }
+
+        function populateGameDropdown(games) {
+            const select = document.getElementById("game-select");
+            select.innerHTML = '<option value="">All Games</option>';
+
+            const helper = document.getElementById("game-helper-text");
+            if (!games.length) {
+                helper.textContent = "No upcoming games with player props found for this sport.";
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            games.forEach(game => {
+                const option = document.createElement("option");
+                option.value = game.event_id;
+                option.textContent = formatGameLabel(game);
+                fragment.appendChild(option);
+            });
+
+            select.appendChild(fragment);
+            helper.textContent = "Select a game to search every available player prop for that matchup.";
+        }
+
+        async function loadGames() {
+            const sport = document.getElementById("sport-select").value;
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+            const helper = document.getElementById("game-helper-text");
+            const select = document.getElementById("game-select");
+
+            helper.textContent = "Loading games...";
+            currentGames = [];
+            select.innerHTML = '<option value="">All Games</option>';
+
+            try {
+                const res = await fetch("/api/player-props/games", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_key: sport,
+                        use_dummy_data: useDummyData,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                currentGames = data.games || [];
+                populateGameDropdown(currentGames);
+            } catch (err) {
+                console.error(err);
+                helper.textContent = `Couldn't load games: ${err.message}`;
+            } finally {
+                toggleFiltersForGameSelection();
             }
         }
 
@@ -700,9 +792,13 @@
 
         async function fetchPlayerProps() {
             const sport = document.getElementById("sport-select").value;
-            const team = document.getElementById("team-select").value || null;
-            const player = document.getElementById("player-select").value || null;
-            const markets = getSelectedMarkets();
+            const selectedGameId = document.getElementById("game-select").value || null;
+            const team = selectedGameId ? null : (document.getElementById("team-select").value || null);
+            const player = selectedGameId ? null : (document.getElementById("player-select").value || null);
+            let markets = getSelectedMarkets();
+            if (selectedGameId) {
+                markets = [ALL_PLAYER_PROPS_VALUE];
+            }
             const targetBook = document.getElementById("target-book-select").value;
             const compareBook = document.getElementById("compare-book-select").value;
             const useDummyData = document.getElementById("dummy-data-checkbox").checked;
@@ -726,6 +822,7 @@
                         sport_key: sport,
                         team: team,
                         player_name: player,
+                        event_id: selectedGameId,
                         markets: markets,
                         target_book: targetBook,
                         compare_book: compareBook,
@@ -750,7 +847,13 @@
                 const playsCount = (data.plays || []).length;
                 const compareBookLabel = document.querySelector("#compare-book-select option:checked").textContent;
                 const marketSummary = (data.markets || markets).map(getMarketLabel).join(", ");
-                setSummary(`Found ${playsCount} player prop value plays across ${marketSummary}. Target: ${targetBook}, Compare: ${compareBookLabel}.`);
+                if (selectedGameId) {
+                    const selectedGame = currentGames.find(g => g.event_id === selectedGameId);
+                    const gameLabel = selectedGame ? formatGameLabel(selectedGame) : "selected game";
+                    setSummary(`Found ${playsCount} player prop value plays for ${gameLabel}. Target: ${targetBook}, Compare: ${compareBookLabel}.`);
+                } else {
+                    setSummary(`Found ${playsCount} player prop value plays across ${marketSummary}. Target: ${targetBook}, Compare: ${compareBookLabel}.`);
+                }
                 setStatus("Done.");
             } catch (e) {
                 console.error(e);
@@ -776,13 +879,18 @@
             // Initialize team dropdown
             updateTeamDropdown();
             renderMarketOptions();
-            
+            loadGames();
+
             // Update teams when sport changes
             document.getElementById("sport-select").addEventListener("change", () => {
                 updateTeamDropdown();
                 renderMarketOptions();
+                loadGames();
             });
-            
+
+            document.getElementById("dummy-data-checkbox").addEventListener("change", loadGames);
+            document.getElementById("game-select").addEventListener("change", toggleFiltersForGameSelection);
+
             // Update players when team changes
             document.getElementById("team-select").addEventListener("change", updatePlayerDropdown);
 

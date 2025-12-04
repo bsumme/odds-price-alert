@@ -110,6 +110,28 @@ def fetch_odds(
     return data
 
 
+def fetch_sport_events(api_key: str, sport_key: str) -> List[Dict[str, Any]]:
+    """Fetch the list of events for a sport using The Odds API."""
+
+    events_url = f"{BASE_URL}/sports/{sport_key}/events"
+    logger.info("Fetching events list: url=%s", events_url)
+
+    response = requests.get(events_url, params={"apiKey": api_key}, timeout=15)
+    if response.status_code != 200:
+        logger.error(
+            "Events API error: status=%s body=%s", response.status_code, response.text
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Error fetching events from The Odds API: "
+                f"{response.status_code}, {response.text}"
+            ),
+        )
+
+    return response.json()
+
+
 def fetch_player_props(
     api_key: str,
     sport_key: str,
@@ -117,6 +139,7 @@ def fetch_player_props(
     markets: str,
     bookmaker_keys: List[str],
     team: Optional[str] = None,
+    event_id: Optional[str] = None,
     use_dummy_data: bool = False,
     dummy_data_generator=None,
 ) -> List[Dict[str, Any]]:
@@ -170,6 +193,15 @@ def fetch_player_props(
     if not events:
         logger.info("No events found for sport=%s after filtering; returning empty list", sport_key)
         return []
+
+    if event_id:
+        events = [e for e in events if e.get("id") == event_id]
+        logger.info(
+            "Filtered events by event_id '%s': %d remaining", event_id, len(events)
+        )
+
+        if not events:
+            return []
 
     odds_params = {
         "apiKey": api_key,
