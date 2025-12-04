@@ -54,11 +54,11 @@
         }
 
         header {
-            padding: 0.5rem 1rem;
+            padding: 1rem 1.25rem;
             background: #1e293b;
             border-bottom: 2px solid #334155;
-            display: none;
-            justify-content: flex-end;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
             gap: 1rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -69,17 +69,43 @@
             z-index: 999;
         }
 
-        header.show {
-            display: flex;
+        header h1 {
+            margin: 0;
+            font-size: 1.25rem;
         }
 
-        .top-right-buttons {
-            position: fixed;
-            bottom: 0.5rem;
-            right: 0.5rem;
-            z-index: 1001;
+        header .small-text {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+        }
+
+        header nav {
             display: flex;
-            gap: 0.5rem;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        header nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 0.35rem 0.6rem;
+            border-radius: 0.4rem;
+            border: 1px solid transparent;
+        }
+
+        header nav a:hover {
+            color: #e5e7eb;
+            border-color: #1f2937;
+            background: #111827;
+        }
+
+        header nav a.active {
+            color: #bbf7d0;
+            font-weight: 600;
+            border-color: #166534;
+            background: #0b1220;
         }
 
         .toggle-buttons {
@@ -115,85 +141,23 @@
             color: #bbf7d0;
         }
 
-        .top-right-buttons .btn {
-            background: #1e293b;
-            border: 1px solid #334155;
-            color: #e5e7eb;
-            padding: 0.5rem 0.75rem;
-            border-radius: 0.4rem;
-            cursor: pointer;
-            font-size: 0.75rem;
-            font-weight: 600;
-            transition: all 0.2s;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .top-right-buttons .btn:hover {
-            background: #334155;
-            border-color: #475569;
-        }
-
-        .top-right-buttons .btn.active {
-            background: #166534;
-            border-color: #15803d;
-            color: #bbf7d0;
-        }
-
-        header h1 {
-            margin: 0;
-            font-size: 1.1rem;
-        }
-
-        header .small-text {
-            font-size: 0.7rem;
-        }
-
-        header nav {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-
-        header nav a {
-            color: #94a3b8;
-            text-decoration: none;
-            font-size: 0.75rem;
-            margin-left: 0.5rem;
-        }
-
-        header nav a:hover {
-            color: #e5e7eb;
-        }
-
-        header nav a.active {
-            color: #bbf7d0;
-            font-weight: 600;
-        }
-
 
         main {
-            padding: 0.75rem;
+            padding: 4.5rem 0.75rem 0.75rem 0.75rem;
             height: 100vh;
             display: grid;
             grid-template-columns: 300px 1fr;
             gap: 0.75rem;
             align-items: start;
             overflow: hidden;
-            padding-top: 0.75rem;
             padding-right: 0.75rem;
             box-sizing: border-box;
             transition: padding-right 0.3s ease;
         }
-        
+
         /* Adjust main layout when watcher panel is open */
         body.watcher-open main {
             padding-right: 320px; /* 300px panel + 20px gap */
-        }
-
-        header.show + main {
-            padding-top: 3.5rem;
         }
 
         .filter-panel {
@@ -628,16 +592,21 @@
 </head>
 
 <body>
-    <div class="top-right-buttons">
-        <a href="/watcher.html" class="btn smooth-nav" data-href="/watcher.html" title="Go to Bet Watcher">Bet Watcher</a>
-        <a href="/linetracker.html" class="btn smooth-nav" data-href="/linetracker.html" title="Go to Line Tracker">Line Tracker</a>
-        <a href="/widgets.html" class="btn smooth-nav" data-href="/widgets.html" title="View Odds Widgets">Widgets</a>
-    </div>
     <button class="panel-toggle-btn" id="toggle-watcher-btn" title="Toggle Arb Watcher Panel">
         <span class="arrow">◀</span>
     </button>
     <header id="main-header">
+        <div>
+            <h1>Arbitrage Bet Finder</h1>
+            <div class="small-text">Compare sportsbook odds and uncover risk-free opportunities.</div>
+        </div>
         <nav>
+            <a href="/ArbritrageBetFinder.html" class="active">Arbitrage Finder</a>
+            <a href="/watcher.html">Watcher</a>
+            <a href="/linetracker.html">Line Tracker</a>
+            <a href="/value.html">Value Finder</a>
+            <a href="/playerprops.html">Player Props</a>
+            <a href="/widgets.html">Widgets</a>
         </nav>
     </header>
 
