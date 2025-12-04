@@ -446,22 +446,40 @@
                 { value: "player_threes", label: "3-Pointers Made" },
             ],
             americanfootball_nfl: [
-                { value: "player_passing_yards", label: "Passing Yards" },
-                { value: "player_receiving_yards", label: "Receiving Yards" },
-                { value: "player_rushing_yards", label: "Rushing Yards" },
-                { value: "player_touchdowns", label: "Anytime TD" },
-                { value: "player_passing_tds", label: "Passing TDs" },
+                { value: "player_pass_yds", label: "Passing Yards" },
+                { value: "player_rec_yds", label: "Receiving Yards" },
+                { value: "player_rush_yds", label: "Rushing Yards" },
+                { value: "player_anytime_td", label: "Anytime TD" },
+                { value: "player_pass_tds", label: "Passing TDs" },
             ]
         };
 
-        const marketLabelLookup = Object.values(marketOptions).flat().reduce((acc, opt) => {
-            acc[opt.value] = opt.label;
-            return acc;
-        }, {
+        const marketLabelLookup = {
             [ALL_PLAYER_PROPS_VALUE]: "All player props",
-        });
+        };
+
+        function registerMarketLabels(options) {
+            options.forEach(opt => {
+                marketLabelLookup[opt.value] = opt.label;
+            });
+        }
+
+        registerMarketLabels(Object.values(marketOptions).flat());
+
+        const availableMarketOptions = {
+            ...marketOptions,
+        };
 
         let currentGames = [];
+
+        function prettifyMarketKey(key) {
+            if (!key) return "";
+            const stripped = key.startsWith("player_") ? key.replace("player_", "") : key;
+            return stripped
+                .split("_")
+                .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(" ");
+        }
 
         function updateTeamDropdown() {
             const sport = document.getElementById("sport-select").value;
@@ -586,6 +604,48 @@
             }
         }
 
+        async function loadMarketOptions() {
+            const sport = document.getElementById("sport-select").value;
+            const targetBook = document.getElementById("target-book-select").value;
+            const compareBook = document.getElementById("compare-book-select").value;
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+
+            try {
+                const res = await fetch("/api/player-props/markets", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_key: sport,
+                        target_book: targetBook,
+                        compare_book: compareBook,
+                        use_dummy_data: useDummyData,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                const markets = (data.available_markets || []).map(key => ({
+                    value: key,
+                    label: getMarketLabel(key),
+                }));
+
+                if (markets.length) {
+                    availableMarketOptions[sport] = markets;
+                    registerMarketLabels(markets);
+                }
+            } catch (err) {
+                console.error(err);
+                setStatus(`Couldn't load markets for ${sport}: ${err.message}`);
+                availableMarketOptions[sport] = marketOptions[sport] || [];
+            } finally {
+                renderMarketOptions();
+            }
+        }
+
         function renderMarketOptions() {
             const sport = document.getElementById("sport-select").value;
             const container = document.getElementById("market-options");
@@ -593,7 +653,7 @@
 
             const options = [
                 { value: ALL_PLAYER_PROPS_VALUE, label: "All player props" },
-                ...(marketOptions[sport] || []),
+                ...(availableMarketOptions[sport] || marketOptions[sport] || []),
             ];
 
             options.forEach((opt, index) => {
@@ -646,7 +706,7 @@
         }
 
         function getMarketLabel(marketKey) {
-            return marketLabelLookup[marketKey] || marketKey;
+            return marketLabelLookup[marketKey] || prettifyMarketKey(marketKey);
         }
 
         function setStatus(msg) {
@@ -909,16 +969,21 @@
             // Initialize team dropdown
             updateTeamDropdown();
             renderMarketOptions();
+            loadMarketOptions();
             loadGames();
 
             // Update teams when sport changes
             document.getElementById("sport-select").addEventListener("change", () => {
                 updateTeamDropdown();
                 renderMarketOptions();
+                loadMarketOptions();
                 loadGames();
             });
 
-            document.getElementById("dummy-data-checkbox").addEventListener("change", loadGames);
+            document.getElementById("dummy-data-checkbox").addEventListener("change", () => {
+                loadMarketOptions();
+                loadGames();
+            });
             document.getElementById("game-select").addEventListener("change", toggleFiltersForGameSelection);
 
             // Update players when team changes
@@ -940,8 +1005,16 @@
                 return true;
             }
             
-            targetBook.addEventListener("change", validateBookSelection);
-            compareBook.addEventListener("change", validateBookSelection);
+            targetBook.addEventListener("change", () => {
+                if (validateBookSelection()) {
+                    loadMarketOptions();
+                }
+            });
+            compareBook.addEventListener("change", () => {
+                if (validateBookSelection()) {
+                    loadMarketOptions();
+                }
+            });
         });
     </script>
 </body>
