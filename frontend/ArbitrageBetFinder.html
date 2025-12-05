@@ -648,6 +648,10 @@
                             <span style="margin-left: 0.5rem;">NFL</span>
                         </label>
                         <label style="display: flex; align-items: center; margin-top: 0.3rem;">
+                            <input type="checkbox" class="sport-checkbox" value="icehockey_nhl" checked />
+                            <span style="margin-left: 0.5rem;">NHL</span>
+                        </label>
+                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
                             <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" checked />
                             <span style="margin-left: 0.5rem;">NCAAB</span>
                         </label>
@@ -843,6 +847,7 @@
             const mapping = {
                 basketball_nba: "NBA",
                 americanfootball_nfl: "NFL",
+                icehockey_nhl: "NHL",
                 basketball_ncaab: "NCAAB",
                 americanfootball_ncaaf: "NCAAF"
             };
@@ -1204,6 +1209,8 @@
                     sportPath = "ncaa";
                 } else if (sportKey.includes("football") || sportKey.includes("nfl")) {
                     sportPath = "nfl";
+                } else if (sportKey.includes("hockey")) {
+                    sportPath = "nhl";
                 } else if (sportKey.includes("basketball") || sportKey.includes("nba")) {
                     sportPath = "nba";
                 }
@@ -1561,6 +1568,7 @@
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
+                "icehockey_nhl": "NHL",
                 "basketball_ncaab": "NCAAB",
                 "americanfootball_ncaaf": "NCAAF"
             };
@@ -1703,6 +1711,7 @@
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
+                "icehockey_nhl": "NHL",
                 "basketball_ncaab": "NCAAB",
                 "americanfootball_ncaaf": "NCAAF"
             };
@@ -1743,6 +1752,7 @@
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
+                "icehockey_nhl": "NHL",
                 "basketball_ncaab": "NCAAB",
                 "americanfootball_ncaaf": "NCAAF"
             };

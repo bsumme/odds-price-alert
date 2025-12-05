@@ -330,6 +330,7 @@
             <select id="sport-select">
                 <option value="basketball_nba">NBA</option>
                 <option value="americanfootball_nfl">NFL</option>
+                <option value="icehockey_nhl">NHL</option>
             </select>
 
             <label for="game-select">Game (optional - search all props for one matchup)</label>
@@ -433,6 +434,13 @@
                 "Jets": ["Aaron Rodgers", "Breece Hall", "Garrett Wilson", "Tyler Conklin"],
                 "Eagles": ["Jalen Hurts", "A.J. Brown", "D'Andre Swift", "DeVonta Smith"],
                 "Giants": ["Daniel Jones", "Saquon Barkley", "Darius Slayton", "Darren Waller"],
+            },
+            icehockey_nhl: {
+                "Rangers": ["Artemi Panarin", "Mika Zibanejad", "Chris Kreider", "Adam Fox"],
+                "Bruins": ["David Pastrnak", "Brad Marchand", "Charlie McAvoy", "Linus Ullmark"],
+                "Maple Leafs": ["Auston Matthews", "Mitch Marner", "William Nylander", "John Tavares"],
+                "Avalanche": ["Nathan MacKinnon", "Mikko Rantanen", "Cale Makar", "Alexandar Georgiev"],
+                "Golden Knights": ["Jack Eichel", "Mark Stone", "Jonathan Marchessault", "Adin Hill"],
             }
         };
 
@@ -451,6 +459,15 @@
                 { value: "player_rush_yds", label: "Rushing Yards" },
                 { value: "player_anytime_td", label: "Anytime TD" },
                 { value: "player_pass_tds", label: "Passing TDs" },
+            ],
+            icehockey_nhl: [
+                { value: "player_points", label: "Points" },
+                { value: "player_goals", label: "Goals" },
+                { value: "player_assists", label: "Assists" },
+                { value: "player_shots_on_goal", label: "Shots on Goal" },
+                { value: "player_power_play_points", label: "Power Play Points" },
+                { value: "player_blocks", label: "Blocks" },
+                { value: "player_saves", label: "Saves" },
             ]
         };
 

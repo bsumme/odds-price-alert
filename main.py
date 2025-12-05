@@ -205,6 +205,7 @@ class PlayerPropsRequest(BaseModel):
         "player_rushing_yards": "player_rush_yds",
         "player_touchdowns": "player_anytime_td",
         "player_passing_tds": "player_pass_tds",
+        "player_powerplay_points": "player_power_play_points",
 
         # Legacy or shorthand aliases
         "player_pass_yds": "player_pass_yds",
@@ -229,6 +230,15 @@ class PlayerPropsRequest(BaseModel):
             "player_rush_yds",
             "player_anytime_td",
             "player_pass_tds",
+        ],
+        "icehockey_nhl": [
+            "player_points",
+            "player_goals",
+            "player_assists",
+            "player_shots_on_goal",
+            "player_power_play_points",
+            "player_blocks",
+            "player_saves",
         ],
     }
 
@@ -599,7 +609,21 @@ def generate_dummy_player_props_data(
         "Giants": ["Daniel Jones", "Saquon Barkley", "Darius Slayton", "Darren Waller"],
     }
 
-    player_map = nba_players if sport_key == "basketball_nba" else nfl_players
+    nhl_players = {
+        "Rangers": ["Artemi Panarin", "Mika Zibanejad", "Chris Kreider", "Adam Fox"],
+        "Bruins": ["David Pastrnak", "Brad Marchand", "Charlie McAvoy", "Hampus Lindholm"],
+        "Maple Leafs": ["Auston Matthews", "Mitch Marner", "William Nylander", "John Tavares"],
+        "Avalanche": ["Nathan MacKinnon", "Mikko Rantanen", "Cale Makar", "Alexandar Georgiev"],
+        "Golden Knights": ["Jack Eichel", "Mark Stone", "Jonathan Marchessault", "Shea Theodore"],
+    }
+
+    players_by_sport = {
+        "basketball_nba": nba_players,
+        "americanfootball_nfl": nfl_players,
+        "icehockey_nhl": nhl_players,
+    }
+
+    player_map = players_by_sport.get(sport_key, nba_players)
 
     # Determine which teams and players to use
     if team and team in player_map:
@@ -611,8 +635,8 @@ def generate_dummy_player_props_data(
     selected_markets = markets or ["player_points"]
 
     point_ranges = {
-        "player_points": (20.5, 35.5) if sport_key == "basketball_nba" else (50.5, 300.5),
-        "player_assists": (5.5, 12.5),
+        "player_points": (20.5, 35.5) if sport_key == "basketball_nba" else (0.5, 3.5),
+        "player_assists": (5.5, 12.5) if sport_key == "basketball_nba" else (0.5, 2.5),
         "player_rebounds": (8.5, 15.5),
         "player_threes": (2.5, 6.5),
         "player_rec_yds": (50.5, 120.5),
@@ -620,6 +644,11 @@ def generate_dummy_player_props_data(
         "player_rush_yds": (50.5, 120.5),
         "player_anytime_td": (0.5, 2.5),
         "player_pass_tds": (1.5, 3.5),
+        "player_goals": (0.5, 1.5),
+        "player_shots_on_goal": (2.0, 5.5),
+        "player_power_play_points": (0.25, 1.5),
+        "player_blocks": (1.5, 4.5),
+        "player_saves": (24.5, 34.5),
     }
 
     default_range = (20.5, 35.5)
@@ -1009,6 +1038,11 @@ def collect_value_plays(
                 "player_rush_yds": "rushing yards",
                 "player_anytime_td": "touchdowns",
                 "player_pass_tds": "passing TDs",
+                "player_goals": "goals",
+                "player_shots_on_goal": "shots on goal",
+                "player_power_play_points": "power play points",
+                "player_blocks": "blocks",
+                "player_saves": "saves",
             }
             if is_player_prop and description:
                 line_suffix = ""

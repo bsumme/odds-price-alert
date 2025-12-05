@@ -556,6 +556,10 @@
                         <span>NFL</span>
                     </label>
                     <label class="checkbox-label">
+                        <input type="checkbox" class="sport-checkbox" value="icehockey_nhl" checked />
+                        <span>NHL</span>
+                    </label>
+                    <label class="checkbox-label">
                         <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" checked />
                         <span>NCAAB</span>
                     </label>
@@ -1003,6 +1007,8 @@
                     sportPath = "ncaa";
                 } else if (sportKey.includes("football") || sportKey.includes("nfl")) {
                     sportPath = "nfl";
+                } else if (sportKey.includes("hockey")) {
+                    sportPath = "nhl";
                 } else if (sportKey.includes("basketball") || sportKey.includes("nba")) {
                     sportPath = "nba";
                 }
@@ -1115,6 +1121,7 @@
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
+                "icehockey_nhl": "NHL",
                 "basketball_ncaab": "NCAAB",
                 "americanfootball_ncaaf": "NCAAF"
             };
@@ -1341,6 +1348,7 @@
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
+                "icehockey_nhl": "NHL",
                 "basketball_ncaab": "NCAAB",
                 "americanfootball_ncaaf": "NCAAF"
             };
@@ -1379,6 +1387,7 @@
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
+                "icehockey_nhl": "NHL",
                 "basketball_ncaab": "NCAAB",
                 "americanfootball_ncaaf": "NCAAF"
             };
