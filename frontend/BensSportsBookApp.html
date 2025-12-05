@@ -631,6 +631,7 @@
             <a href="/watcher.html">Watcher</a>
             <a href="/linetracker.html">Line Tracker</a>
             <a href="/value.html">Value Finder</a>
+            <a href="/featured-games.html">Featured Games</a>
             <a href="/playerprops.html">Player Props</a>
             <a href="/widgets.html">Widgets</a>
             <a href="/settings.html">Settings</a>
@@ -741,7 +742,11 @@
 
                         <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-secondary" id="build-parlay-btn">Build Best Parlay</button>
-                            <button class="btn btn-secondary" id="build-sgp-btn">Build SGP from Player Props</button>
+                            <a class="btn btn-secondary" href="/sgp-builder.html" style="text-align: center; text-decoration: none;">Open SGP Builder</a>
+                        </div>
+
+                        <div class="small-text" style="margin-top: 0.5rem;">
+                            Same-game parlays now live in a dedicated page with logos and featured matchups.
                         </div>
 
                         <div class="status-bar" id="best-status-bar">Ready.</div>
@@ -773,10 +778,12 @@
             </section>
 
             <section class="card" id="builder-results-section">
-                <h2>Parlay &amp; SGP Builder</h2>
+                <h2>Parlay Builder</h2>
                 <div class="small-text" id="builder-status-bar" style="margin-bottom: 0.4rem;">Ready.</div>
                 <div id="parlay-builder-output" class="small-text" style="margin-bottom: 0.75rem;">Use the builder buttons to generate high-value parlays based on hedge EV.</div>
-                <div id="sgp-builder-output" class="small-text">Same-game parlays will appear here after scanning player props.</div>
+                <div class="small-text">
+                    Looking for same-game parlays? Head to the <a href="/sgp-builder.html">dedicated SGP page</a> for featured matchups and logos.
+                </div>
             </section>
 
         </div>
@@ -1535,30 +1542,6 @@
             return html;
         }
 
-        function renderSGPBuilderResults(data) {
-            const container = document.getElementById('sgp-builder-output');
-            if (!container) return;
-
-            if (!data || (!data.best_sgp && !data.uncorrelated_sgp)) {
-                container.textContent = (data && data.warnings && data.warnings.join(' ')) || 'No same-game parlay recommendation available right now.';
-                return;
-            }
-
-            let html = '';
-            if (data.best_sgp) {
-                html += describeSgp('Top SGP', data.best_sgp);
-            }
-            if (data.uncorrelated_sgp) {
-                html += describeSgp('Uncorrelated SGP', data.uncorrelated_sgp);
-            }
-
-            if (data.warnings && data.warnings.length) {
-                html += `<div class="small-text" style="color: #fbbf24; margin-top: 0.35rem;">${data.warnings.join(' ')}</div>`;
-            }
-
-            container.innerHTML = html;
-        }
-
         // Legacy function for backwards compatibility
         function formatAmericanOdds(odds) {
             return formatOdds(odds);
@@ -2175,52 +2158,6 @@
             }
         }
 
-        async function buildSgpRecommendation() {
-            const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
-            const targetBook = document.getElementById("best-target-book-select").value;
-            const compareBook = document.getElementById("best-compare-book-select").value;
-            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
-            const boostPercent = getPromoBoostPercent();
-
-            if (sportCheckboxes.length !== 1) {
-                setBuilderStatus("Pick exactly one sport to scan for SGP player props.");
-                return;
-            }
-            if (targetBook === compareBook) {
-                setBuilderStatus("Target book and comparison book must differ for SGP building.");
-                return;
-            }
-
-            const sportKey = sportCheckboxes[0].value;
-            setBuilderStatus("Searching player props for SGP legs...");
-
-            try {
-                const res = await loggedFetch("/api/sgp-builder", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        sport_key: sportKey,
-                        target_book: targetBook,
-                        compare_book: compareBook,
-                        boost_percent: boostPercent,
-                        use_dummy_data: useDummyData,
-                        avoid_correlation: true
-                    })
-                }, 'sgp-builder');
-
-                if (!res.ok) {
-                    const text = await res.text();
-                    throw new Error(text || (`HTTP ${res.status}`));
-                }
-
-                const data = await res.json();
-                renderSGPBuilderResults(data);
-                setBuilderStatus("Updated SGP recommendations using hedge EV player props.");
-            } catch (err) {
-                setBuilderStatus(`SGP builder failed: ${err.message || err}`);
-            }
-        }
-
         async function fetchBestValuePlays() {
             const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
             const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
@@ -2599,7 +2536,6 @@
             document.getElementById("find-best-btn").onclick = fetchBestValuePlays;
             document.getElementById("clear-best-btn").onclick = clearBestResults;
             document.getElementById("build-parlay-btn").onclick = buildParlayRecommendation;
-            document.getElementById("build-sgp-btn").onclick = buildSgpRecommendation;
 
             // Parlay Calculator
             document.getElementById("add-parlay-leg-btn").onclick = addParlayLeg;

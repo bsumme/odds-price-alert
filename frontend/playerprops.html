@@ -315,6 +315,7 @@
             <a href="/BensSportsBookApp.html">Arbitrage Finder</a>
             <a href="/value.html">Value Finder</a>
             <a href="/linetracker.html">Line Tracker</a>
+            <a href="/featured-games.html">Featured Games</a>
             <a href="/widgets.html">Widgets</a>
             <a href="/watcher.html">Watcher</a>
             <a href="/playerprops.html" class="active">Player Props</a>
@@ -447,7 +448,8 @@
         <section class="card" id="sgp-builder-card">
             <h2>Same-Game Parlay Builder</h2>
             <div class="small-text" style="margin-bottom: 0.35rem;">
-                Select a game from the dropdown to enable the SGP builder. We will pull the best hedge EV legs from that matchup.
+                Scan all available games for the selected sport or focus on a single matchup. We will pull the best hedge EV legs
+                and only keep SGPs that meet your total odds filter.
             </div>
 
             <label for="sgp-boost-input">Promo boost % (20-100, default 30)</label>
@@ -458,9 +460,20 @@
                 <span>Avoid correlated legs (prefer diverse player props)</span>
             </label>
 
-            <button class="btn btn-secondary" id="build-sgp-btn" disabled style="margin-top: 0.5rem;">Build SGP for Selected Game</button>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.6rem;">
+                <label class="small-text" style="display: flex; gap: 0.35rem; align-items: center;">
+                    Min total odds
+                    <input id="sgp-min-odds-input" type="number" value="100" style="width: 6rem;" />
+                </label>
+                <label class="small-text" style="display: flex; gap: 0.35rem; align-items: center;">
+                    Max total odds
+                    <input id="sgp-max-odds-input" type="number" value="20000" style="width: 6rem;" />
+                </label>
+            </div>
 
-            <div class="status-bar" id="sgp-status-bar">Pick a game to enable SGP building.</div>
+            <button class="btn btn-secondary" id="build-sgp-btn" style="margin-top: 0.5rem;">Build SGPs</button>
+
+            <div class="status-bar" id="sgp-status-bar">Pick a sport to search for SGPs or choose a specific game.</div>
             <div id="sgp-results" class="small-text" style="margin-top: 0.5rem;">No same-game parlay generated yet.</div>
         </section>
     </main>
@@ -717,6 +730,14 @@
             const helper = document.getElementById("game-helper-text");
             const select = document.getElementById("game-select");
 
+            if (!sport) {
+                helper.textContent = "Pick a sport to see upcoming games with player props.";
+                currentGames = [];
+                select.innerHTML = '<option value="">All Games</option>';
+                toggleFiltersForGameSelection();
+                return;
+            }
+
             helper.textContent = "Loading games...";
             currentGames = [];
             select.innerHTML = '<option value="">All Games</option>';
@@ -752,6 +773,12 @@
             const targetBook = document.getElementById("target-book-select").value;
             const compareBook = document.getElementById("compare-book-select").value;
             const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+
+            if (!sport) {
+                setStatus("Select a sport to load available player prop markets.");
+                renderMarketOptions();
+                return;
+            }
 
             try {
                 const res = await fetch("/api/player-props/markets", {
@@ -1130,6 +1157,30 @@
             return Math.min(100, Math.max(20, value));
         }
 
+        function parseOddsRangeInput(element, fallback) {
+            const parsed = Number.parseInt(element?.value, 10);
+            if (Number.isNaN(parsed)) {
+                if (element) element.value = fallback;
+                return fallback;
+            }
+            return parsed;
+        }
+
+        function getSgpOddsRange() {
+            const minInput = document.getElementById("sgp-min-odds-input");
+            const maxInput = document.getElementById("sgp-max-odds-input");
+
+            const minOdds = parseOddsRangeInput(minInput, 100);
+            const maxOdds = parseOddsRangeInput(maxInput, 20000);
+
+            if (minOdds > maxOdds && maxInput) {
+                maxInput.value = minOdds;
+                return { minOdds, maxOdds: minOdds };
+            }
+
+            return { minOdds, maxOdds };
+        }
+
         function describeSgp(label, sgp) {
             if (!sgp) return "";
             let html = `<div style="margin-top: 0.4rem;"><strong>${label}</strong> (${sgp.legs.length} legs) — ${sgp.matchup}`;
@@ -1206,22 +1257,26 @@
 
             const gameId = gameSelect.value;
             const sport = sportSelect.value;
-            const enabled = Boolean(gameId && sport);
+            const enabled = Boolean(sport);
             btn.disabled = !enabled;
 
-            if (!gameId) {
-                setSgpStatus("Pick a game to enable SGP building.");
+            if (!sport) {
+                setSgpStatus("Select a sport first.");
                 return;
             }
 
-            const selectedGame = currentGames.find(g => g.event_id === gameId);
-            const label = selectedGame ? formatGameLabel(selectedGame) : "selected game";
-            setSgpStatus(`Ready to build an SGP for ${label}.`);
+            if (gameId) {
+                const selectedGame = currentGames.find(g => g.event_id === gameId);
+                const label = selectedGame ? formatGameLabel(selectedGame) : "selected game";
+                setSgpStatus(`Ready to build an SGP for ${label}.`);
+            } else {
+                setSgpStatus("Scanning all available games for the best SGP values.");
+            }
         }
 
         async function buildSgpForSelectedGame() {
             const sport = document.getElementById("sport-select").value;
-            const eventId = document.getElementById("game-select").value;
+            const eventId = document.getElementById("game-select").value || null;
             const targetBook = document.getElementById("target-book-select").value;
             const compareBook = document.getElementById("compare-book-select").value;
             const useDummyData = document.getElementById("dummy-data-checkbox").checked;
@@ -1229,13 +1284,10 @@
             const boostInput = document.getElementById("sgp-boost-input");
             const boostPercent = clampBoostPercent(parseFloat(boostInput.value));
             boostInput.value = boostPercent;
+            const { minOdds, maxOdds } = getSgpOddsRange();
 
             if (!sport) {
                 setSgpStatus("Select a sport first.");
-                return;
-            }
-            if (!eventId) {
-                setSgpStatus("Select a game to build an SGP.");
                 return;
             }
             if (targetBook === compareBook) {
@@ -1244,7 +1296,7 @@
             }
 
             const selectedGame = currentGames.find(g => g.event_id === eventId);
-            const gameLabel = selectedGame ? formatGameLabel(selectedGame) : "selected game";
+            const gameLabel = selectedGame ? formatGameLabel(selectedGame) : "all games";
             setSgpStatus(`Building SGP from player props for ${gameLabel}...`);
 
             try {
@@ -1259,6 +1311,8 @@
                         boost_percent: boostPercent,
                         use_dummy_data: useDummyData,
                         avoid_correlation: avoidCorrelation,
+                        min_total_american_odds: minOdds,
+                        max_total_american_odds: maxOdds,
                     })
                 });
 
