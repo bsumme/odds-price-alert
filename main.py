@@ -32,6 +32,7 @@ from services.odds_utils import (
     points_match,
     apply_vig_adjustment,
     MAX_VALID_AMERICAN_ODDS,
+    decimal_to_american,
 )
 from utils.regions import compute_regions_for_books
 from utils.formatting import pretty_book_label, format_start_time_est
@@ -341,6 +342,58 @@ class PlayerPropsResponse(BaseModel):
     compare_book: str
     markets: List[str]
     plays: List[ValuePlayOutcome]
+    warnings: List[str] = Field(default_factory=list)
+
+
+class ParlayBuilderRequest(BestValuePlaysRequest):
+    """Request to build a parlay from the highest hedge EV plays."""
+
+    parlay_size: int = Field(default=3, ge=2, le=6)
+    boost_percent: float = Field(default=30.0, ge=20.0, le=100.0)
+
+
+class ParlayBuilderResponse(BaseModel):
+    target_book: str
+    compare_book: str
+    parlay_legs: List[BestValuePlayOutcome]
+    combined_decimal_odds: Optional[float]
+    combined_american_odds: Optional[int]
+    boost_percent: float
+    boosted_decimal_odds: Optional[float]
+    boosted_american_odds: Optional[int]
+    notes: List[str] = Field(default_factory=list)
+
+
+class SGPSuggestion(BaseModel):
+    event_id: str
+    matchup: str
+    start_time: Optional[str]
+    legs: List[ValuePlayOutcome]
+    combined_decimal_odds: Optional[float]
+    combined_american_odds: Optional[int]
+    boost_percent: float
+    boosted_decimal_odds: Optional[float]
+    boosted_american_odds: Optional[int]
+    note: Optional[str] = None
+
+
+class SGPBuilderRequest(BaseModel):
+    """Request to build same-game parlay recommendations from player props."""
+
+    sport_key: str
+    target_book: str
+    compare_book: str
+    boost_percent: float = Field(default=30.0, ge=20.0, le=100.0)
+    use_dummy_data: bool = False
+    avoid_correlation: bool = True
+
+
+class SGPBuilderResponse(BaseModel):
+    sport_key: str
+    target_book: str
+    compare_book: str
+    best_sgp: Optional[SGPSuggestion] = None
+    uncorrelated_sgp: Optional[SGPSuggestion] = None
     warnings: List[str] = Field(default_factory=list)
 
 
@@ -1673,6 +1726,255 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
         target_book=target_book,
         compare_book=compare_book,
         plays=top_plays,
+    )
+
+
+def _clamp_boost_percent(boost_percent: Optional[float]) -> float:
+    if boost_percent is None:
+        return 30.0
+    return max(20.0, min(100.0, boost_percent))
+
+
+def _combine_leg_odds(legs: List[ValuePlayOutcome]) -> tuple[Optional[float], Optional[int]]:
+    if not legs:
+        return None, None
+
+    combined_decimal = 1.0
+    for leg in legs:
+        try:
+            combined_decimal *= american_to_decimal(leg.book_price)
+        except Exception:
+            return None, None
+
+    american = decimal_to_american(combined_decimal)
+    return combined_decimal, american
+
+
+def _apply_boost(decimal_odds: Optional[float], boost_percent: float) -> tuple[Optional[float], Optional[int]]:
+    if decimal_odds is None:
+        return None, None
+    boosted_decimal = decimal_odds * (1.0 + boost_percent / 100.0)
+    boosted_american = decimal_to_american(boosted_decimal)
+    return boosted_decimal, boosted_american
+
+
+def _hedge_value(play: ValuePlayOutcome) -> float:
+    if play.hedge_ev_percent is not None:
+        return play.hedge_ev_percent
+    return play.ev_percent
+
+
+def _select_top_parlay_legs(
+    plays: List[BestValuePlayOutcome], desired_legs: int
+) -> List[BestValuePlayOutcome]:
+    sorted_plays = sorted(plays, key=_hedge_value, reverse=True)
+    legs: List[BestValuePlayOutcome] = []
+    seen_events: Set[str] = set()
+
+    for play in sorted_plays:
+        if play.event_id in seen_events:
+            continue
+        legs.append(play)
+        seen_events.add(play.event_id)
+        if len(legs) >= desired_legs:
+            break
+
+    return legs
+
+
+@app.post("/api/parlay-builder", response_model=ParlayBuilderResponse)
+def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
+    """Build a high-value parlay using the best hedge EV plays across sports/markets."""
+
+    boost_percent = _clamp_boost_percent(payload.boost_percent)
+    # Request extra results to increase the chance of filling out the parlay.
+    desired_results = max(payload.max_results or 50, payload.parlay_size * 4)
+    best_request = BestValuePlaysRequest(
+        sport_keys=payload.sport_keys,
+        markets=payload.markets,
+        target_book=payload.target_book,
+        compare_book=payload.compare_book,
+        max_results=desired_results,
+        use_dummy_data=payload.use_dummy_data,
+    )
+
+    best_response = get_best_value_plays(best_request)
+    legs = _select_top_parlay_legs(best_response.plays, payload.parlay_size)
+    notes: List[str] = []
+
+    if not legs:
+        notes.append("No eligible legs found for the requested parlay size.")
+        combined_decimal = None
+        combined_american = None
+    else:
+        combined_decimal, combined_american = _combine_leg_odds(legs)
+        if len(legs) < payload.parlay_size:
+            notes.append(
+                f"Only {len(legs)} legs available based on current odds and filters."
+            )
+
+    boosted_decimal, boosted_american = _apply_boost(combined_decimal, boost_percent)
+
+    return ParlayBuilderResponse(
+        target_book=payload.target_book,
+        compare_book=payload.compare_book,
+        parlay_legs=legs,
+        combined_decimal_odds=combined_decimal,
+        combined_american_odds=combined_american,
+        boost_percent=boost_percent,
+        boosted_decimal_odds=boosted_decimal,
+        boosted_american_odds=boosted_american,
+        notes=notes,
+    )
+
+
+def _extract_player_name(outcome_name: str) -> Optional[str]:
+    if not outcome_name:
+        return None
+    lowered = outcome_name.lower()
+    for keyword in [" over", " under"]:
+        idx = lowered.find(keyword)
+        if idx > 0:
+            return outcome_name[:idx].strip()
+    return outcome_name.strip()
+
+
+def _select_uncorrelated_legs(
+    plays: List[ValuePlayOutcome],
+    max_legs: int,
+    avoid_correlation: bool = True,
+) -> List[ValuePlayOutcome]:
+    sorted_plays = sorted(plays, key=_hedge_value, reverse=True)
+    legs: List[ValuePlayOutcome] = []
+    used_players: Set[str] = set()
+    used_markets: Set[str] = set()
+
+    for play in sorted_plays:
+        player_name = _extract_player_name(play.outcome_name)
+        if avoid_correlation:
+            if play.market and play.market in used_markets:
+                continue
+            if player_name and player_name.lower() in used_players:
+                continue
+
+        legs.append(play)
+        if play.market:
+            used_markets.add(play.market)
+        if player_name:
+            used_players.add(player_name.lower())
+
+        if len(legs) >= max_legs:
+            break
+
+    return legs
+
+
+def _build_sgp_suggestion(
+    legs: List[ValuePlayOutcome],
+    boost_percent: float,
+    note: Optional[str] = None,
+) -> SGPSuggestion:
+    combined_decimal, combined_american = _combine_leg_odds(legs)
+    boosted_decimal, boosted_american = _apply_boost(combined_decimal, boost_percent)
+    first_leg = legs[0]
+    return SGPSuggestion(
+        event_id=first_leg.event_id,
+        matchup=first_leg.matchup,
+        start_time=first_leg.start_time,
+        legs=legs,
+        combined_decimal_odds=combined_decimal,
+        combined_american_odds=combined_american,
+        boost_percent=boost_percent,
+        boosted_decimal_odds=boosted_decimal,
+        boosted_american_odds=boosted_american,
+        note=note,
+    )
+
+
+@app.post("/api/sgp-builder", response_model=SGPBuilderResponse)
+def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
+    """Recommend SGP legs by picking the best player props within a single game."""
+
+    boost_percent = _clamp_boost_percent(payload.boost_percent)
+    warnings: List[str] = []
+
+    # Pull all supported player prop markets for the selected sport.
+    markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
+        payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
+    )
+
+    props_request = PlayerPropsRequest(
+        sport_key=payload.sport_key,
+        team=None,
+        player_name=None,
+        event_id=None,
+        markets=markets,
+        target_book=payload.target_book,
+        compare_book=payload.compare_book,
+        use_dummy_data=payload.use_dummy_data,
+    )
+
+    props_response = get_player_props(props_request)
+
+    if not props_response.plays:
+        warnings.append("No player props available to build an SGP right now.")
+        return SGPBuilderResponse(
+            sport_key=payload.sport_key,
+            target_book=payload.target_book,
+            compare_book=payload.compare_book,
+            warnings=warnings,
+        )
+
+    plays_by_event: Dict[str, List[ValuePlayOutcome]] = {}
+    for play in props_response.plays:
+        plays_by_event.setdefault(play.event_id, []).append(play)
+
+    best_sgp: Optional[SGPSuggestion] = None
+    uncorrelated_sgp: Optional[SGPSuggestion] = None
+
+    for event_id, plays in plays_by_event.items():
+        if not plays:
+            continue
+
+        sorted_plays = sorted(plays, key=_hedge_value, reverse=True)
+        top_three = sorted_plays[:3]
+        if len(top_three) < 2:
+            continue
+
+        if best_sgp is None:
+            best_sgp = _build_sgp_suggestion(top_three, boost_percent)
+        else:
+            current_score = sum(_hedge_value(p) for p in best_sgp.legs)
+            new_score = sum(_hedge_value(p) for p in top_three)
+            if new_score > current_score:
+                best_sgp = _build_sgp_suggestion(top_three, boost_percent)
+
+        if payload.avoid_correlation and uncorrelated_sgp is None:
+            unique_legs = _select_uncorrelated_legs(plays, max_legs=3, avoid_correlation=True)
+            if len(unique_legs) >= 2:
+                uncorrelated_sgp = _build_sgp_suggestion(
+                    unique_legs,
+                    boost_percent,
+                    note="Uncorrelated SGP to reduce vig risk.",
+                )
+
+    if best_sgp and len(best_sgp.legs) < 3:
+        warnings.append(
+            "Found a same-game parlay but fewer than 3 high-value props were available."
+        )
+
+    if payload.avoid_correlation and best_sgp and uncorrelated_sgp is None:
+        warnings.append(
+            "Could not find an uncorrelated set of props; showing the best available mix instead."
+        )
+
+    return SGPBuilderResponse(
+        sport_key=payload.sport_key,
+        target_book=payload.target_book,
+        compare_book=payload.compare_book,
+        best_sgp=best_sgp,
+        uncorrelated_sgp=uncorrelated_sgp,
+        warnings=warnings,
     )
 
 
