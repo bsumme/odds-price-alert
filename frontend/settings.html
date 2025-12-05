@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Ben's Sports Book App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1a2332 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+        }
+
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            gap: 1rem;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #10b981;
+        }
+
+        .top-right-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            padding: 0.5rem 1rem;
+            background: #1a2332;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .nav-btn:hover {
+            background: #2d3d4f;
+            border-color: #475569;
+        }
+
+        .nav-btn.active {
+            background: #10b981;
+            color: #0f172a;
+            border-color: #10b981;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: #1a2332;
+            border: 1px solid #2d3d4f;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            margin-bottom: 1.5rem;
+            color: #10b981;
+            font-size: 1.3rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 0.75rem;
+        }
+
+        .setting-group {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #334155;
+        }
+
+        .setting-group:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .setting-label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .setting-label input[type="checkbox"] {
+            margin-right: 0.75rem;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .setting-label label {
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .setting-description {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            margin-left: 2rem;
+            margin-top: 0.25rem;
+        }
+
+        .sports-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .sport-checkbox {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sport-checkbox:hover {
+            border-color: #475569;
+            background: #131d2a;
+        }
+
+        .sport-checkbox input[type="checkbox"] {
+            margin-right: 0.5rem;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .sport-checkbox label {
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            justify-content: space-between;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #10b981;
+            color: #0f172a;
+        }
+
+        .btn-primary:hover {
+            background: #059669;
+        }
+
+        .btn-secondary {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .status-message {
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .status-message.success {
+            display: block;
+            background: #10b98133;
+            color: #10b981;
+            border: 1px solid #10b981;
+        }
+
+        .status-message.error {
+            display: block;
+            background: #ef444433;
+            color: #ef4444;
+            border: 1px solid #ef4444;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+
+            .sports-grid {
+                grid-template-columns: 1fr;
+            }
+
+            nav {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .top-right-buttons {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <nav>
+            <div class="nav-left">
+                <h1>⚙️ Settings</h1>
+            </div>
+            <div class="top-right-buttons">
+                <a href="BensSportsBookApp.html" class="nav-btn smooth-nav" data-href="BensSportsBookApp.html">Arbitrage
+                    Finder</a>
+                <a href="playerprops.html" class="nav-btn smooth-nav" data-href="playerprops.html">Player Props</a>
+                <a href="value.html" class="nav-btn smooth-nav" data-href="value.html">Value Plays</a>
+                <a href="watcher.html" class="nav-btn smooth-nav" data-href="watcher.html">Bet Watcher</a>
+                <a href="settings.html" class="nav-btn active">Settings</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>Application Settings</h2>
+
+            <!-- Dummy Data Setting -->
+            <div class="setting-group">
+                <div class="setting-label">
+                    <input type="checkbox" id="dummy-data-setting" />
+                    <label for="dummy-data-setting">Use Dummy Data</label>
+                </div>
+                <div class="setting-description">
+                    Enable dummy data for development when API credits are exhausted. Disabling uses real API data from
+                    The Odds API.
+                </div>
+            </div>
+
+            <!-- Logging Setting -->
+            <div class="setting-group">
+                <div class="setting-label">
+                    <input type="checkbox" id="logging-setting" />
+                    <label for="logging-setting">Save Search Results as JSON</label>
+                </div>
+                <div class="setting-description">
+                    When enabled, search results are automatically saved to a JSON file for record-keeping and analysis.
+                </div>
+            </div>
+
+            <!-- Default Sports Setting -->
+            <div class="setting-group">
+                <h3 style="margin-bottom: 1rem; color: #cbd5e1;">Default Sports Display</h3>
+                <div class="setting-description" style="margin-left: 0;">
+                    Select which sports should be checked by default when opening the app. Unchecked sports will still
+                    be accessible via the "Show All Sports" button.
+                </div>
+                <div class="sports-grid" id="sports-checkboxes">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="button-group">
+                <div>
+                    <button class="btn btn-primary" id="save-settings-btn">Save Settings</button>
+                    <button class="btn btn-secondary" id="reset-settings-btn">Reset to Defaults</button>
+                </div>
+            </div>
+
+            <div class="status-message" id="status-message"></div>
+        </section>
+    </main>
+
+    <script>
+        // Settings storage key
+        const SETTINGS_KEY = 'bensAppSettings';
+        const DEFAULT_SETTINGS = {
+            useDummyData: false,
+            enableLogging: false,
+            defaultSports: {
+                americanfootball_nfl: true,
+                americanfootball_ncaaf: true,
+                basketball_nba: true,
+                basketball_ncaab: true,
+                icehockey_nhl: true
+            }
+        };
+
+        // Load settings from localStorage
+        function loadSettings() {
+            const stored = localStorage.getItem(SETTINGS_KEY);
+            if (stored) {
+                try {
+                    return JSON.parse(stored);
+                } catch (e) {
+                    console.warn('Failed to parse settings, using defaults', e);
+                }
+            }
+            return DEFAULT_SETTINGS;
+        }
+
+        // Save settings to localStorage
+        function saveSettings(settings) {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        }
+
+        // Show status message
+        function showStatus(message, isSuccess = true) {
+            const statusEl = document.getElementById('status-message');
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${isSuccess ? 'success' : 'error'}`;
+            setTimeout(() => {
+                statusEl.className = 'status-message';
+            }, 3000);
+        }
+
+        // Fetch and populate sports
+        async function populateSports() {
+            try {
+                const res = await fetch('/api/sports');
+                if (!res.ok) throw new Error('Failed to fetch sports');
+                const sports = await res.json();
+                const container = document.getElementById('sports-checkboxes');
+                const settings = loadSettings();
+
+                container.innerHTML = '';
+                for (const sport of sports) {
+                    if (!sport || !sport.key) continue;
+
+                    const isActive = settings.defaultSports[sport.key] ?? sport.active;
+                    const div = document.createElement('div');
+                    div.className = 'sport-checkbox';
+                    div.innerHTML = `
+                        <input type="checkbox" id="sport-${sport.key}" data-sport-key="${sport.key}" ${isActive ? 'checked' : ''} />
+                        <label for="sport-${sport.key}">${sport.title || sport.key}</label>
+                    `;
+                    container.appendChild(div);
+                }
+            } catch (err) {
+                console.error('Error populating sports:', err);
+                showStatus('Failed to load sports list', false);
+            }
+        }
+
+        // Update UI from settings
+        function updateUI() {
+            const settings = loadSettings();
+            document.getElementById('dummy-data-setting').checked = settings.useDummyData;
+            document.getElementById('logging-setting').checked = settings.enableLogging;
+        }
+
+        // Save button handler
+        document.getElementById('save-settings-btn').addEventListener('click', () => {
+            const settings = {
+                useDummyData: document.getElementById('dummy-data-setting').checked,
+                enableLogging: document.getElementById('logging-setting').checked,
+                defaultSports: {}
+            };
+
+            // Collect selected sports
+            document.querySelectorAll('[data-sport-key]').forEach(checkbox => {
+                const sportKey = checkbox.dataset.sportKey;
+                settings.defaultSports[sportKey] = checkbox.checked;
+            });
+
+            saveSettings(settings);
+            showStatus('Settings saved successfully!', true);
+        });
+
+        // Reset button handler
+        document.getElementById('reset-settings-btn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to reset all settings to defaults?')) {
+                saveSettings(DEFAULT_SETTINGS);
+                updateUI();
+                populateSports();
+                showStatus('Settings reset to defaults', true);
+            }
+        });
+
+        // Smooth navigation
+        function smoothNavigate(url) {
+            document.body.classList.remove('fade-in');
+            setTimeout(() => {
+                window.location.href = url;
+            }, 150);
+        }
+
+        document.querySelectorAll('.smooth-nav').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const href = link.dataset.href;
+                smoothNavigate(href);
+            });
+        });
+
+        // Fade in animation
+        function fadeInPage() {
+            requestAnimationFrame(() => {
+                document.body.classList.add('fade-in');
+            });
+        }
+
+        // Initialize page
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                updateUI();
+                populateSports();
+                fadeInPage();
+            });
+        } else {
+            updateUI();
+            populateSports();
+            fadeInPage();
+        }
+
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                document.body.classList.remove('fade-in');
+                requestAnimationFrame(() => {
+                    document.body.classList.add('fade-in');
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>

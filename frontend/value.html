@@ -254,12 +254,13 @@
             </div>
         </div>
         <nav>
-            <a href="/ArbitrageBetFinder.html">Arbitrage Finder</a>
+            <a href="/BensSportsBookApp.html">Arbitrage Finder</a>
             <a href="/watcher.html">Watcher</a>
             <a href="/linetracker.html">Line Tracker</a>
             <a href="/widgets.html">Widgets</a>
             <a href="/value.html" class="active">Value Finder</a>
             <a href="/playerprops.html">Player Props</a>
+            <a href="/settings.html">Settings</a>
             <div class="odds-format-toggle">
                 <label>
                     <input type="radio" name="odds-format" value="american" checked />
@@ -458,7 +459,7 @@
             if (isNaN(numOdds)) {
                 return String(odds);
             }
-            
+
             const format = getOddsFormat();
             if (format === "decimal") {
                 const decimal = americanToDecimal(numOdds);
@@ -784,7 +785,7 @@
                 if (!saved) return null;
 
                 const selections = JSON.parse(saved);
-                
+
                 if (selections.sport) {
                     document.getElementById("sport-select").value = selections.sport;
                 }
@@ -877,11 +878,11 @@
             document.getElementById("clear-btn").onclick = clearResults;
             document.getElementById("start-loop-btn").onclick = startValueLoop;
             document.getElementById("stop-loop-btn").onclick = stopValueLoop;
-            
+
             // Prevent selecting the same book for both target and comparison
             const bookSelect = document.getElementById("book-select");
             const compareBookSelect = document.getElementById("compare-book-select");
-            
+
             function validateBookSelection() {
                 if (bookSelect.value === compareBookSelect.value) {
                     setStatus("Error: Target book and comparison book cannot be the same.");
@@ -889,7 +890,7 @@
                 }
                 return true;
             }
-            
+
             bookSelect.addEventListener("change", validateBookSelection);
             compareBookSelect.addEventListener("change", validateBookSelection);
         });

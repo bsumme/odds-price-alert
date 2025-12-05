@@ -30,11 +30,11 @@ Write-Host "  Server Configuration" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Server will be accessible at:" -ForegroundColor Green
-Write-Host "  Desktop: http://127.0.0.1:8000/ArbitrageBetFinder.html" -ForegroundColor Cyan
-Write-Host "  Mobile:  http://$ipAddress:8000/ArbitrageBetFinder.html" -ForegroundColor Cyan
+Write-Host "  Desktop: http://127.0.0.1:8000/BensSportsBookApp.html" -ForegroundColor Cyan
+Write-Host "  Mobile:  http://$ipAddress:8000/BensSportsBookApp.html" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "In BlueStacks, open a browser and navigate to:" -ForegroundColor Yellow
-Write-Host "  http://$ipAddress:8000/ArbitrageBetFinder.html" -ForegroundColor White
+Write-Host "  http://$ipAddress:8000/BensSportsBookApp.html" -ForegroundColor White
 Write-Host ""
 Write-Host "Press CTRL+C to stop the server" -ForegroundColor Yellow
 Write-Host ""

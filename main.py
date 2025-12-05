@@ -1622,8 +1622,13 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
                 # Convert to BestValuePlayOutcome with sport and market info
                 for p in filtered_plays:
                     formatted_time = p.start_time
-                    if formatted_time:
-                        formatted_time = format_start_time_est(formatted_time)
+                    if formatted_time and formatted_time.strip():
+                        try:
+                            formatted_time = format_start_time_est(formatted_time)
+                        except Exception:
+                            formatted_time = p.start_time or "—"
+                    else:
+                        formatted_time = "—"
 
                     all_plays.append(
                         BestValuePlayOutcome(
@@ -2612,14 +2617,14 @@ def get_test_arbitrage_alert():
 # Redirect root to the main page
 @app.get("/")
 async def root():
-    return RedirectResponse(url="/ArbitrageBetFinder.html")
+    return RedirectResponse(url="/BensSportsBookApp.html")
 
 
 @app.get("/ArbritrageBetFinder.html")
 async def legacy_arbitrage_page():
     """Redirect legacy URL with misspelling to the corrected filename."""
-    return RedirectResponse(url="/ArbitrageBetFinder.html", status_code=301)
+    return RedirectResponse(url="/BensSportsBookApp.html", status_code=301)
 
 
-# Static frontend (ArbitrageBetFinder.html, value.html, etc. under ./frontend)
+# Static frontend (BensSportsBookApp.html, value.html, etc. under ./frontend)
 app.mount("/", StaticFiles(directory="frontend", html=True), name="static")

@@ -627,12 +627,13 @@
             <div class="small-text">Compare sportsbook odds and uncover risk-free opportunities.</div>
         </div>
         <nav>
-            <a href="/ArbitrageBetFinder.html" class="active">Arbitrage Finder</a>
+            <a href="/BensSportsBookApp.html" class="active">Arbitrage Finder</a>
             <a href="/watcher.html">Watcher</a>
             <a href="/linetracker.html">Line Tracker</a>
             <a href="/value.html">Value Finder</a>
             <a href="/playerprops.html">Player Props</a>
             <a href="/widgets.html">Widgets</a>
+            <a href="/settings.html">Settings</a>
         </nav>
     </header>
 
@@ -690,20 +691,44 @@
                         <option value="fliff">Fliff</option>
                     </select>
 
-                    <label for="best-max-results-input">Max results</label>
-                    <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="10" />
+                    <label for="best-max-results-input" style="display: none;">Max results</label>
+                    <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="10"
+                        style="display: none;" />
 
                     <label
-                        style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                        style="display: none; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
                         <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
                         <span>Use Dummy Data (for development when API credits are exhausted)</span>
                     </label>
 
                     <label
-                        style="display: flex; align-items: center; margin-top: 0.5rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                        style="display: none; align-items: center; margin-top: 0.5rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
                         <input type="checkbox" id="log-results-checkbox" style="margin-right: 0.5rem;" />
                         <span>Save search results as JSON</span>
                     </label>
+
+                    <!-- Parlay Calculator -->
+                    <div
+                        style="margin-top: 1rem; padding: 0.75rem; background: #1a2332; border: 1px solid #2d3d4f; border-radius: 4px;">
+                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: #e2e8f0;">Parlay Calculator</h3>
+                        <div id="parlay-legs-container" style="margin-bottom: 0.5rem;">
+                            <div class="parlay-leg" style="margin-bottom: 0.3rem;">
+                                <input type="number" class="parlay-odds-input" placeholder="Odds (e.g., -110, +200)"
+                                    step="any"
+                                    style="width: 100%; padding: 0.3rem; font-size: 0.85rem; background: #0f172a; border: 1px solid #334155; border-radius: 3px; color: #e2e8f0;" />
+                            </div>
+                        </div>
+                        <button id="add-parlay-leg-btn"
+                            style="width: 100%; padding: 0.3rem; font-size: 0.85rem; background: #334155; color: #e2e8f0; border: 1px solid #475569; border-radius: 3px; cursor: pointer; margin-bottom: 0.3rem;">+
+                            Add Leg</button>
+                        <button id="remove-parlay-leg-btn"
+                            style="width: 100%; padding: 0.3rem; font-size: 0.85rem; background: #334155; color: #e2e8f0; border: 1px solid #475569; border-radius: 3px; cursor: pointer; margin-bottom: 0.5rem;">-
+                            Remove Leg</button>
+                        <div id="parlay-result"
+                            style="padding: 0.4rem; background: #0f172a; border: 1px solid #334155; border-radius: 3px; text-align: center; color: #10b981; font-size: 0.9rem; font-weight: bold;">
+                            Parlay Odds: —
+                        </div>
+                    </div>
 
                     <div class="filter-actions">
                         <div style="margin-top: 0.25rem;">
@@ -943,6 +968,71 @@
                 novig: "Novig"
             };
             return mapping[bookKey] || bookKey;
+        }
+
+        function convertOddsToDecimal(odds) {
+            if (typeof odds !== 'number') return null;
+            if (odds === 0) return null;
+            if (odds > 0) {
+                return 1 + odds / 100;
+            } else {
+                return 1 + 100 / Math.abs(odds);
+            }
+        }
+
+        function convertDecimalToAmericanOdds(decimal) {
+            if (decimal <= 1) return null;
+            if (decimal === 1.5) return 0;
+            if (decimal > 2) {
+                return Math.round((decimal - 1) * 100);
+            } else {
+                return Math.round(-100 / (decimal - 1));
+            }
+        }
+
+        function updateParlayCalculator() {
+            const inputs = document.querySelectorAll('.parlay-odds-input');
+            let totalDecimalOdds = 1;
+            let validLegs = 0;
+
+            for (const input of inputs) {
+                const value = parseFloat(input.value);
+                if (!isNaN(value) && value !== 0) {
+                    const decimal = convertOddsToDecimal(value);
+                    if (decimal && decimal > 0) {
+                        totalDecimalOdds *= decimal;
+                        validLegs++;
+                    }
+                }
+            }
+
+            const resultDiv = document.getElementById('parlay-result');
+            if (validLegs < 2) {
+                resultDiv.textContent = 'Parlay Odds: — (need at least 2 legs)';
+            } else {
+                const americanOdds = convertDecimalToAmericanOdds(totalDecimalOdds);
+                resultDiv.textContent = `Parlay Odds: ${americanOdds > 0 ? '+' : ''}${americanOdds} (${totalDecimalOdds.toFixed(2)}x)`;
+            }
+        }
+
+        function addParlayLeg() {
+            const container = document.getElementById('parlay-legs-container');
+            const newLeg = document.createElement('div');
+            newLeg.className = 'parlay-leg';
+            newLeg.style.marginBottom = '0.3rem';
+            newLeg.innerHTML = '<input type="number" class="parlay-odds-input" placeholder="Odds (e.g., -110, +200)" step="any" style="width: 100%; padding: 0.3rem; font-size: 0.85rem; background: #0f172a; border: 1px solid #334155; border-radius: 3px; color: #e2e8f0;" />';
+            container.appendChild(newLeg);
+            newLeg.querySelector('.parlay-odds-input').addEventListener('input', updateParlayCalculator);
+            updateParlayCalculator();
+        }
+
+        function removeParlayLeg() {
+            const container = document.getElementById('parlay-legs-container');
+            const legs = container.querySelectorAll('.parlay-leg');
+            if (legs.length > 1) {
+                legs[legs.length - 1].remove();
+                updateParlayCalculator();
+            }
         }
 
         function getSmsMarginThreshold() {
@@ -2276,6 +2366,13 @@
             // Arbitrage Finder buttons
             document.getElementById("find-best-btn").onclick = fetchBestValuePlays;
             document.getElementById("clear-best-btn").onclick = clearBestResults;
+
+            // Parlay Calculator
+            document.getElementById("add-parlay-leg-btn").onclick = addParlayLeg;
+            document.getElementById("remove-parlay-leg-btn").onclick = removeParlayLeg;
+            document.querySelectorAll('.parlay-odds-input').forEach(input => {
+                input.addEventListener('input', updateParlayCalculator);
+            });
 
             // Arbitrage finder book validation
             const bestTargetBook = document.getElementById("best-target-book-select");
