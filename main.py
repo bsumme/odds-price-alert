@@ -381,11 +381,14 @@ class SGPBuilderRequest(BaseModel):
     """Request to build same-game parlay recommendations from player props."""
 
     sport_key: str
+    event_id: Optional[str] = None
     target_book: str
     compare_book: str
     boost_percent: float = Field(default=30.0, ge=20.0, le=100.0)
     use_dummy_data: bool = False
     avoid_correlation: bool = True
+    min_total_american_odds: int = Field(default=100)
+    max_total_american_odds: int = Field(default=20000)
 
 
 class SGPBuilderResponse(BaseModel):
@@ -1891,12 +1894,39 @@ def _build_sgp_suggestion(
     )
 
 
+def _sgp_score(legs: List[ValuePlayOutcome]) -> float:
+    return sum(_hedge_value(leg) for leg in legs)
+
+
+def _total_american_odds(sgp: SGPSuggestion) -> Optional[int]:
+    if sgp.boosted_american_odds is not None:
+        return sgp.boosted_american_odds
+    return sgp.combined_american_odds
+
+
+def _sgp_within_odds_range(
+    sgp: SGPSuggestion, min_total: int, max_total: int
+) -> bool:
+    total_american = _total_american_odds(sgp)
+    if total_american is None:
+        return False
+    return min_total <= total_american <= max_total
+
+
 @app.post("/api/sgp-builder", response_model=SGPBuilderResponse)
 def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
     """Recommend SGP legs by picking the best player props within a single game."""
 
     boost_percent = _clamp_boost_percent(payload.boost_percent)
     warnings: List[str] = []
+    min_total_odds = payload.min_total_american_odds or 100
+    max_total_odds = payload.max_total_american_odds or 20000
+
+    if min_total_odds > max_total_odds:
+        min_total_odds, max_total_odds = max_total_odds, min_total_odds
+        warnings.append(
+            "Swapped min/max total odds because the minimum exceeded the maximum."
+        )
 
     # Pull all supported player prop markets for the selected sport.
     markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
@@ -1907,7 +1937,7 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
         sport_key=payload.sport_key,
         team=None,
         player_name=None,
-        event_id=None,
+        event_id=payload.event_id,
         markets=markets,
         target_book=payload.target_book,
         compare_book=payload.compare_book,
@@ -1929,8 +1959,19 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
     for play in props_response.plays:
         plays_by_event.setdefault(play.event_id, []).append(play)
 
+    if payload.event_id and payload.event_id not in plays_by_event:
+        warnings.append("No player props found for the selected game.")
+        return SGPBuilderResponse(
+            sport_key=payload.sport_key,
+            target_book=payload.target_book,
+            compare_book=payload.compare_book,
+            warnings=warnings,
+        )
+
     best_sgp: Optional[SGPSuggestion] = None
     uncorrelated_sgp: Optional[SGPSuggestion] = None
+
+    filtered_outside_range = 0
 
     for event_id, plays in plays_by_event.items():
         if not plays:
@@ -1941,22 +1982,27 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
         if len(top_three) < 2:
             continue
 
-        if best_sgp is None:
-            best_sgp = _build_sgp_suggestion(top_three, boost_percent)
+        candidate_best = _build_sgp_suggestion(top_three, boost_percent)
+        if _sgp_within_odds_range(candidate_best, min_total_odds, max_total_odds):
+            if best_sgp is None or _sgp_score(top_three) > _sgp_score(best_sgp.legs):
+                best_sgp = candidate_best
         else:
-            current_score = sum(_hedge_value(p) for p in best_sgp.legs)
-            new_score = sum(_hedge_value(p) for p in top_three)
-            if new_score > current_score:
-                best_sgp = _build_sgp_suggestion(top_three, boost_percent)
+            filtered_outside_range += 1
 
         if payload.avoid_correlation and uncorrelated_sgp is None:
             unique_legs = _select_uncorrelated_legs(plays, max_legs=3, avoid_correlation=True)
             if len(unique_legs) >= 2:
-                uncorrelated_sgp = _build_sgp_suggestion(
+                candidate_uncorrelated = _build_sgp_suggestion(
                     unique_legs,
                     boost_percent,
                     note="Uncorrelated SGP to reduce vig risk.",
                 )
+                if _sgp_within_odds_range(
+                    candidate_uncorrelated, min_total_odds, max_total_odds
+                ):
+                    uncorrelated_sgp = candidate_uncorrelated
+                else:
+                    filtered_outside_range += 1
 
     if best_sgp and len(best_sgp.legs) < 3:
         warnings.append(
@@ -1966,6 +2012,13 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
     if payload.avoid_correlation and best_sgp and uncorrelated_sgp is None:
         warnings.append(
             "Could not find an uncorrelated set of props; showing the best available mix instead."
+        )
+
+    if filtered_outside_range:
+        warnings.append(
+            f"Skipped {filtered_outside_range} SGP option(s) outside the odds range "
+            f"{decimal_to_american(american_to_decimal(min_total_odds)) if min_total_odds else min_total_odds} "
+            f"to {decimal_to_american(american_to_decimal(max_total_odds)) if max_total_odds else max_total_odds}."
         )
 
     return SGPBuilderResponse(
