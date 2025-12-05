@@ -315,6 +315,7 @@
             <a href="/BensSportsBookApp.html">Arbitrage Finder</a>
             <a href="/value.html">Value Finder</a>
             <a href="/linetracker.html">Line Tracker</a>
+            <a href="/featured-games.html">Featured Games</a>
             <a href="/widgets.html">Widgets</a>
             <a href="/watcher.html">Watcher</a>
             <a href="/playerprops.html" class="active">Player Props</a>
@@ -729,6 +730,14 @@
             const helper = document.getElementById("game-helper-text");
             const select = document.getElementById("game-select");
 
+            if (!sport) {
+                helper.textContent = "Pick a sport to see upcoming games with player props.";
+                currentGames = [];
+                select.innerHTML = '<option value="">All Games</option>';
+                toggleFiltersForGameSelection();
+                return;
+            }
+
             helper.textContent = "Loading games...";
             currentGames = [];
             select.innerHTML = '<option value="">All Games</option>';
@@ -764,6 +773,12 @@
             const targetBook = document.getElementById("target-book-select").value;
             const compareBook = document.getElementById("compare-book-select").value;
             const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+
+            if (!sport) {
+                setStatus("Select a sport to load available player prop markets.");
+                renderMarketOptions();
+                return;
+            }
 
             try {
                 const res = await fetch("/api/player-props/markets", {
