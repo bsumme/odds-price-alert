@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
+import traceback
 
 # Import shared utilities
 from services.odds_api import (
@@ -44,7 +45,7 @@ logger = logging.getLogger("uvicorn.error")
 API_REQUEST_LIMIT = 20_000
 
 # Hedge watcher defaults (kept here to avoid circular imports with hedge_watcher.py)
-HEDGE_DEFAULT_SPORTS = ["basketball_nba", "americanfootball_nfl", "baseball_mlb", "hockey_nhl"]
+HEDGE_DEFAULT_SPORTS = ["basketball_nba", "americanfootball_nfl", "baseball_mlb", "icehockey_nhl"]
 HEDGE_DEFAULT_MARKETS = ["h2h", "spreads", "totals"]
 HEDGE_DEFAULT_TARGET_BOOK = "draftkings"
 HEDGE_DEFAULT_COMPARE_BOOK = "novig"
@@ -1597,8 +1598,9 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
                         )
                     )
             except Exception as e:
-                # Log error but continue with other sports/markets
-                print(f"Error processing {sport_key}/{market_key}: {e}")
+                # Log error with full traceback but continue with other sports/markets
+                print(f"Error processing {sport_key}/{market_key}: {repr(e)}")
+                traceback.print_exc()
                 continue
 
     # Sort by hedge opportunity (arb_margin_percent) descending

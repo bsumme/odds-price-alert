@@ -15,18 +15,21 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, List, Sequence, Set
+import signal
 
 from fastapi import HTTPException
+from typing import TYPE_CHECKING
 
-from main import (
-    BestValuePlayOutcome,
-    BestValuePlaysRequest,
-    BestValuePlaysResponse,
-    get_best_value_plays,
-)
+if TYPE_CHECKING:  # pragma: no cover - imports for type checking only to avoid circular imports
+    from main import (
+        BestValuePlayOutcome,
+        BestValuePlaysRequest,
+        BestValuePlaysResponse,
+        get_best_value_plays,
+    )
 from utils.formatting import BOOK_LABELS, format_start_time_est, pretty_book_label
 
-DEFAULT_SPORTS = ["basketball_nba", "americanfootball_nfl", "baseball_mlb", "hockey_nhl"]
+DEFAULT_SPORTS = ["basketball_nba", "americanfootball_nfl", "baseball_mlb", "icehockey_nhl"]
 DEFAULT_MARKETS = ["h2h", "spreads", "totals"]
 DEFAULT_TARGET_BOOK = "draftkings"
 DEFAULT_COMPARE_BOOK = "novig"
@@ -250,6 +253,12 @@ class HedgeWatcher:
     def _poll(self) -> List[BestValuePlayOutcome]:
         """Fetch and filter hedge plays using the shared best-value logic."""
 
+        # Import runtime dependencies here to avoid circular-imports when the
+        # FastAPI app imports this module (the server may import hedge_watcher
+        # dynamically to start a watcher). Importing at call-time keeps module
+        # import-time side-effects minimal.
+        from main import BestValuePlaysRequest, get_best_value_plays  # local import
+
         request = BestValuePlaysRequest(
             sport_keys=self.config.sport_keys,
             markets=self.config.markets,
@@ -259,7 +268,8 @@ class HedgeWatcher:
             use_dummy_data=self.config.use_dummy_data,
         )
 
-        response: BestValuePlaysResponse = get_best_value_plays(request)
+        response = get_best_value_plays(request)
+        # response.plays is a list of BestValuePlayOutcome instances
         return filter_by_margin(response.plays, self.config.min_margin_percent)
 
     def _log_cycle(self, plays: List[BestValuePlayOutcome], log_fn=print) -> None:
@@ -311,7 +321,7 @@ class HedgeWatcher:
             f" Watching {target_label} versus {compare_label} every {self.config.interval_seconds}s.\n"
             f"Sports: {', '.join(self.config.sport_keys)} | Markets: {', '.join(self.config.markets)}\n"
             f"Minimum margin: {self.config.min_margin_percent}% | Max results: {self.config.max_results}\n"
-            "Use the API stop endpoint or terminate the process to stop it."
+            "Use the API stop endpoint or press Ctrl-C (or Ctrl-Break) to stop it."
         )
 
         while not stop_event.is_set():
@@ -411,6 +421,19 @@ def main(argv: List[str] | None = None) -> None:
     argv = argv if argv is not None else sys.argv[1:]
     config = parse_args(argv)
     watcher = HedgeWatcher(config)
+    # Install OS signal handlers so Ctrl-C / Ctrl-Break / termination requests
+    # set the watcher's stop event and allow the loop to exit cleanly.
+    def _handler(signum, frame):
+        print("\nSignal received. Stopping hedge watcher...")
+        watcher._stop_event.set()
+
+    for sig_name in ("SIGINT", "SIGTERM", "SIGBREAK"):
+        if hasattr(signal, sig_name):
+            try:
+                signal.signal(getattr(signal, sig_name), _handler)
+            except Exception:
+                # Ignore platforms where a signal can't be set
+                pass
     watcher.run_forever()
 
 

@@ -796,6 +796,13 @@
 
                 <div class="status-bar" id="server-watcher-status" style="margin-top: 0.4rem;">Server watcher not running.</div>
                 <div class="log-box" id="server-watcher-log" aria-live="polite" style="margin-top: 0.35rem;">No watcher logs yet.</div>
+                <div style="margin-top:0.5rem; display:flex; gap:0.5rem; align-items:center;">
+                    <label style="display:flex; align-items:center; gap:0.35rem;">
+                        <input type="checkbox" id="auto-poll-server-watcher-checkbox">
+                        <span>Auto-poll server watcher status</span>
+                    </label>
+                </div>
+                <div class="log-box" id="client-log" aria-live="polite" style="margin-top: 0.35rem; max-height:10rem; overflow:auto;">Client log initialized.</div>
             </section>
         </div>
     </main>
@@ -815,6 +822,33 @@
         let lastBestValueData = null;
         let alertedPlayIds = new Set(); // Track plays we've already alerted on
         let smsAlertedPlayIds = new Set(); // Track plays that have triggered an SMS
+
+        // Client-side network/log helper
+        function appendClientLog(msg) {
+            try {
+                const el = document.getElementById('client-log');
+                const ts = new Date().toLocaleTimeString();
+                el.textContent = `${ts} - ${msg}\n` + el.textContent;
+            } catch (e) {
+                // ignore
+            }
+            console.log('[client-log]', msg);
+        }
+
+        async function loggedFetch(url, options = {}, tag = '') {
+            const method = (options.method || 'GET').toUpperCase();
+            const safeBody = options.body ? (typeof options.body === 'string' ? options.body.slice(0, 200) : JSON.stringify(options.body).slice(0,200)) : '';
+            appendClientLog(`${tag} -> ${method} ${url} ${safeBody ? '| body=' + safeBody : ''}`);
+            let res;
+            try {
+                res = await fetch(url, options);
+            } catch (err) {
+                appendClientLog(`${tag} <= ERROR ${err.message || err}`);
+                throw err;
+            }
+            appendClientLog(`${tag} <= ${res.status} ${res.statusText}`);
+            return res;
+        }
 
         function formatStartTime(isoString) {
             if (!isoString) return "";
@@ -1866,7 +1900,7 @@
                 // The API already sorts by arb_margin_percent, so top results are most likely to be hedge opportunities
                 const requestMaxResults = isWatcherRunning ? maxResults : maxResults * 2;
                 
-                const res = await fetch("/api/best-value-plays", {
+                const res = await loggedFetch("/api/best-value-plays", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1877,7 +1911,7 @@
                         max_results: requestMaxResults,
                         use_dummy_data: useDummyData
                     }),
-                });
+                }, 'best-value-plays');
                 if (!res.ok) {
                     const text = await res.text();
                     throw new Error(text || ("HTTP " + res.status));
@@ -2118,8 +2152,35 @@
             document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
             document.getElementById("sms-threshold-input").addEventListener("change", saveFormSelections);
 
-            refreshServerWatcherStatus();
-            serverWatcherStatusTimer = setInterval(refreshServerWatcherStatus, 15000);
+            const autoPollCheckbox = document.getElementById('auto-poll-server-watcher-checkbox');
+            // Load saved preference (default: off)
+            const savedAutoPoll = localStorage.getItem('autoPollServerWatcher');
+            if (savedAutoPoll === 'true') {
+                autoPollCheckbox.checked = true;
+            }
+            function startServerWatcherPolling() {
+                try {
+                    refreshServerWatcherStatus();
+                } catch (e) {
+                    // ignore
+                }
+                if (serverWatcherStatusTimer) clearInterval(serverWatcherStatusTimer);
+                serverWatcherStatusTimer = setInterval(refreshServerWatcherStatus, 15000);
+                appendClientLog('Started auto-polling server watcher status');
+            }
+            function stopServerWatcherPolling() {
+                if (serverWatcherStatusTimer) {
+                    clearInterval(serverWatcherStatusTimer);
+                    serverWatcherStatusTimer = null;
+                }
+                appendClientLog('Stopped auto-polling server watcher status');
+            }
+            autoPollCheckbox.addEventListener('change', (e) => {
+                const on = e.target.checked;
+                localStorage.setItem('autoPollServerWatcher', on ? 'true' : 'false');
+                if (on) startServerWatcherPolling(); else stopServerWatcherPolling();
+            });
+            if (autoPollCheckbox.checked) startServerWatcherPolling();
 
             // Load dummy data setting from localStorage
             const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
@@ -2267,19 +2328,20 @@
             }
 
             async function refreshServerWatcherStatus() {
-                try {
-                    const res = await fetch("/api/hedge-watcher/status");
-                    const data = await res.json();
-                    if (!res.ok) {
-                        throw new Error(data.detail || "Unable to fetch watcher status");
+                    try {
+                        const res = await loggedFetch("/api/hedge-watcher/status", {}, 'watcher-status');
+                        const data = await res.json();
+                        if (!res.ok) {
+                            throw new Error(data.detail || "Unable to fetch watcher status");
+                        }
+                        renderServerWatcherStatus(data);
+                    } catch (error) {
+                        appendClientLog(`watcher-status <= ERROR ${error.message}`);
+                        serverWatcherStatusBar.textContent = `Server watcher status unavailable: ${error.message}`;
+                        serverWatcherLog.textContent = "";
+                        startServerWatcherBtn.disabled = false;
+                        stopServerWatcherBtn.disabled = true;
                     }
-                    renderServerWatcherStatus(data);
-                } catch (error) {
-                    serverWatcherStatusBar.textContent = `Server watcher status unavailable: ${error.message}`;
-                    serverWatcherLog.textContent = "";
-                    startServerWatcherBtn.disabled = false;
-                    stopServerWatcherBtn.disabled = true;
-                }
             }
 
             async function startServerWatcher() {
@@ -2315,17 +2377,18 @@
                 startServerWatcherBtn.disabled = true;
 
                 try {
-                    const res = await fetch("/api/hedge-watcher/start", {
+                    const res = await loggedFetch("/api/hedge-watcher/start", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(payload)
-                    });
+                    }, 'watcher-start');
                     const data = await res.json();
                     if (!res.ok) {
                         throw new Error(data.detail || "Failed to start server watcher");
                     }
                     renderServerWatcherStatus(data);
                 } catch (error) {
+                    appendClientLog(`watcher-start <= ERROR ${error.message}`);
                     serverWatcherStatusBar.textContent = `Failed to start watcher: ${error.message}`;
                     startServerWatcherBtn.disabled = false;
                 }
@@ -2334,13 +2397,14 @@
             async function stopServerWatcher() {
                 serverWatcherStatusBar.textContent = "Stopping server watcher...";
                 try {
-                    const res = await fetch("/api/hedge-watcher/stop", { method: "POST" });
+                    const res = await loggedFetch("/api/hedge-watcher/stop", { method: "POST" }, 'watcher-stop');
                     const data = await res.json();
                     if (!res.ok) {
                         throw new Error(data.detail || "Failed to stop watcher");
                     }
                     renderServerWatcherStatus(data);
                 } catch (error) {
+                    appendClientLog(`watcher-stop <= ERROR ${error.message}`);
                     serverWatcherStatusBar.textContent = `Failed to stop watcher: ${error.message}`;
                 }
             }
