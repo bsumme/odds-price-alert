@@ -156,7 +156,8 @@
             border: 1px solid #475569;
             background: #0f172a;
             color: #e5e7eb;
-            font-size: 16px; /* Prevent zoom on iOS */
+            font-size: 16px;
+            /* Prevent zoom on iOS */
             min-height: 44px;
         }
 
@@ -546,27 +547,16 @@
                         Discover arbitrage opportunities across multiple sports and markets
                     </div>
 
-                    <label>Select Sports</label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sport-checkbox" value="basketball_nba" checked />
-                        <span>NBA</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" checked />
-                        <span>NFL</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sport-checkbox" value="icehockey_nhl" checked />
-                        <span>NHL</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" checked />
-                        <span>NCAAB</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" checked />
-                        <span>NCAAF</span>
-                    </label>
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <label>Select Sports</label>
+                        <button id="toggle-all-sports-btn"
+                            style="padding: 0.3rem 0.6rem; font-size: 0.85rem; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px;">Show
+                            All Sports</button>
+                    </div>
+                    <div id="sports-container-mobile">
+                        <!-- Mobile sports checkboxes populated from /api/sports -->
+                    </div>
 
                     <label>Select Markets</label>
                     <label class="checkbox-label">
@@ -601,7 +591,8 @@
                     <label for="best-max-results-input">Max results</label>
                     <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="10" />
 
-                    <label class="checkbox-label" style="margin-top: 1rem; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                    <label class="checkbox-label"
+                        style="margin-top: 1rem; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
                         <input type="checkbox" id="dummy-data-checkbox" />
                         <span>Use Dummy Data</span>
                     </label>
@@ -710,6 +701,40 @@
             }
         }
 
+        let showAllSportsModeM = false;
+
+        async function fetchAndRenderSportsMobile(showAll = false) {
+            try {
+                const res = await fetch('/api/sports');
+                if (!res.ok) {
+                    console.warn('Failed to fetch sports schema for mobile');
+                    return;
+                }
+                const list = await res.json();
+                const container = document.getElementById('sports-container-mobile');
+                if (!container) return;
+                container.innerHTML = '';
+                for (const s of list) {
+                    if (!s || !s.key) continue;
+                    if (!showAll && !s.active) continue;
+                    const label = document.createElement('label');
+                    label.className = 'checkbox-label';
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'sport-checkbox';
+                    input.value = s.key;
+                    input.checked = showAll ? false : true;
+                    const span = document.createElement('span');
+                    span.textContent = s.title || s.key;
+                    label.appendChild(input);
+                    label.appendChild(span);
+                    container.appendChild(label);
+                }
+            } catch (err) {
+                console.warn('Error loading mobile sports schema', err);
+            }
+        }
+
         function getSmsMarginThreshold() {
             const thresholdInput = document.getElementById("sms-threshold-input");
             const value = thresholdInput ? Number(thresholdInput.value) : 0;
@@ -718,7 +743,7 @@
 
         function getTeamLogoUrl(teamName, sportKey = null) {
             if (!teamName) return null;
-            
+
             const teamMapping = {
                 // NBA
                 "atlanta hawks": "atl",
@@ -926,10 +951,10 @@
                 "west virginia mountaineers": "277",
                 "wisconsin badgers": "275"
             };
-            
+
             const normalized = teamName.toLowerCase().trim().replace(/\s+/g, ' ');
             let teamCode = teamMapping[normalized];
-            
+
             if (!teamCode) {
                 const shortNameMapping = {
                     "kansas": "2305",
@@ -975,21 +1000,21 @@
                     "penn state nittany lions": "213",
                     "notre dame": "87"
                 };
-                
+
                 for (const [shortName, code] of Object.entries(shortNameMapping)) {
                     if (normalized === shortName || normalized.startsWith(shortName + " ") || normalized.endsWith(" " + shortName)) {
                         teamCode = code;
                         break;
                     }
                 }
-                
+
                 if (!teamCode) {
                     const words = normalized.split(/\s+/);
                     const firstWord = words.length > 0 ? words[0] : normalized;
-                    
+
                     for (const [key, code] of Object.entries(teamMapping)) {
-                        if (normalized === key || 
-                            key.startsWith(normalized + " ") || 
+                        if (normalized === key ||
+                            key.startsWith(normalized + " ") ||
                             normalized.startsWith(key + " ") ||
                             key.startsWith(firstWord + " ") ||
                             (normalized.length >= 3 && key.includes(normalized)) ||
@@ -1000,7 +1025,7 @@
                     }
                 }
             }
-            
+
             let sportPath = "nba";
             if (sportKey) {
                 if (sportKey.includes("ncaaf") || sportKey.includes("ncaab")) {
@@ -1013,11 +1038,11 @@
                     sportPath = "nba";
                 }
             }
-            
+
             if (teamCode) {
                 return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${teamCode}.png`;
             }
-            
+
             const fallback = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
             return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${fallback}.png`;
         }
@@ -1035,24 +1060,24 @@
 
         function createTeamNameWithLogo(teamName, sportKey = null) {
             if (!teamName) return document.createTextNode("");
-            
+
             const container = document.createElement("span");
             container.className = "team-name-with-logo";
-            
+
             const logo = document.createElement("img");
             logo.className = "team-logo";
             logo.src = getTeamLogoUrl(teamName, sportKey);
             logo.alt = teamName;
-            logo.onerror = function() {
+            logo.onerror = function () {
                 this.style.display = "none";
             };
-            
+
             const nameSpan = document.createElement("span");
             nameSpan.textContent = teamName;
-            
+
             container.appendChild(logo);
             container.appendChild(nameSpan);
-            
+
             return container;
         }
 
@@ -1093,7 +1118,7 @@
             body.innerHTML = "";
             const section = document.getElementById("results-section");
             const emptyState = document.getElementById("empty-state");
-            
+
             section.style.display = "block";
             emptyState.style.display = "none";
 
@@ -1103,11 +1128,11 @@
             }
 
             let plays = data.plays;
-            
+
             if (hedgeOnly) {
-                plays = plays.filter(p => 
-                    p.arb_margin_percent !== null && 
-                    p.arb_margin_percent !== undefined && 
+                plays = plays.filter(p =>
+                    p.arb_margin_percent !== null &&
+                    p.arb_margin_percent !== undefined &&
                     p.arb_margin_percent >= 0 &&
                     p.novig_reverse_price !== null &&
                     p.novig_reverse_price !== undefined
@@ -1117,7 +1142,7 @@
                     return;
                 }
             }
-            
+
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
@@ -1139,7 +1164,7 @@
                 // Header with sport and margin
                 const header = document.createElement("div");
                 header.className = "card-header";
-                
+
                 const sportBadge = document.createElement("span");
                 sportBadge.className = "sport-badge";
                 sportBadge.textContent = sportLabels[play.sport_key] || play.sport_key;
@@ -1152,7 +1177,7 @@
                     marginBadge.textContent = `${marginRounded}% margin`;
                     header.appendChild(marginBadge);
                 }
-                
+
                 card.appendChild(header);
 
                 // Recommended Bet Section
@@ -1165,24 +1190,24 @@
 
                 const recommendedContent = document.createElement("div");
                 recommendedContent.className = "bet-content";
-                
+
                 const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
                 let teamName = parseTeamFromOutcome(play.outcome_name);
                 const marketLabel = marketLabels[play.market] || play.market;
                 const formattedOdds = formatOdds(play.book_price);
-                
+
                 let logoTeamName = teamName;
                 if (play.market === "totals" && play.matchup) {
                     const teams = parseTeamsFromMatchup(play.matchup);
                     logoTeamName = teams.away || teams.home || null;
                 }
-                
+
                 if (logoTeamName) {
                     const logo = document.createElement("img");
                     logo.className = "team-logo";
                     logo.src = getTeamLogoUrl(logoTeamName, play.sport_key || null);
                     logo.alt = logoTeamName;
-                    logo.onerror = function() {
+                    logo.onerror = function () {
                         this.style.display = "none";
                     };
                     recommendedContent.appendChild(logo);
@@ -1190,7 +1215,7 @@
 
                 const betDetails = document.createElement("div");
                 betDetails.className = "bet-details";
-                
+
                 let betDescription = "";
                 if (play.market === "totals") {
                     betDescription = `${play.outcome_name || "Total"}`;
@@ -1203,7 +1228,7 @@
                         betDescription += ` ${play.point > 0 ? "+" : ""}${play.point}`;
                     }
                 }
-                
+
                 const desc = document.createElement("div");
                 desc.className = "bet-description";
                 desc.textContent = betDescription;
@@ -1233,13 +1258,13 @@
 
                 const compareContent = document.createElement("div");
                 compareContent.className = "bet-content";
-                
+
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
                 const formattedCompareOdds = formatOdds(play.novig_price);
-                
+
                 const compareDetails = document.createElement("div");
                 compareDetails.className = "bet-details";
-                
+
                 const compareOdds = document.createElement("div");
                 compareOdds.className = "bet-odds";
                 compareOdds.textContent = formattedCompareOdds;
@@ -1265,11 +1290,11 @@
 
                     const hedgeContent = document.createElement("div");
                     hedgeContent.className = "bet-content";
-                    
+
                     const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
                     let oppositeTeamName = parseTeamFromOutcome(play.novig_reverse_name);
                     const marketLabel = marketLabels[play.market] || play.market;
-                    
+
                     let hedgeDescription = "";
                     if (play.market === "totals") {
                         hedgeDescription = play.novig_reverse_name;
@@ -1288,7 +1313,7 @@
                         hedgeLogo.className = "team-logo";
                         hedgeLogo.src = getTeamLogoUrl(oppositeTeamName, play.sport_key || null);
                         hedgeLogo.alt = oppositeTeamName;
-                        hedgeLogo.onerror = function() {
+                        hedgeLogo.onerror = function () {
                             this.style.display = "none";
                         };
                         hedgeContent.appendChild(hedgeLogo);
@@ -1296,7 +1321,7 @@
 
                     const hedgeDetails = document.createElement("div");
                     hedgeDetails.className = "bet-details";
-                    
+
                     const hedgeDesc = document.createElement("div");
                     hedgeDesc.className = "bet-description";
                     hedgeDesc.textContent = hedgeDescription;
@@ -1379,11 +1404,11 @@
         async function sendSMSAlert(play) {
             const phoneInput = document.getElementById("sms-phone-input");
             const phone = phoneInput ? phoneInput.value.trim() : "";
-            
+
             if (!phone) {
                 return;
             }
-            
+
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
@@ -1391,15 +1416,15 @@
                 "basketball_ncaab": "NCAAB",
                 "americanfootball_ncaaf": "NCAAF"
             };
-            
+
             const sportLabel = sportLabels[play.sport_key] || play.sport_key;
             const teamName = parseTeamFromOutcome(play.outcome_name);
             const margin = Math.round(play.arb_margin_percent * 100) / 100;
             const bookOdds = formatOdds(play.book_price);
             const hedgeOdds = play.novig_reverse_price ? formatOdds(play.novig_reverse_price) : "N/A";
-            
+
             const message = `Hedge Alert! ${sportLabel}: ${teamName} ${bookOdds} vs ${hedgeOdds} (${margin}% margin). ${play.matchup || ""}`;
-            
+
             try {
                 const response = await fetch("/api/send-sms", {
                     method: "POST",
@@ -1409,7 +1434,7 @@
                         message: message
                     })
                 });
-                
+
                 if (!response.ok) {
                     const error = await response.json();
                     console.error("SMS send failed:", error.detail || "Unknown error");
@@ -1479,7 +1504,7 @@
             if (!isWatcherRunning) {
                 clearBestResults();
             }
-            
+
             if (isWatcherRunning) {
                 setBestStatus("Watcher: Checking for hedge opportunities...");
             } else {
@@ -1491,7 +1516,7 @@
 
             try {
                 const requestMaxResults = isWatcherRunning ? maxResults : maxResults * 2;
-                
+
                 const res = await fetch("/api/best-value-plays", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1510,19 +1535,19 @@
                 }
                 const data = await res.json();
                 lastBestValueData = data;
-                
+
                 renderBestValuePlays(data, isWatcherRunning);
 
                 if (isWatcherRunning) {
-                    const hedgePlays = (data.plays || []).filter(p => 
-                        p.arb_margin_percent !== null && 
-                        p.arb_margin_percent !== undefined && 
+                    const hedgePlays = (data.plays || []).filter(p =>
+                        p.arb_margin_percent !== null &&
+                        p.arb_margin_percent !== undefined &&
                         p.arb_margin_percent >= 0 &&
                         p.novig_reverse_price !== null &&
                         p.novig_reverse_price !== undefined
                     );
                     checkForHedgeAlerts(data.plays);
-                    
+
                     const watcherStatusBar = document.getElementById("watcher-status-bar");
                     const intervalVal = Number(document.getElementById("watcher-interval-input").value) || 60;
                     const newAlerts = hedgePlays.filter(p => !alertedPlayIds.has(getPlayId(p))).length;
@@ -1574,21 +1599,21 @@
             try {
                 const saved = localStorage.getItem("arbitrageFinderSelections");
                 if (!saved) return;
-                
+
                 const selections = JSON.parse(saved);
-                
+
                 if (selections.sports && Array.isArray(selections.sports)) {
                     document.querySelectorAll(".sport-checkbox").forEach(cb => {
                         cb.checked = selections.sports.includes(cb.value);
                     });
                 }
-                
+
                 if (selections.markets && Array.isArray(selections.markets)) {
                     document.querySelectorAll(".market-checkbox").forEach(cb => {
                         cb.checked = selections.markets.includes(cb.value);
                     });
                 }
-                
+
                 if (selections.targetBook) {
                     document.getElementById("best-target-book-select").value = selections.targetBook;
                 }
@@ -1692,10 +1717,25 @@
             });
 
             startCreditsRefresh();
-            loadFormSelections();
-
-            document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
-                el.addEventListener("change", saveFormSelections);
+            // Populate mobile sports, then restore saved selections and attach listeners
+            fetchAndRenderSportsMobile().then(() => {
+                try { loadFormSelections(); } catch (e) { /* ignore */ }
+                document.getElementById('toggle-all-sports-btn').addEventListener('click', () => {
+                    showAllSportsModeM = !showAllSportsModeM;
+                    const btn = document.getElementById('toggle-all-sports-btn');
+                    btn.textContent = showAllSportsModeM ? 'Show Active Only' : 'Show All Sports';
+                    btn.style.backgroundColor = showAllSportsModeM ? '#e8f5e9' : '#f0f0f0';
+                    fetchAndRenderSportsMobile(showAllSportsModeM);
+                });
+                document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
+                    el.addEventListener("change", saveFormSelections);
+                });
+            }).catch((err) => {
+                console.warn('Failed to render mobile sports', err);
+                try { loadFormSelections(); } catch (e) { /* ignore */ }
+                document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
+                    el.addEventListener("change", saveFormSelections);
+                });
             });
             document.getElementById("best-target-book-select").addEventListener("change", saveFormSelections);
             document.getElementById("best-compare-book-select").addEventListener("change", saveFormSelections);
@@ -1709,7 +1749,7 @@
             if (savedDummyData === "true") {
                 dummyDataCheckbox.checked = true;
             }
-            
+
             dummyDataCheckbox.addEventListener("change", (e) => {
                 localStorage.setItem("useDummyData", e.target.checked ? "true" : "false");
             });
@@ -1724,13 +1764,13 @@
                     localStorage.setItem("smsPhoneNumber", e.target.value);
                 });
             }
-            
+
             document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays();
             document.getElementById("clear-best-btn").onclick = clearBestResults;
 
             const bestTargetBook = document.getElementById("best-target-book-select");
             const bestCompareBook = document.getElementById("best-compare-book-select");
-            
+
             function validateBestBookSelection() {
                 if (bestTargetBook.value === bestCompareBook.value) {
                     setBestStatus("Error: Target book and comparison book cannot be the same.");
@@ -1738,7 +1778,7 @@
                 }
                 return true;
             }
-            
+
             bestTargetBook.addEventListener("change", validateBestBookSelection);
             bestCompareBook.addEventListener("change", validateBestBookSelection);
 
@@ -1746,7 +1786,7 @@
             const filterToggleBtn = document.getElementById("filter-toggle-btn");
             const filterPanel = document.getElementById("filter-panel");
             const filterArrow = document.getElementById("filter-arrow");
-            
+
             filterToggleBtn.addEventListener("click", () => {
                 const isOpen = filterPanel.classList.contains("open");
                 if (isOpen) {
@@ -1875,25 +1915,25 @@
             // Test SMS functionality
             const testSmsBtn = document.getElementById("test-sms-btn");
             const testSmsStatus = document.getElementById("test-sms-status");
-            
+
             async function sendTestSMS() {
                 const phoneInput = document.getElementById("sms-phone-input");
                 const phone = phoneInput ? phoneInput.value.trim() : "";
-                
+
                 if (!phone) {
                     testSmsStatus.style.display = "block";
                     testSmsStatus.style.color = "#fecaca";
                     testSmsStatus.textContent = "Please enter a phone number first.";
                     return;
                 }
-                
+
                 testSmsStatus.style.display = "block";
                 testSmsStatus.style.color = "#94a3b8";
                 testSmsStatus.textContent = "Sending test SMS...";
                 testSmsBtn.disabled = true;
-                
+
                 const testMessage = "Test alert from Arbitrage Bet Finder - SMS notifications are working!";
-                
+
                 try {
                     const response = await fetch("/api/send-sms", {
                         method: "POST",
@@ -1903,9 +1943,9 @@
                             message: testMessage
                         })
                     });
-                    
+
                     const result = await response.json();
-                    
+
                     if (response.ok && result.success) {
                         testSmsStatus.style.color = "#bbf7d0";
                         testSmsStatus.textContent = `✅ Test SMS sent successfully! Quota remaining: ${result.quotaRemaining || "N/A"}`;
@@ -1920,7 +1960,7 @@
                     testSmsBtn.disabled = false;
                 }
             }
-            
+
             testSmsBtn.onclick = sendTestSMS;
 
             // Pull to refresh
@@ -1964,6 +2004,3 @@
 </body>
 
 </html>
-
-
-

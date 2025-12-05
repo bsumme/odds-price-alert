@@ -16,6 +16,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 import traceback
+from pathlib import Path
 
 # Import shared utilities
 from services.odds_api import (
@@ -45,7 +46,13 @@ logger = logging.getLogger("uvicorn.error")
 API_REQUEST_LIMIT = 20_000
 
 # Hedge watcher defaults (kept here to avoid circular imports with hedge_watcher.py)
-HEDGE_DEFAULT_SPORTS = ["basketball_nba", "americanfootball_nfl", "baseball_mlb", "icehockey_nhl"]
+HEDGE_DEFAULT_SPORTS = [
+    "basketball_nba",
+    "americanfootball_nfl",
+    "baseball_mlb",
+    "icehockey_nhl",
+    "mma_mixed_martial_arts",
+]
 HEDGE_DEFAULT_MARKETS = ["h2h", "spreads", "totals"]
 HEDGE_DEFAULT_TARGET_BOOK = "draftkings"
 HEDGE_DEFAULT_COMPARE_BOOK = "novig"
@@ -240,6 +247,15 @@ class PlayerPropsRequest(BaseModel):
             "player_power_play_points",
             "player_blocks",
             "player_saves",
+        ],
+        "mma_mixed_martial_arts": [
+            # Common MMA/UFC player prop markets (API market key names may vary by provider)
+            "player_total_strikes",
+            "player_significant_strikes",
+            "player_takedowns",
+            "player_submissions",
+            "player_knockdowns",
+            "player_total_rounds",
         ],
     }
 
@@ -1282,6 +1298,37 @@ hedge_watcher_manager = HedgeWatcherManager()
 app = FastAPI()
 
 
+def _load_sports_schema() -> list:
+    schema_path = Path(__file__).parent / "data" / "sports_schema.json"
+    if not schema_path.exists():
+        return []
+    try:
+        payload = json.loads(schema_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, list):
+            return []
+        return payload
+    except Exception:
+        logger.exception("Failed to read sports schema")
+        return []
+
+
+@app.get("/api/sports")
+def get_sports_schema():
+    """Return the sports schema JSON used to drive frontend sport selectors.
+
+    Reads `data/sports_schema.json` from the project root and returns the
+    parsed content. Returns 404 if missing or 500 on parse errors.
+    """
+    payload = _load_sports_schema()
+    if not payload:
+        raise HTTPException(status_code=404, detail="Sports schema not found or invalid")
+    # Basic validation: expect a list of objects with a 'key' field
+    for item in payload:
+        if not isinstance(item, dict) or "key" not in item:
+            raise HTTPException(status_code=500, detail="Sports schema malformed")
+    return payload
+
+
 @app.post("/api/odds", response_model=OddsResponse)
 def get_odds(payload: OddsRequest) -> OddsResponse:
     """
@@ -1687,6 +1734,12 @@ def collect_available_player_prop_markets(
 def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesResponse:
     """Provide a list of upcoming games that have player props."""
 
+    # Validate sport key against local schema to avoid calling the remote API
+    schema = _load_sports_schema()
+    available_keys = {item.get('key') for item in schema if isinstance(item, dict) and item.get('key')}
+    if payload.sport_key not in available_keys:
+        raise HTTPException(status_code=400, detail=f"Unknown sport key: {payload.sport_key}. See /api/sports for available keys.")
+
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
     )
@@ -1705,7 +1758,12 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
         except RuntimeError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-        events = fetch_sport_events(api_key=api_key, sport_key=payload.sport_key)
+        try:
+            events = fetch_sport_events(api_key=api_key, sport_key=payload.sport_key)
+        except HTTPException as exc:
+            logger.error("Events API error for sport=%s: %s", payload.sport_key, exc.detail)
+            # Surface a clearer error to the caller
+            raise HTTPException(status_code=502, detail=f"Events API error for sport {payload.sport_key}: {exc.detail}")
 
     events = _filter_upcoming_events_only(events)
 
@@ -1736,6 +1794,12 @@ def list_player_prop_markets(
 ) -> PlayerPropMarketsResponse:
     """Discover available player prop markets for a sport."""
 
+    # Validate sport key against local schema
+    schema = _load_sports_schema()
+    available_keys = {item.get('key') for item in schema if isinstance(item, dict) and item.get('key')}
+    if payload.sport_key not in available_keys:
+        raise HTTPException(status_code=400, detail=f"Unknown sport key: {payload.sport_key}. See /api/sports for available keys.")
+
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
     )
@@ -1763,16 +1827,20 @@ def list_player_prop_markets(
             raise HTTPException(status_code=500, detail=str(e))
 
         regions = compute_regions_for_books(bookmaker_keys)
-        events = fetch_player_props(
-            api_key=api_key,
-            sport_key=payload.sport_key,
-            regions=regions,
-            markets=",".join(discovery_markets),
-            bookmaker_keys=bookmaker_keys,
-            team=None,
-            event_id=None,
-            use_dummy_data=False,
-        )
+        try:
+            events = fetch_player_props(
+                api_key=api_key,
+                sport_key=payload.sport_key,
+                regions=regions,
+                markets=",".join(discovery_markets),
+                bookmaker_keys=bookmaker_keys,
+                team=None,
+                event_id=None,
+                use_dummy_data=False,
+            )
+        except HTTPException as exc:
+            logger.error("Player props API error for sport=%s: %s", payload.sport_key, exc.detail)
+            raise HTTPException(status_code=502, detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}")
 
     events = _filter_upcoming_events_only(events)
     all_markets, _ = collect_available_player_prop_markets(
@@ -1806,6 +1874,12 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         payload.event_id,
         payload.use_dummy_data,
     )
+
+    # Validate sport key against local schema
+    schema = _load_sports_schema()
+    available_keys = {item.get('key') for item in schema if isinstance(item, dict) and item.get('key')}
+    if payload.sport_key not in available_keys:
+        raise HTTPException(status_code=400, detail=f"Unknown sport key: {payload.sport_key}. See /api/sports for available keys.")
 
     if payload.player_name:
         logger.info(
@@ -1862,16 +1936,20 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             regions,
         )
         # Fetch real odds from API
-        events = fetch_player_props(
-            api_key=api_key,
-            sport_key=payload.sport_key,
-            regions=regions,
-            markets=discovery_market_param,
-            bookmaker_keys=bookmaker_keys,
-            team=payload.team,
-            event_id=payload.event_id,
-            use_dummy_data=False,
-        )
+        try:
+            events = fetch_player_props(
+                api_key=api_key,
+                sport_key=payload.sport_key,
+                regions=regions,
+                markets=discovery_market_param,
+                bookmaker_keys=bookmaker_keys,
+                team=payload.team,
+                event_id=payload.event_id,
+                use_dummy_data=False,
+            )
+        except HTTPException as exc:
+            logger.error("Player props fetch failed for sport=%s: %s", payload.sport_key, exc.detail)
+            raise HTTPException(status_code=502, detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}")
 
         # Filter by team if specified
         if payload.team and not payload.event_id:

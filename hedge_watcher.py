@@ -29,7 +29,13 @@ if TYPE_CHECKING:  # pragma: no cover - imports for type checking only to avoid 
     )
 from utils.formatting import BOOK_LABELS, format_start_time_est, pretty_book_label
 
-DEFAULT_SPORTS = ["basketball_nba", "americanfootball_nfl", "baseball_mlb", "icehockey_nhl"]
+DEFAULT_SPORTS = [
+    "basketball_nba",
+    "americanfootball_nfl",
+    "baseball_mlb",
+    "icehockey_nhl",
+    "mma_mixed_martial_arts",
+]
 DEFAULT_MARKETS = ["h2h", "spreads", "totals"]
 DEFAULT_TARGET_BOOK = "draftkings"
 DEFAULT_COMPARE_BOOK = "novig"

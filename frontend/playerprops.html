@@ -326,11 +326,14 @@
         <section class="card">
             <h2>Find Player Prop Value Plays</h2>
 
-            <label for="sport-select">Sport</label>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <label for="sport-select">Sport</label>
+                <button id="toggle-all-sports-btn"
+                    style="padding: 0.3rem 0.6rem; font-size: 0.85rem; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px;">Show
+                    All Sports</button>
+            </div>
             <select id="sport-select">
-                <option value="basketball_nba">NBA</option>
-                <option value="americanfootball_nfl">NFL</option>
-                <option value="icehockey_nhl">NHL</option>
+                <option value="">Loading sports...</option>
             </select>
 
             <label for="game-select">Game (optional - search all props for one matchup)</label>
@@ -370,7 +373,8 @@
                 <option value="fliff">Fliff</option>
             </select>
 
-            <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+            <label
+                style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
                 <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
                 <span>Use Dummy Data</span>
             </label>
@@ -502,11 +506,11 @@
             const sport = document.getElementById("sport-select").value;
             const teamSelect = document.getElementById("team-select");
             const playerSelect = document.getElementById("player-select");
-            
+
             // Clear existing options except "All Teams"
             teamSelect.innerHTML = '<option value="">All Teams</option>';
             playerSelect.innerHTML = '<option value="">All Players</option>';
-            
+
             // Add teams for selected sport
             const teams = Object.keys(teamData[sport] || {});
             teams.forEach(team => {
@@ -515,7 +519,7 @@
                 option.textContent = team;
                 teamSelect.appendChild(option);
             });
-            
+
             // Update players when team changes
             updatePlayerDropdown();
         }
@@ -524,10 +528,10 @@
             const sport = document.getElementById("sport-select").value;
             const team = document.getElementById("team-select").value;
             const playerSelect = document.getElementById("player-select");
-            
+
             // Clear existing options except "All Players"
             playerSelect.innerHTML = '<option value="">All Players</option>';
-            
+
             if (team && teamData[sport] && teamData[sport][team]) {
                 const players = teamData[sport][team];
                 players.forEach(player => {
@@ -1018,7 +1022,7 @@
             // Book validation
             const targetBook = document.getElementById("target-book-select");
             const compareBook = document.getElementById("compare-book-select");
-            
+
             function validateBookSelection() {
                 if (targetBook.value === compareBook.value) {
                     setStatus("Error: Target book and comparison book cannot be the same.");
@@ -1026,7 +1030,7 @@
                 }
                 return true;
             }
-            
+
             targetBook.addEventListener("change", () => {
                 if (validateBookSelection()) {
                     loadMarketOptions();
@@ -1039,7 +1043,57 @@
             });
         });
     </script>
+    <script>
+        let showAllSportsPP = false;
+
+        async function fetchAndPopulatePlayerPropsSports(showAll = false) {
+            try {
+                const res = await fetch('/api/sports');
+                if (!res.ok) throw new Error('Failed to fetch sports');
+                const list = await res.json();
+                const sel = document.getElementById('sport-select');
+                if (!sel) return;
+                sel.innerHTML = '';
+                const defaultOpt = document.createElement('option');
+                defaultOpt.value = '';
+                defaultOpt.textContent = 'All Sports';
+                sel.appendChild(defaultOpt);
+                for (const s of list) {
+                    if (!s || !s.key) continue;
+                    if (!showAll && !s.active) continue;
+                    const opt = document.createElement('option');
+                    opt.value = s.key;
+                    opt.textContent = s.title || s.key;
+                    sel.appendChild(opt);
+                }
+            } catch (err) {
+                console.warn('Could not load sports schema for player props', err);
+            }
+        }
+
+        // Populate sport-select on DOMContentLoaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                fetchAndPopulatePlayerPropsSports();
+                document.getElementById('toggle-all-sports-btn').addEventListener('click', () => {
+                    showAllSportsPP = !showAllSportsPP;
+                    const btn = document.getElementById('toggle-all-sports-btn');
+                    btn.textContent = showAllSportsPP ? 'Show Active Only' : 'Show All Sports';
+                    btn.style.backgroundColor = showAllSportsPP ? '#e8f5e9' : '#f0f0f0';
+                    fetchAndPopulatePlayerPropsSports(showAllSportsPP);
+                });
+            });
+        } else {
+            fetchAndPopulatePlayerPropsSports();
+            document.getElementById('toggle-all-sports-btn').addEventListener('click', () => {
+                showAllSportsPP = !showAllSportsPP;
+                const btn = document.getElementById('toggle-all-sports-btn');
+                btn.textContent = showAllSportsPP ? 'Show Active Only' : 'Show All Sports';
+                btn.style.backgroundColor = showAllSportsPP ? '#e8f5e9' : '#f0f0f0';
+                fetchAndPopulatePlayerPropsSports(showAllSportsPP);
+            });
+        }
+    </script>
 </body>
 
 </html>
-

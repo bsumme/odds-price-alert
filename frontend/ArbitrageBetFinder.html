@@ -7,27 +7,27 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <script>
         // Mobile device detection and redirect
-        (function() {
+        (function () {
             function isMobileDevice() {
                 // Check user agent
                 const userAgent = navigator.userAgent || navigator.vendor || window.opera;
                 const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
-                
+
                 // Check screen width (mobile if less than 768px)
                 const isSmallScreen = window.innerWidth < 768;
-                
+
                 // Check touch capability
                 const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-                
+
                 // Redirect if mobile device detected and not already on mobile page
-                if ((mobileRegex.test(userAgent.toLowerCase()) || (isSmallScreen && hasTouchScreen)) 
+                if ((mobileRegex.test(userAgent.toLowerCase()) || (isSmallScreen && hasTouchScreen))
                     && !window.location.pathname.includes('-mobile.html')) {
                     // Preserve query string and hash if present
                     const newUrl = '/ArbritrageBetFinder-mobile.html' + window.location.search + window.location.hash;
                     window.location.replace(newUrl);
                 }
             }
-            
+
             // Run detection immediately
             isMobileDevice();
         })();
@@ -157,7 +157,8 @@
 
         /* Adjust main layout when watcher panel is open */
         body.watcher-open main {
-            padding-right: 320px; /* 300px panel + 20px gap */
+            padding-right: 320px;
+            /* 300px panel + 20px gap */
         }
 
         .filter-panel {
@@ -317,7 +318,8 @@
 
         table {
             width: 100%;
-            min-width: 800px; /* Ensure table doesn't get too narrow */
+            min-width: 800px;
+            /* Ensure table doesn't get too narrow */
             border-collapse: collapse;
             font-size: 0.75rem;
         }
@@ -330,39 +332,46 @@
             vertical-align: top;
             white-space: nowrap;
         }
-        
+
         /* Column width adjustments - use min-width for critical columns */
         th:nth-child(1),
         td:nth-child(1) {
             width: auto;
-            min-width: 60px; /* Sport */
+            min-width: 60px;
+            /* Sport */
         }
 
         th:nth-child(2),
         td:nth-child(2) {
             width: auto;
             min-width: 160px;
-            max-width: 220px; /* Recommended Bet - shortened */
-            white-space: normal; /* Allow wrapping for this column */
+            max-width: 220px;
+            /* Recommended Bet - shortened */
+            white-space: normal;
+            /* Allow wrapping for this column */
         }
 
         th:nth-child(3),
         td:nth-child(3) {
             width: auto;
-            min-width: 160px; /* Hedge Bet */
-            white-space: normal; /* Allow wrapping */
+            min-width: 160px;
+            /* Hedge Bet */
+            white-space: normal;
+            /* Allow wrapping */
         }
 
         th:nth-child(4),
         td:nth-child(4) {
             width: auto;
-            min-width: 130px; /* Arbitrage Margin - ensure it's always visible */
+            min-width: 130px;
+            /* Arbitrage Margin - ensure it's always visible */
         }
 
         th:nth-child(5),
         td:nth-child(5) {
             width: auto;
-            min-width: 120px; /* Start Time */
+            min-width: 120px;
+            /* Start Time */
         }
 
         th {
@@ -572,7 +581,7 @@
         .watcher-panel.open {
             right: 0;
         }
-        
+
 
         .watcher-panel .card {
             margin: 0;
@@ -596,11 +605,11 @@
         .credits-display .credits-high {
             color: #bbf7d0;
         }
-        
+
         footer {
             box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
         }
-        
+
         /* Adjust main padding to account for footer */
         main {
             padding-bottom: 3rem;
@@ -634,31 +643,19 @@
                 <div class="filter-card-content">
                     <h2>Arbitrage Bet Finder</h2>
                     <div class="small-text" style="margin-bottom: 0.75rem;">
-                        Discover arbitrage opportunities across multiple sports and markets by comparing odds between sportsbooks
+                        Discover arbitrage opportunities across multiple sports and markets by comparing odds between
+                        sportsbooks
                     </div>
 
-                    <label>Select Sports</label>
-                    <div style="margin-bottom: 0.5rem;">
-                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                            <input type="checkbox" class="sport-checkbox" value="basketball_nba" checked />
-                            <span style="margin-left: 0.5rem;">NBA</span>
-                        </label>
-                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                            <input type="checkbox" class="sport-checkbox" value="americanfootball_nfl" checked />
-                            <span style="margin-left: 0.5rem;">NFL</span>
-                        </label>
-                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                            <input type="checkbox" class="sport-checkbox" value="icehockey_nhl" checked />
-                            <span style="margin-left: 0.5rem;">NHL</span>
-                        </label>
-                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                            <input type="checkbox" class="sport-checkbox" value="basketball_ncaab" checked />
-                            <span style="margin-left: 0.5rem;">NCAAB</span>
-                        </label>
-                        <label style="display: flex; align-items: center; margin-top: 0.3rem;">
-                            <input type="checkbox" class="sport-checkbox" value="americanfootball_ncaaf" checked />
-                            <span style="margin-left: 0.5rem;">NCAAF</span>
-                        </label>
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <label>Select Sports</label>
+                        <button id="toggle-all-sports-btn"
+                            style="padding: 0.3rem 0.6rem; font-size: 0.85rem; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px;">Show
+                            All Sports</button>
+                    </div>
+                    <div id="sports-container" style="margin-bottom: 0.5rem;">
+                        <!-- Sports checkboxes will be populated from /api/sports -->
                     </div>
 
                     <label>Select Markets</label>
@@ -696,12 +693,14 @@
                     <label for="best-max-results-input">Max results</label>
                     <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="10" />
 
-                    <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                    <label
+                        style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
                         <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
                         <span>Use Dummy Data (for development when API credits are exhausted)</span>
                     </label>
 
-                    <label style="display: flex; align-items: center; margin-top: 0.5rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                    <label
+                        style="display: flex; align-items: center; margin-top: 0.5rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
                         <input type="checkbox" id="log-results-checkbox" style="margin-right: 0.5rem;" />
                         <span>Save search results as JSON</span>
                     </label>
@@ -759,12 +758,12 @@
                 <label for="sms-threshold-input" style="margin-top: 0.5rem;">Min arbitrage margin for SMS (%)</label>
                 <input id="sms-threshold-input" type="number" step="0.1" value="0" />
                 <div class="small-text">Only send text alerts when arbitrage margin meets or exceeds this value.</div>
-                
+
                 <div style="margin-top: 0.5rem;">
                     <button class="btn btn-primary" id="start-watcher-btn">Start Watcher</button>
                     <button class="btn btn-secondary" id="stop-watcher-btn" disabled>Stop</button>
                 </div>
-                
+
                 <div style="margin-top: 0.5rem;">
                     <button class="btn btn-secondary" id="test-sms-btn">Test SMS Alert</button>
                 </div>
@@ -794,21 +793,25 @@
                     <button class="btn btn-secondary" id="stop-server-watcher-btn" disabled>Stop Python Watcher</button>
                 </div>
 
-                <div class="status-bar" id="server-watcher-status" style="margin-top: 0.4rem;">Server watcher not running.</div>
-                <div class="log-box" id="server-watcher-log" aria-live="polite" style="margin-top: 0.35rem;">No watcher logs yet.</div>
+                <div class="status-bar" id="server-watcher-status" style="margin-top: 0.4rem;">Server watcher not
+                    running.</div>
+                <div class="log-box" id="server-watcher-log" aria-live="polite" style="margin-top: 0.35rem;">No watcher
+                    logs yet.</div>
                 <div style="margin-top:0.5rem; display:flex; gap:0.5rem; align-items:center;">
                     <label style="display:flex; align-items:center; gap:0.35rem;">
                         <input type="checkbox" id="auto-poll-server-watcher-checkbox">
                         <span>Auto-poll server watcher status</span>
                     </label>
                 </div>
-                <div class="log-box" id="client-log" aria-live="polite" style="margin-top: 0.35rem; max-height:10rem; overflow:auto;">Client log initialized.</div>
+                <div class="log-box" id="client-log" aria-live="polite"
+                    style="margin-top: 0.35rem; max-height:10rem; overflow:auto;">Client log initialized.</div>
             </section>
         </div>
     </main>
 
     <!-- Credits Display -->
-    <footer style="position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; padding: 0.5rem 1rem; z-index: 1000; text-align: center;">
+    <footer
+        style="position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; padding: 0.5rem 1rem; z-index: 1000; text-align: center;">
         <div class="credits-display">
             <span id="api-credits">API: Loading...</span>
         </div>
@@ -837,7 +840,7 @@
 
         async function loggedFetch(url, options = {}, tag = '') {
             const method = (options.method || 'GET').toUpperCase();
-            const safeBody = options.body ? (typeof options.body === 'string' ? options.body.slice(0, 200) : JSON.stringify(options.body).slice(0,200)) : '';
+            const safeBody = options.body ? (typeof options.body === 'string' ? options.body.slice(0, 200) : JSON.stringify(options.body).slice(0, 200)) : '';
             appendClientLog(`${tag} -> ${method} ${url} ${safeBody ? '| body=' + safeBody : ''}`);
             let res;
             try {
@@ -884,8 +887,52 @@
                 icehockey_nhl: "NHL",
                 basketball_ncaab: "NCAAB",
                 americanfootball_ncaaf: "NCAAF"
+                , mma_mixed_martial_arts: "UFC / MMA"
             };
             return mapping[sportKey] || sportKey.toUpperCase();
+        }
+
+        // Fetch sports schema from server and render checkboxes
+        let showAllSportsMode = false;
+
+        async function fetchAndRenderSports(showAll = false) {
+            try {
+                const res = await loggedFetch('/api/sports', {}, 'sports');
+                if (!res.ok) {
+                    appendClientLog('sports <= failed to load schema');
+                    return;
+                }
+                const list = await res.json();
+                const container = document.getElementById('sports-container');
+                if (!container) return;
+                container.innerHTML = '';
+                for (const s of list) {
+                    if (!s || !s.key) continue;
+                    if (!showAll && !s.active) continue; // only show active sports by default
+                    const label = document.createElement('label');
+                    label.style.display = 'flex';
+                    label.style.alignItems = 'center';
+                    label.style.marginTop = '0.3rem';
+
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'sport-checkbox';
+                    input.value = s.key;
+                    input.checked = showAll ? false : true; // uncheck all when showing all sports
+                    input.style.marginRight = '0.4rem';
+
+                    const span = document.createElement('span');
+                    span.style.marginLeft = '0.5rem';
+                    span.textContent = s.title || s.key;
+
+                    label.appendChild(input);
+                    label.appendChild(span);
+                    container.appendChild(label);
+                }
+                appendClientLog('Loaded sports schema and rendered checkboxes');
+            } catch (err) {
+                appendClientLog('Failed to load sports schema: ' + (err.message || err));
+            }
         }
 
         function formatBookLabel(bookKey) {
@@ -943,7 +990,7 @@
 
         function getTeamLogoUrl(teamName, sportKey = null) {
             if (!teamName) return null;
-            
+
             // Team name to ESPN team code mapping
             const teamMapping = {
                 // NBA
@@ -1152,11 +1199,11 @@
                 "west virginia mountaineers": "277",
                 "wisconsin badgers": "275"
             };
-            
+
             // Normalize team name: lowercase, trim, and remove extra spaces
             const normalized = teamName.toLowerCase().trim().replace(/\s+/g, ' ');
             let teamCode = teamMapping[normalized];
-            
+
             // If no mapping found, try to extract from common patterns
             if (!teamCode) {
                 // First, try exact matches with common short names and variations
@@ -1204,7 +1251,7 @@
                     "penn state nittany lions": "213",
                     "notre dame": "87"  // Notre Dame Fighting Irish
                 };
-                
+
                 // Check short name mapping
                 for (const [shortName, code] of Object.entries(shortNameMapping)) {
                     if (normalized === shortName || normalized.startsWith(shortName + " ") || normalized.endsWith(" " + shortName)) {
@@ -1212,19 +1259,19 @@
                         break;
                     }
                 }
-                
+
                 // If still not found, try to match partial names (improved logic)
                 if (!teamCode) {
                     // Extract first significant word (skip common words like "the", "at", etc.)
                     const words = normalized.split(/\s+/);
                     const firstWord = words.length > 0 ? words[0] : normalized;
                     const secondWord = words.length > 1 ? words[1] : null;
-                    
+
                     for (const [key, code] of Object.entries(teamMapping)) {
                         // Check if normalized name is contained in key or vice versa
                         // Also check if key starts with normalized (e.g., "kansas" matches "kansas jayhawks")
-                        if (normalized === key || 
-                            key.startsWith(normalized + " ") || 
+                        if (normalized === key ||
+                            key.startsWith(normalized + " ") ||
                             normalized.startsWith(key + " ") ||
                             key.startsWith(firstWord + " ") ||
                             (normalized.length >= 3 && key.includes(normalized)) ||
@@ -1235,7 +1282,7 @@
                     }
                 }
             }
-            
+
             // Determine sport for ESPN URL
             let sportPath = "nba";
             if (sportKey) {
@@ -1249,11 +1296,11 @@
                     sportPath = "nba";
                 }
             }
-            
+
             if (teamCode) {
                 return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${teamCode}.png`;
             }
-            
+
             // Fallback: try normalized name
             const fallback = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
             return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${fallback}.png`;
@@ -1297,25 +1344,25 @@
 
         function createTeamNameWithLogo(teamName, sportKey = null) {
             if (!teamName) return document.createTextNode("");
-            
+
             const container = document.createElement("span");
             container.className = "team-name-with-logo";
-            
+
             const logo = document.createElement("img");
             logo.className = "team-logo";
             logo.src = getTeamLogoUrl(teamName, sportKey);
             logo.alt = teamName;
-            logo.onerror = function() {
+            logo.onerror = function () {
                 // Hide logo if it fails to load
                 this.style.display = "none";
             };
-            
+
             const nameSpan = document.createElement("span");
             nameSpan.textContent = teamName;
-            
+
             container.appendChild(logo);
             container.appendChild(nameSpan);
-            
+
             return container;
         }
 
@@ -1323,7 +1370,7 @@
             // Extract team name from outcome (might include point spread info)
             // Examples: "New York Knicks", "New York Knicks @ -3.5"
             if (!outcomeName) return null;
-            
+
             // Remove point spread info (everything after @)
             const parts = outcomeName.split(" @ ");
             return parts[0].trim();
@@ -1332,7 +1379,7 @@
         function parseTeamsFromMatchup(matchup) {
             // Parse "Away Team @ Home Team" format
             if (!matchup) return { away: null, home: null };
-            
+
             const parts = matchup.split(" @ ");
             if (parts.length === 2) {
                 return { away: parts[0].trim(), home: parts[1].trim() };
@@ -1583,12 +1630,12 @@
             }
 
             let plays = data.plays;
-            
+
             // Filter for hedge opportunities only (arb_margin_percent >= 0) when watcher is running
             if (hedgeOnly) {
-                plays = plays.filter(p => 
-                    p.arb_margin_percent !== null && 
-                    p.arb_margin_percent !== undefined && 
+                plays = plays.filter(p =>
+                    p.arb_margin_percent !== null &&
+                    p.arb_margin_percent !== undefined &&
                     p.arb_margin_percent >= 0 &&
                     p.novig_reverse_price !== null &&
                     p.novig_reverse_price !== undefined
@@ -1598,7 +1645,7 @@
                     return;
                 }
             }
-            
+
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
@@ -1630,7 +1677,7 @@
                 let teamName = parseTeamFromOutcome(play.outcome_name);
                 const marketLabel = marketLabels[play.market] || play.market;
                 const formattedOdds = formatOdds(play.book_price);
-                
+
                 // For totals markets, extract team from matchup since outcome is "Over" or "Under"
                 let logoTeamName = teamName;
                 if (play.market === "totals" && play.matchup) {
@@ -1647,7 +1694,7 @@
                     logo.className = "team-logo";
                     logo.src = getTeamLogoUrl(logoTeamName, play.sport_key || null);
                     logo.alt = logoTeamName;
-                    logo.onerror = function() {
+                    logo.onerror = function () {
                         this.style.display = "none";
                     };
                     targetRow.appendChild(logo);
@@ -1778,11 +1825,11 @@
         async function sendSMSAlert(play) {
             const phoneInput = document.getElementById("sms-phone-input");
             const phone = phoneInput ? phoneInput.value.trim() : "";
-            
+
             if (!phone) {
                 return; // No phone number configured, skip SMS
             }
-            
+
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
@@ -1790,16 +1837,16 @@
                 "basketball_ncaab": "NCAAB",
                 "americanfootball_ncaaf": "NCAAF"
             };
-            
+
             const sportLabel = sportLabels[play.sport_key] || play.sport_key;
             const teamName = parseTeamFromOutcome(play.outcome_name);
             const margin = Math.round(play.arb_margin_percent * 100) / 100;
             const bookOdds = formatOdds(play.book_price);
             const hedgeOdds = play.novig_reverse_price ? formatOdds(play.novig_reverse_price) : "N/A";
-            
+
             // Format message (SMS has 160 char limit, so keep it concise)
             const message = `Hedge Alert! ${sportLabel}: ${teamName} ${bookOdds} vs ${hedgeOdds} (${margin}% margin). ${play.matchup || ""}`;
-            
+
             try {
                 const response = await fetch("/api/send-sms", {
                     method: "POST",
@@ -1809,7 +1856,7 @@
                         message: message
                     })
                 });
-                
+
                 if (!response.ok) {
                     const error = await response.json();
                     console.error("SMS send failed:", error.detail || "Unknown error");
@@ -1899,7 +1946,7 @@
                 // When watcher is running, we can request fewer results since we only care about hedge opportunities
                 // The API already sorts by arb_margin_percent, so top results are most likely to be hedge opportunities
                 const requestMaxResults = isWatcherRunning ? maxResults : maxResults * 2;
-                
+
                 const res = await loggedFetch("/api/best-value-plays", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1935,15 +1982,15 @@
 
                 // Check for hedge alerts if watcher is running
                 if (isWatcherRunning) {
-                    const hedgePlays = (data.plays || []).filter(p => 
-                        p.arb_margin_percent !== null && 
-                        p.arb_margin_percent !== undefined && 
+                    const hedgePlays = (data.plays || []).filter(p =>
+                        p.arb_margin_percent !== null &&
+                        p.arb_margin_percent !== undefined &&
                         p.arb_margin_percent >= 0 &&
                         p.novig_reverse_price !== null &&
                         p.novig_reverse_price !== undefined
                     );
                     checkForHedgeAlerts(data.plays);
-                    
+
                     const watcherStatusBar = document.getElementById("watcher-status-bar");
                     const intervalVal = Number(document.getElementById("watcher-interval-input").value) || 60;
                     const newAlerts = hedgePlays.filter(p => !alertedPlayIds.has(getPlayId(p))).length;
@@ -1957,9 +2004,9 @@
                 let playsCount = (data.plays || []).length;
                 if (isWatcherRunning) {
                     // Count only hedge opportunities when watcher is running
-                    playsCount = data.plays.filter(p => 
-                        p.arb_margin_percent !== null && 
-                        p.arb_margin_percent !== undefined && 
+                    playsCount = data.plays.filter(p =>
+                        p.arb_margin_percent !== null &&
+                        p.arb_margin_percent !== undefined &&
                         p.arb_margin_percent >= 0 &&
                         p.novig_reverse_price !== null &&
                         p.novig_reverse_price !== undefined
@@ -1999,23 +2046,23 @@
             try {
                 const saved = localStorage.getItem("arbitrageFinderSelections");
                 if (!saved) return;
-                
+
                 const selections = JSON.parse(saved);
-                
+
                 // Restore sports checkboxes
                 if (selections.sports && Array.isArray(selections.sports)) {
                     document.querySelectorAll(".sport-checkbox").forEach(cb => {
                         cb.checked = selections.sports.includes(cb.value);
                     });
                 }
-                
+
                 // Restore markets checkboxes
                 if (selections.markets && Array.isArray(selections.markets)) {
                     document.querySelectorAll(".market-checkbox").forEach(cb => {
                         cb.checked = selections.markets.includes(cb.value);
                     });
                 }
-                
+
                 // Restore selects
                 if (selections.targetBook) {
                     document.getElementById("best-target-book-select").value = selections.targetBook;
@@ -2137,20 +2184,40 @@
             // Start credits refresh
             startCreditsRefresh();
 
-            // Load saved form selections
-            loadFormSelections();
+            // Load sports schema, then restore saved form selections and attach listeners
+            fetchAndRenderSports().then(() => {
+                try {
+                    loadFormSelections();
+                    document.getElementById('toggle-all-sports-btn').addEventListener('click', () => {
+                        showAllSportsMode = !showAllSportsMode;
+                        const btn = document.getElementById('toggle-all-sports-btn');
+                        btn.textContent = showAllSportsMode ? 'Show Active Only' : 'Show All Sports';
+                        btn.style.backgroundColor = showAllSportsMode ? '#e8f5e9' : '#f0f0f0';
+                        fetchAndRenderSports(showAllSportsMode);
+                    });
+                } catch (e) {
+                    appendClientLog('loadFormSelections failed: ' + (e.message || e));
+                }
 
-            // Save form selections when they change
-            document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
-                el.addEventListener("change", saveFormSelections);
+                // Save form selections when they change
+                document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
+                    el.addEventListener("change", saveFormSelections);
+                });
+                document.getElementById("best-target-book-select").addEventListener("change", saveFormSelections);
+                document.getElementById("best-compare-book-select").addEventListener("change", saveFormSelections);
+                document.getElementById("best-max-results-input").addEventListener("change", saveFormSelections);
+                document.getElementById("dummy-data-checkbox").addEventListener("change", saveFormSelections);
+                document.getElementById("log-results-checkbox").addEventListener("change", saveFormSelections);
+                document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
+                document.getElementById("sms-threshold-input").addEventListener("change", saveFormSelections);
+            }).catch((err) => {
+                appendClientLog('Failed to render sports schema: ' + (err.message || err));
+                // Fallback: still attempt to load selections and attach listeners to any existing controls
+                try { loadFormSelections(); } catch (e) { /* ignore */ }
+                document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
+                    el.addEventListener("change", saveFormSelections);
+                });
             });
-            document.getElementById("best-target-book-select").addEventListener("change", saveFormSelections);
-            document.getElementById("best-compare-book-select").addEventListener("change", saveFormSelections);
-            document.getElementById("best-max-results-input").addEventListener("change", saveFormSelections);
-            document.getElementById("dummy-data-checkbox").addEventListener("change", saveFormSelections);
-            document.getElementById("log-results-checkbox").addEventListener("change", saveFormSelections);
-            document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
-            document.getElementById("sms-threshold-input").addEventListener("change", saveFormSelections);
 
             const autoPollCheckbox = document.getElementById('auto-poll-server-watcher-checkbox');
             // Load saved preference (default: off)
@@ -2188,7 +2255,7 @@
             if (savedDummyData === "true") {
                 dummyDataCheckbox.checked = true;
             }
-            
+
             // Save dummy data setting to localStorage when changed
             dummyDataCheckbox.addEventListener("change", (e) => {
                 localStorage.setItem("useDummyData", e.target.checked ? "true" : "false");
@@ -2213,7 +2280,7 @@
             // Arbitrage finder book validation
             const bestTargetBook = document.getElementById("best-target-book-select");
             const bestCompareBook = document.getElementById("best-compare-book-select");
-            
+
             function validateBestBookSelection() {
                 if (bestTargetBook.value === bestCompareBook.value) {
                     setBestStatus("Error: Target book and comparison book cannot be the same.");
@@ -2221,7 +2288,7 @@
                 }
                 return true;
             }
-            
+
             bestTargetBook.addEventListener("change", validateBestBookSelection);
             bestCompareBook.addEventListener("change", validateBestBookSelection);
 
@@ -2328,20 +2395,20 @@
             }
 
             async function refreshServerWatcherStatus() {
-                    try {
-                        const res = await loggedFetch("/api/hedge-watcher/status", {}, 'watcher-status');
-                        const data = await res.json();
-                        if (!res.ok) {
-                            throw new Error(data.detail || "Unable to fetch watcher status");
-                        }
-                        renderServerWatcherStatus(data);
-                    } catch (error) {
-                        appendClientLog(`watcher-status <= ERROR ${error.message}`);
-                        serverWatcherStatusBar.textContent = `Server watcher status unavailable: ${error.message}`;
-                        serverWatcherLog.textContent = "";
-                        startServerWatcherBtn.disabled = false;
-                        stopServerWatcherBtn.disabled = true;
+                try {
+                    const res = await loggedFetch("/api/hedge-watcher/status", {}, 'watcher-status');
+                    const data = await res.json();
+                    if (!res.ok) {
+                        throw new Error(data.detail || "Unable to fetch watcher status");
                     }
+                    renderServerWatcherStatus(data);
+                } catch (error) {
+                    appendClientLog(`watcher-status <= ERROR ${error.message}`);
+                    serverWatcherStatusBar.textContent = `Server watcher status unavailable: ${error.message}`;
+                    serverWatcherLog.textContent = "";
+                    startServerWatcherBtn.disabled = false;
+                    stopServerWatcherBtn.disabled = true;
+                }
             }
 
             async function startServerWatcher() {
@@ -2415,25 +2482,25 @@
             // Test SMS functionality
             const testSmsBtn = document.getElementById("test-sms-btn");
             const testSmsStatus = document.getElementById("test-sms-status");
-            
+
             async function sendTestSMS() {
                 const phoneInput = document.getElementById("sms-phone-input");
                 const phone = phoneInput ? phoneInput.value.trim() : "";
-                
+
                 if (!phone) {
                     testSmsStatus.style.display = "block";
                     testSmsStatus.style.color = "#fecaca";
                     testSmsStatus.textContent = "Please enter a phone number first.";
                     return;
                 }
-                
+
                 testSmsStatus.style.display = "block";
                 testSmsStatus.style.color = "#94a3b8";
                 testSmsStatus.textContent = "Sending test SMS...";
                 testSmsBtn.disabled = true;
-                
+
                 const testMessage = "Test alert from Arbitrage Bet Finder - SMS notifications are working!";
-                
+
                 try {
                     const response = await fetch("/api/send-sms", {
                         method: "POST",
@@ -2443,9 +2510,9 @@
                             message: testMessage
                         })
                     });
-                    
+
                     const result = await response.json();
-                    
+
                     if (response.ok && result.success) {
                         testSmsStatus.style.color = "#bbf7d0";
                         testSmsStatus.textContent = `✅ Test SMS sent successfully! Quota remaining: ${result.quotaRemaining || "N/A"}`;
@@ -2460,7 +2527,7 @@
                     testSmsBtn.disabled = false;
                 }
             }
-            
+
             testSmsBtn.onclick = sendTestSMS;
 
             // Clean up on page unload
