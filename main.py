@@ -1295,10 +1295,12 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
             detail="At least one sport and one market must be specified.",
         )
 
-    try:
-        api_key = get_api_key()
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    api_key = ""
+    if not payload.use_dummy_data:
+        try:
+            api_key = get_api_key()
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     bookmaker_keys = [target_book, compare_book]
     regions = compute_regions_for_books(bookmaker_keys)
