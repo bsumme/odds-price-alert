@@ -381,7 +381,6 @@ class SGPBuilderRequest(BaseModel):
     """Request to build same-game parlay recommendations from player props."""
 
     sport_key: str
-    event_id: Optional[str] = None
     target_book: str
     compare_book: str
     boost_percent: float = Field(default=30.0, ge=20.0, le=100.0)
@@ -1908,7 +1907,7 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
         sport_key=payload.sport_key,
         team=None,
         player_name=None,
-        event_id=payload.event_id,
+        event_id=None,
         markets=markets,
         target_book=payload.target_book,
         compare_book=payload.compare_book,
@@ -1928,18 +1927,7 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
 
     plays_by_event: Dict[str, List[ValuePlayOutcome]] = {}
     for play in props_response.plays:
-        if payload.event_id and play.event_id != payload.event_id:
-            continue
         plays_by_event.setdefault(play.event_id, []).append(play)
-
-    if payload.event_id and not plays_by_event:
-        warnings.append("No player props found for the selected game.")
-        return SGPBuilderResponse(
-            sport_key=payload.sport_key,
-            target_book=payload.target_book,
-            compare_book=payload.compare_book,
-            warnings=warnings,
-        )
 
     best_sgp: Optional[SGPSuggestion] = None
     uncorrelated_sgp: Optional[SGPSuggestion] = None

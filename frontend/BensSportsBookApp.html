@@ -741,6 +741,7 @@
 
                         <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-secondary" id="build-parlay-btn">Build Best Parlay</button>
+                            <button class="btn btn-secondary" id="build-sgp-btn">Build SGP from Player Props</button>
                         </div>
 
                         <div class="status-bar" id="best-status-bar">Ready.</div>
@@ -772,9 +773,10 @@
             </section>
 
             <section class="card" id="builder-results-section">
-                <h2>Parlay Builder</h2>
+                <h2>Parlay &amp; SGP Builder</h2>
                 <div class="small-text" id="builder-status-bar" style="margin-bottom: 0.4rem;">Ready.</div>
-                <div id="parlay-builder-output" class="small-text">Use the builder to generate high-value parlays based on hedge EV.</div>
+                <div id="parlay-builder-output" class="small-text" style="margin-bottom: 0.75rem;">Use the builder buttons to generate high-value parlays based on hedge EV.</div>
+                <div id="sgp-builder-output" class="small-text">Same-game parlays will appear here after scanning player props.</div>
             </section>
 
         </div>
@@ -1496,6 +1498,63 @@
             container.innerHTML = html;
         }
 
+        function describeSgp(label, sgp) {
+            if (!sgp) return '';
+            let html = `<div style="margin-top: 0.4rem;"><strong>${label}</strong> (${sgp.legs.length} legs) — ${sgp.matchup}`;
+            if (sgp.start_time) {
+                html += ` • ${sgp.start_time}`;
+            }
+            html += '</div><ol style="padding-left: 1.2rem; margin: 0.35rem 0;">';
+            sgp.legs.forEach((leg) => {
+                const hedgeText = leg.hedge_ev_percent !== null && leg.hedge_ev_percent !== undefined
+                    ? `${leg.hedge_ev_percent.toFixed(2)}%`
+                    : `${leg.ev_percent.toFixed(2)}%`;
+                html += `<li style="margin-bottom: 0.35rem;">
+                    <div><strong>${leg.outcome_name}</strong> (${formatOdds(leg.book_price)})</div>
+                    <div class="small-text">${leg.market || ''} • Hedge EV: ${hedgeText}</div>
+                </li>`;
+            });
+            html += '</ol>';
+            const baseOdds = (sgp.combined_american_odds !== null && sgp.combined_american_odds !== undefined)
+                ? formatOdds(sgp.combined_american_odds)
+                : '—';
+            const baseDecimal = sgp.combined_decimal_odds ? `${sgp.combined_decimal_odds.toFixed(2)}x` : '—';
+            const boostedOdds = (sgp.boosted_american_odds !== null && sgp.boosted_american_odds !== undefined)
+                ? formatOdds(sgp.boosted_american_odds)
+                : '—';
+            const boostedDecimal = sgp.boosted_decimal_odds ? `${sgp.boosted_decimal_odds.toFixed(2)}x` : '—';
+            html += `<div class="small-text">Base Odds: <strong>${baseOdds}</strong> (${baseDecimal})</div>`;
+            html += `<div class="small-text">Boosted (${sgp.boost_percent}%): <strong>${boostedOdds}</strong> (${boostedDecimal})</div>`;
+            if (sgp.note) {
+                html += `<div class="small-text" style="color: #fbbf24;">${sgp.note}</div>`;
+            }
+            return html;
+        }
+
+        function renderSGPBuilderResults(data) {
+            const container = document.getElementById('sgp-builder-output');
+            if (!container) return;
+
+            if (!data || (!data.best_sgp && !data.uncorrelated_sgp)) {
+                container.textContent = (data && data.warnings && data.warnings.join(' ')) || 'No same-game parlay recommendation available right now.';
+                return;
+            }
+
+            let html = '';
+            if (data.best_sgp) {
+                html += describeSgp('Top SGP', data.best_sgp);
+            }
+            if (data.uncorrelated_sgp) {
+                html += describeSgp('Uncorrelated SGP', data.uncorrelated_sgp);
+            }
+
+            if (data.warnings && data.warnings.length) {
+                html += `<div class="small-text" style="color: #fbbf24; margin-top: 0.35rem;">${data.warnings.join(' ')}</div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
         // Legacy function for backwards compatibility
         function formatAmericanOdds(odds) {
             return formatOdds(odds);
@@ -2112,6 +2171,52 @@
             }
         }
 
+        async function buildSgpRecommendation() {
+            const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
+            const targetBook = document.getElementById("best-target-book-select").value;
+            const compareBook = document.getElementById("best-compare-book-select").value;
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+            const boostPercent = getPromoBoostPercent();
+
+            if (sportCheckboxes.length !== 1) {
+                setBuilderStatus("Pick exactly one sport to scan for SGP player props.");
+                return;
+            }
+            if (targetBook === compareBook) {
+                setBuilderStatus("Target book and comparison book must differ for SGP building.");
+                return;
+            }
+
+            const sportKey = sportCheckboxes[0].value;
+            setBuilderStatus("Searching player props for SGP legs...");
+
+            try {
+                const res = await loggedFetch("/api/sgp-builder", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_key: sportKey,
+                        target_book: targetBook,
+                        compare_book: compareBook,
+                        boost_percent: boostPercent,
+                        use_dummy_data: useDummyData,
+                        avoid_correlation: true
+                    })
+                }, 'sgp-builder');
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || (`HTTP ${res.status}`));
+                }
+
+                const data = await res.json();
+                renderSGPBuilderResults(data);
+                setBuilderStatus("Updated SGP recommendations using hedge EV player props.");
+            } catch (err) {
+                setBuilderStatus(`SGP builder failed: ${err.message || err}`);
+            }
+        }
+
         async function fetchBestValuePlays() {
             const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
             const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
@@ -2490,6 +2595,7 @@
             document.getElementById("find-best-btn").onclick = fetchBestValuePlays;
             document.getElementById("clear-best-btn").onclick = clearBestResults;
             document.getElementById("build-parlay-btn").onclick = buildParlayRecommendation;
+            document.getElementById("build-sgp-btn").onclick = buildSgpRecommendation;
 
             // Parlay Calculator
             document.getElementById("add-parlay-leg-btn").onclick = addParlayLeg;
