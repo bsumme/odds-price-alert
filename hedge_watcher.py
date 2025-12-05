@@ -10,7 +10,6 @@ and stop it by terminating the process (Ctrl+C or `kill`).
 from __future__ import annotations
 
 import argparse
-import signal
 import sys
 import threading
 from dataclasses import dataclass
@@ -263,17 +262,17 @@ class HedgeWatcher:
         response: BestValuePlaysResponse = get_best_value_plays(request)
         return filter_by_margin(response.plays, self.config.min_margin_percent)
 
-    def _log_cycle(self, plays: List[BestValuePlayOutcome]) -> None:
+    def _log_cycle(self, plays: List[BestValuePlayOutcome], log_fn=print) -> None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         if not plays:
-            print(
+            log_fn(
                 f"[{timestamp}] No hedge opportunities (margin ≥ {self.config.min_margin_percent}%)."
                 f" Next check in {self.config.interval_seconds}s."
             )
             return
 
-        print(
+        log_fn(
             f"[{timestamp}] Found {len(plays)} hedge opportunities with margin ≥"
             f" {self.config.min_margin_percent}% (showing up to {self.config.max_results})."
         )
@@ -287,55 +286,53 @@ class HedgeWatcher:
             self._seen_ids.add(pid)
 
             marker = " [new]" if is_new else ""
-            print(f"  • {format_play_summary(play)}{marker}")
+            log_fn(f"  • {format_play_summary(play)}{marker}")
 
-        print(
+        log_fn(
             f"[{timestamp}] Cycle complete: {new_count} new. Next check in {self.config.interval_seconds}s."
         )
 
     def run_forever(self) -> None:
         """Start the watcher loop until interrupted."""
 
-        def _handle_signal(signum: int, _: object) -> None:
-            print(f"\nReceived signal {signum}. Shutting down hedge watcher...")
-            self._stop_event.set()
-
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            signal.signal(sig, _handle_signal)
-
-        target_label = pretty_book_label(self.config.target_book)
-        compare_label = pretty_book_label(self.config.compare_book)
-        print(
-            "🛡️  Hedge watcher started."
-            f" Watching {target_label} versus {compare_label} every {self.config.interval_seconds}s.\n"
-            f"Sports: {', '.join(self.config.sport_keys)} | Markets: {', '.join(self.config.markets)}\n"
-            f"Minimum margin: {self.config.min_margin_percent}% | Max results: {self.config.max_results}\n"
-            "Use Ctrl+C or kill the process to stop it."
-        )
-
         try:
-            while not self._stop_event.is_set():
-                try:
-                    plays = self._poll()
-                    self._log_cycle(plays)
-                except HTTPException as http_exc:
-                    print(
-                        "Watcher error:"
-                        f" {http_exc.detail}. Retrying in {self.config.interval_seconds}s..."
-                    )
-                except Exception as exc:  # pragma: no cover - safety net for background runtime
-                    print(
-                        "Unexpected error:"
-                        f" {exc}. Retrying in {self.config.interval_seconds}s..."
-                    )
-
-                if self._stop_event.wait(self.config.interval_seconds):
-                    break
+            self.run_with_stop_event(self._stop_event, log_fn=print)
         except KeyboardInterrupt:
             print("\nKeyboard interrupt received. Shutting down hedge watcher...")
             self._stop_event.set()
 
-        print("Hedge watcher stopped.")
+    def run_with_stop_event(self, stop_event: threading.Event, log_fn=print) -> None:
+        """Run the watcher loop using an external stop event and logger."""
+
+        target_label = pretty_book_label(self.config.target_book)
+        compare_label = pretty_book_label(self.config.compare_book)
+        log_fn(
+            "🛡️  Hedge watcher started."
+            f" Watching {target_label} versus {compare_label} every {self.config.interval_seconds}s.\n"
+            f"Sports: {', '.join(self.config.sport_keys)} | Markets: {', '.join(self.config.markets)}\n"
+            f"Minimum margin: {self.config.min_margin_percent}% | Max results: {self.config.max_results}\n"
+            "Use the API stop endpoint or terminate the process to stop it."
+        )
+
+        while not stop_event.is_set():
+            try:
+                plays = self._poll()
+                self._log_cycle(plays, log_fn=log_fn)
+            except HTTPException as http_exc:
+                log_fn(
+                    "Watcher error:"
+                    f" {http_exc.detail}. Retrying in {self.config.interval_seconds}s..."
+                )
+            except Exception as exc:  # pragma: no cover - safety net for background runtime
+                log_fn(
+                    "Unexpected error:"
+                    f" {exc}. Retrying in {self.config.interval_seconds}s..."
+                )
+
+            if stop_event.wait(self.config.interval_seconds):
+                break
+
+        log_fn("Hedge watcher stopped.")
 
 
 def parse_args(argv: List[str]) -> HedgeWatcherConfig:
