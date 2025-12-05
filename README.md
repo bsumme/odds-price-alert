@@ -189,6 +189,37 @@ python tests/test_odds_api.py --sport basketball_nba --markets totals --raw
 python tests/test_odds_api.py --sport basketball_nba --markets totals --use-dummy-data
 ```
 
+## Background hedge watcher (headless)
+
+Use the standalone `hedge_watcher.py` CLI to look for hedge (opposite-side) opportunities without running the FastAPI server. It loops until you stop the process.
+
+1. Install dependencies once: `pip install -r requirements.txt`.
+2. Optional: export `THE_ODDS_API_KEY="<your key>"` if you want live odds. No key is needed when `--use-dummy-data` is enabled.
+3. Run the watcher with the options that fit your workflow:
+
+   ```bash
+   # Minimal resource usage (dummy data, 10-minute interval)
+   python hedge_watcher.py --use-dummy-data --interval 600 --min-margin 0
+
+   # Live odds example (requires THE_ODDS_API_KEY)
+   python hedge_watcher.py --sport basketball_nba --market h2h \
+     --target-book draftkings --compare-book novig --interval 900 --min-margin 0.5
+
+   # Run quietly in the background and log to a file
+   nohup python hedge_watcher.py --use-dummy-data --interval 600 --min-margin 0 \
+     --max-results 10 > hedge_watcher.log 2>&1 &
+   ```
+
+Command-line switches:
+
+- `--sport` / `--market`: add multiple flags to watch several sports/markets.
+- `--target-book` / `--compare-book`: choose the book you bet at vs. the exchange/book you hedge against.
+- `--interval`: seconds between polls (raise this for background/low-resource runs).
+- `--min-margin`: only show opportunities with at least this arbitrage margin percent.
+- `--use-dummy-data`: avoid network calls; ideal for testing or running without an API key.
+
+Stop the watcher with `Ctrl+C` in the foreground or by killing the process (for example `pkill -f hedge_watcher.py`). Run `python hedge_watcher.py --help` to see all options.
+
 ## API Endpoints
 
 ### `POST /api/odds`
