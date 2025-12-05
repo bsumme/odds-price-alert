@@ -15,7 +15,7 @@ import sys
 import threading
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable, List, Set
+from typing import Iterable, List, Sequence, Set
 
 from fastapi import HTTPException
 
@@ -25,7 +25,15 @@ from main import (
     BestValuePlaysResponse,
     get_best_value_plays,
 )
-from utils.formatting import format_start_time_est, pretty_book_label
+from utils.formatting import BOOK_LABELS, format_start_time_est, pretty_book_label
+
+DEFAULT_SPORTS = ["basketball_nba", "americanfootball_nfl", "baseball_mlb", "hockey_nhl"]
+DEFAULT_MARKETS = ["h2h", "spreads", "totals"]
+DEFAULT_TARGET_BOOK = "draftkings"
+DEFAULT_COMPARE_BOOK = "novig"
+DEFAULT_INTERVAL_SECONDS = 300
+DEFAULT_MAX_RESULTS = 15
+DEFAULT_MIN_MARGIN = 0.0
 
 
 @dataclass
@@ -66,6 +74,64 @@ def filter_by_margin(
     ]
 
 
+def _prompt_single_choice(prompt: str, options: Sequence[str], default: str) -> str:
+    """Prompt the user to pick a single value from a numbered list."""
+
+    print(prompt)
+    for idx, option in enumerate(options, start=1):
+        print(f"  {idx}) {option}")
+
+    raw = input(f"Enter choice (1-{len(options)}) [default {default}]: ").strip()
+    if not raw:
+        return default
+
+    try:
+        selection = int(raw)
+        if 1 <= selection <= len(options):
+            return options[selection - 1]
+    except ValueError:
+        pass
+
+    print(f"Invalid selection '{raw}'. Using default '{default}'.")
+    return default
+
+
+def _prompt_multi_choice(prompt: str, options: Sequence[str], defaults: Sequence[str]) -> List[str]:
+    """Prompt the user to pick one or more values from a numbered list."""
+
+    print(prompt)
+    for idx, option in enumerate(options, start=1):
+        print(f"  {idx}) {option}")
+
+    default_indexes = ",".join(str(options.index(value) + 1) for value in defaults if value in options)
+    raw = input(
+        "Enter comma-separated choices (e.g. 1,3) "
+        f"[default {default_indexes or 'none'}]: "
+    ).strip()
+    if not raw:
+        return list(defaults)
+
+    selections: List[str] = []
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            selection = int(token)
+            if 1 <= selection <= len(options):
+                value = options[selection - 1]
+                if value not in selections:
+                    selections.append(value)
+        except ValueError:
+            continue
+
+    if not selections:
+        print("No valid selections provided. Using defaults.")
+        return list(defaults)
+
+    return selections
+
+
 def format_odds(odds: int | None) -> str:
     """Display odds with a leading plus sign when appropriate."""
 
@@ -88,6 +154,89 @@ def format_play_summary(play: BestValuePlayOutcome) -> str:
         f"{play.matchup} | {play.sport_key} {play.market} | {play.outcome_name}"
         f" @ {format_odds(play.book_price)} (hedge {format_odds(play.novig_reverse_price)})"
         f" — margin {margin}, starts {start_label}"
+    )
+
+
+def _prompt_numeric(
+    prompt: str, default: float, cast: type, minimum: float | None = None
+) -> float | int:
+    """Prompt the user for a numeric value with validation and defaults."""
+
+    raw = input(f"{prompt} [default {default}]: ").strip()
+    if not raw:
+        return default
+
+    try:
+        value = cast(raw)
+        if minimum is not None and value < minimum:
+            raise ValueError
+        return value
+    except (ValueError, TypeError):
+        min_msg = f" (minimum {minimum})" if minimum is not None else ""
+        print(f"Invalid value. Using default {default}{min_msg}.")
+        return default
+
+
+def prompt_interactive_config() -> HedgeWatcherConfig:
+    """Collect watcher parameters through a multiple-choice CLI flow."""
+
+    print("\n🎛️  Interactive hedge watcher setup\n")
+
+    book_options = list(BOOK_LABELS.keys())
+    target_book = _prompt_single_choice(
+        "Select the primary sportsbook (where your main bets are placed):",
+        book_options,
+        DEFAULT_TARGET_BOOK,
+    )
+    compare_book = _prompt_single_choice(
+        "Select the exchange/book for hedge opportunities:",
+        book_options,
+        DEFAULT_COMPARE_BOOK,
+    )
+
+    sport_keys = _prompt_multi_choice(
+        "Select sports to monitor (comma-separated for multiple):",
+        DEFAULT_SPORTS,
+        DEFAULT_SPORTS,
+    )
+    markets = _prompt_multi_choice(
+        "Select markets to monitor (comma-separated for multiple):",
+        DEFAULT_MARKETS,
+        DEFAULT_MARKETS[:1],
+    )
+
+    interval_seconds = int(
+        _prompt_numeric(
+            "Polling interval in seconds (higher values reduce API usage)",
+            DEFAULT_INTERVAL_SECONDS,
+            int,
+            minimum=5,
+        )
+    )
+    max_results = int(
+        _prompt_numeric("Maximum number of plays to display each cycle", DEFAULT_MAX_RESULTS, int, minimum=1)
+    )
+    min_margin_percent = float(
+        _prompt_numeric(
+            "Minimum arbitrage margin percent to surface", DEFAULT_MIN_MARGIN, float, minimum=0.0
+        )
+    )
+
+    use_dummy_data = (
+        input("Use dummy odds data instead of live API? (y/N): ").strip().lower() in {"y", "yes"}
+    )
+
+    print("\nStarting hedge watcher with your selections...\n")
+
+    return HedgeWatcherConfig(
+        target_book=target_book,
+        compare_book=compare_book,
+        sport_keys=sport_keys,
+        markets=markets,
+        interval_seconds=interval_seconds,
+        max_results=max_results,
+        min_margin_percent=min_margin_percent,
+        use_dummy_data=use_dummy_data,
     )
 
 
@@ -164,16 +313,27 @@ class HedgeWatcher:
             "Use Ctrl+C or kill the process to stop it."
         )
 
-        while not self._stop_event.is_set():
-            try:
-                plays = self._poll()
-                self._log_cycle(plays)
-            except HTTPException as http_exc:
-                print(f"Watcher error: {http_exc.detail}. Retrying in {self.config.interval_seconds}s...")
-            except Exception as exc:  # pragma: no cover - safety net for background runtime
-                print(f"Unexpected error: {exc}. Retrying in {self.config.interval_seconds}s...")
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    plays = self._poll()
+                    self._log_cycle(plays)
+                except HTTPException as http_exc:
+                    print(
+                        "Watcher error:"
+                        f" {http_exc.detail}. Retrying in {self.config.interval_seconds}s..."
+                    )
+                except Exception as exc:  # pragma: no cover - safety net for background runtime
+                    print(
+                        "Unexpected error:"
+                        f" {exc}. Retrying in {self.config.interval_seconds}s..."
+                    )
 
-            self._stop_event.wait(self.config.interval_seconds)
+                if self._stop_event.wait(self.config.interval_seconds):
+                    break
+        except KeyboardInterrupt:
+            print("\nKeyboard interrupt received. Shutting down hedge watcher...")
+            self._stop_event.set()
 
         print("Hedge watcher stopped.")
 
@@ -182,44 +342,44 @@ def parse_args(argv: List[str]) -> HedgeWatcherConfig:
     parser = argparse.ArgumentParser(description="Background hedge watcher that polls in a loop.")
     parser.add_argument(
         "--target-book",
-        default="draftkings",
+        default=DEFAULT_TARGET_BOOK,
         help="Sportsbook to monitor for your primary bets (default: draftkings)",
     )
     parser.add_argument(
         "--compare-book",
-        default="novig",
+        default=DEFAULT_COMPARE_BOOK,
         help="Exchange/book to compare against for the hedge side (default: novig)",
     )
     parser.add_argument(
         "--sport",
         dest="sports",
         action="append",
-        default=["basketball_nba", "americanfootball_nfl"],
+        default=DEFAULT_SPORTS,
         help="Sport key to include (can be provided multiple times).",
     )
     parser.add_argument(
         "--market",
         dest="markets",
         action="append",
-        default=["h2h"],
+        default=DEFAULT_MARKETS[:1],
         help="Market to include (can be provided multiple times, default: h2h).",
     )
     parser.add_argument(
         "--interval",
         type=int,
-        default=300,
+        default=DEFAULT_INTERVAL_SECONDS,
         help="Poll interval in seconds (default: 300). Use a higher value to minimize resource usage.",
     )
     parser.add_argument(
         "--max-results",
         type=int,
-        default=15,
+        default=DEFAULT_MAX_RESULTS,
         help="Maximum number of plays to print each cycle (default: 15).",
     )
     parser.add_argument(
         "--min-margin",
         type=float,
-        default=0.0,
+        default=DEFAULT_MIN_MARGIN,
         help="Only surface plays with arbitrage margin at or above this percent (default: 0.0).",
     )
     parser.add_argument(
@@ -227,8 +387,16 @@ def parse_args(argv: List[str]) -> HedgeWatcherConfig:
         action="store_true",
         help="Use built-in dummy odds instead of hitting the real API (no API key required).",
     )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Launch an interactive menu to choose parameters instead of command-line flags.",
+    )
 
     args = parser.parse_args(argv)
+
+    if args.interactive:
+        return prompt_interactive_config()
 
     return HedgeWatcherConfig(
         target_book=args.target_book,
