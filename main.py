@@ -61,6 +61,16 @@ HEDGE_DEFAULT_INTERVAL_SECONDS = 300
 HEDGE_DEFAULT_MAX_RESULTS = 15
 HEDGE_DEFAULT_MIN_MARGIN = 0.0
 
+# Featured SGP helper defaults
+FEATURED_SPORTS = [
+    "basketball_nba",
+    "americanfootball_nfl",
+    "baseball_mlb",
+    "icehockey_nhl",
+]
+FEATURED_MARKETS = ["h2h", "spreads", "totals"]
+FEATURED_LOOKAHEAD_HOURS = 36
+
 # -------------------------------------------------------------------
 # Pydantic Models
 # -------------------------------------------------------------------
@@ -426,6 +436,20 @@ class PlayerPropMarketsRequest(BaseModel):
 class PlayerPropMarketsResponse(BaseModel):
     sport_key: str
     available_markets: List[str]
+
+
+class FeaturedGame(BaseModel):
+    sport_key: str
+    event_id: str
+    matchup: str
+    commence_time: Optional[str] = None
+    popularity_score: float = 0.0
+    available_markets: List[str] = Field(default_factory=list)
+
+
+class FeaturedGamesResponse(BaseModel):
+    games: List[FeaturedGame]
+    used_dummy_data: bool = False
 
 
 def get_textbelt_api_key() -> Optional[str]:
@@ -2051,6 +2075,118 @@ def _filter_upcoming_events_only(events: List[Dict[str, Any]]) -> List[Dict[str,
             upcoming.append(event)
 
     return upcoming
+
+
+def _collect_main_markets(event: Dict[str, Any]) -> set[str]:
+    markets: set[str] = set()
+
+    for bookmaker in event.get("bookmakers", []):
+        for market in bookmaker.get("markets", []):
+            key = market.get("key")
+            if key in FEATURED_MARKETS:
+                markets.add(key)
+
+    return markets
+
+
+def _featured_game_score(event: Dict[str, Any]) -> float:
+    """Weight games by available markets and proximity to start time."""
+
+    markets_seen = _collect_main_markets(event)
+    market_score = len(markets_seen) * 2
+
+    commence_time = event.get("commence_time")
+    recency_score = 0.0
+    if commence_time:
+        try:
+            event_dt = datetime.fromisoformat(commence_time.replace("Z", "+00:00"))
+            hours_until = (event_dt - datetime.now(timezone.utc)).total_seconds() / 3600
+            if 0 <= hours_until <= FEATURED_LOOKAHEAD_HOURS:
+                recency_score = (FEATURED_LOOKAHEAD_HOURS - hours_until) / FEATURED_LOOKAHEAD_HOURS
+        except Exception:
+            pass
+
+    matchup_bonus = 0.5 if event.get("home_team") and event.get("away_team") else 0.0
+    return market_score + recency_score + matchup_bonus
+
+
+def _matchup_label(event: Dict[str, Any]) -> str:
+    home = event.get("home_team", "Home")
+    away = event.get("away_team", "Away")
+    return f"{away} @ {home}"
+
+
+def _within_featured_window(event: Dict[str, Any]) -> bool:
+    commence_time = event.get("commence_time")
+    if not commence_time:
+        return False
+
+    try:
+        event_dt = datetime.fromisoformat(commence_time.replace("Z", "+00:00"))
+    except Exception:
+        return False
+
+    now_utc = datetime.now(timezone.utc)
+    hours_until = (event_dt - now_utc).total_seconds() / 3600
+    return 0 <= hours_until <= FEATURED_LOOKAHEAD_HOURS
+
+
+@app.get("/api/featured-games", response_model=FeaturedGamesResponse)
+def list_featured_games(use_dummy_data: bool = False) -> FeaturedGamesResponse:
+    """Return a ranked list of upcoming headline games for SGP building."""
+
+    bookmaker_keys = ["draftkings", "fanduel", "novig"]
+    regions = compute_regions_for_books(bookmaker_keys)
+
+    api_key = ""
+    if not use_dummy_data:
+        try:
+            api_key = get_api_key()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+
+    games: List[FeaturedGame] = []
+    seen_ids: set[str] = set()
+
+    for sport_key in FEATURED_SPORTS:
+        try:
+            events = fetch_odds_with_dummy(
+                api_key=api_key,
+                sport_key=sport_key,
+                regions=regions,
+                markets=",".join(FEATURED_MARKETS),
+                bookmaker_keys=bookmaker_keys,
+                use_dummy_data=use_dummy_data,
+            )
+        except HTTPException as exc:
+            logger.warning(
+                "Skipping featured games for sport=%s: %s", sport_key, exc.detail
+            )
+            continue
+
+        for event in _filter_upcoming_events_only(events):
+            if not _within_featured_window(event):
+                continue
+
+            event_id = event.get("id")
+            if not event_id or event_id in seen_ids:
+                continue
+
+            games.append(
+                FeaturedGame(
+                    sport_key=sport_key,
+                    event_id=event_id,
+                    matchup=_matchup_label(event),
+                    commence_time=event.get("commence_time"),
+                    popularity_score=_featured_game_score(event),
+                    available_markets=sorted(_collect_main_markets(event)),
+                )
+            )
+            seen_ids.add(event_id)
+
+    games.sort(key=lambda g: (-g.popularity_score, g.commence_time or ""))
+
+    return FeaturedGamesResponse(games=games, used_dummy_data=use_dummy_data)
 
 
 def collect_available_player_prop_markets(

@@ -748,6 +748,18 @@
                             Same-game parlays now live in a dedicated page with logos and featured matchups.
                         </div>
 
+                        <div class="small-text" style="margin-top: 0.5rem;">Filter total SGP odds</div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                            <label class="small-text" style="display: flex; gap: 0.35rem; align-items: center;">
+                                Min
+                                <input id="sgp-min-odds-input" type="number" value="100" style="width: 6rem;" />
+                            </label>
+                            <label class="small-text" style="display: flex; gap: 0.35rem; align-items: center;">
+                                Max
+                                <input id="sgp-max-odds-input" type="number" value="20000" style="width: 6rem;" />
+                            </label>
+                        </div>
+
                         <div class="status-bar" id="best-status-bar">Ready.</div>
                     </div>
                 </div>
@@ -882,6 +894,25 @@
                 // ignore
             }
             console.log('[client-log]', msg);
+        }
+
+        function getSgpOddsRangeFilters() {
+            const minInput = document.getElementById("sgp-min-odds-input");
+            const maxInput = document.getElementById("sgp-max-odds-input");
+
+            const minOdds = Number.parseInt(minInput?.value, 10);
+            const maxOdds = Number.parseInt(maxInput?.value, 10);
+
+            const resolvedMin = Number.isNaN(minOdds) ? 100 : minOdds;
+            const resolvedMax = Number.isNaN(maxOdds) ? 20000 : maxOdds;
+
+            if (minInput && Number.isNaN(minOdds)) minInput.value = resolvedMin;
+            if (maxInput && Number.isNaN(maxOdds)) maxInput.value = resolvedMax;
+
+            return {
+                min_total_american_odds: resolvedMin,
+                max_total_american_odds: resolvedMax
+            };
         }
 
         async function loggedFetch(url, options = {}, tag = '') {
@@ -2154,6 +2185,53 @@
                 setBuilderStatus(`Built parlay using ${data.parlay_legs?.length || 0} legs with a ${boostPercent}% boost.`);
             } catch (err) {
                 setBuilderStatus(`Parlay builder failed: ${err.message || err}`);
+            }
+        }
+
+        async function buildSgpRecommendation() {
+            const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
+            const targetBook = document.getElementById("best-target-book-select").value;
+            const compareBook = document.getElementById("best-compare-book-select").value;
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+            const boostPercent = getPromoBoostPercent();
+
+            if (sportCheckboxes.length !== 1) {
+                setBuilderStatus("Pick exactly one sport to scan for SGP player props.");
+                return;
+            }
+            if (targetBook === compareBook) {
+                setBuilderStatus("Target book and comparison book must differ for SGP building.");
+                return;
+            }
+
+            const sportKey = sportCheckboxes[0].value;
+            setBuilderStatus("Searching player props for SGP legs...");
+
+            try {
+                const res = await loggedFetch("/api/sgp-builder", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_key: sportKey,
+                        target_book: targetBook,
+                        compare_book: compareBook,
+                        boost_percent: boostPercent,
+                        use_dummy_data: useDummyData,
+                        avoid_correlation: true,
+                        ...getSgpOddsRangeFilters()
+                    })
+                }, 'sgp-builder');
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || (`HTTP ${res.status}`));
+                }
+
+                const data = await res.json();
+                renderSGPBuilderResults(data);
+                setBuilderStatus("Updated SGP recommendations using hedge EV player props.");
+            } catch (err) {
+                setBuilderStatus(`SGP builder failed: ${err.message || err}`);
             }
         }
 
