@@ -21,6 +21,7 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 
 # Node (if/when you add tooling)
 node_modules/
