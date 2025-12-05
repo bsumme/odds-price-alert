@@ -249,6 +249,16 @@
             color: #fecaca;
         }
 
+        .sgp-header-row td {
+            background: #111827;
+            border-bottom: 1px solid #334155;
+        }
+
+        .sgp-summary-row td {
+            background: #0b1220;
+            border-top: 1px solid #334155;
+        }
+
         .odds-chip {
             display: inline-block;
             padding: 0.1rem 0.45rem;
@@ -865,6 +875,7 @@
             const body = document.getElementById("results-body");
             body.innerHTML = '<tr><td colspan="5" class="small-text">No results yet.</td></tr>';
             setSummary("");
+            lastSgpData = null;
         }
 
         // Odds format conversion functions
@@ -887,6 +898,9 @@
             localStorage.setItem("oddsFormat", format);
             if (lastData) {
                 renderResults(lastData);
+            }
+            if (lastSgpData) {
+                renderSgpResultsInMainTable(lastSgpData);
             }
         }
 
@@ -957,6 +971,7 @@
         }
 
         let lastData = null;
+        let lastSgpData = null;
 
         function renderResults(data) {
             const body = document.getElementById("results-body");
@@ -1012,6 +1027,100 @@
             });
         }
 
+        function formatEvBadge(evPercent) {
+            if (evPercent === null || evPercent === undefined || Number.isNaN(evPercent)) {
+                return '<span class="small-text">-</span>';
+            }
+
+            const rounded = Math.round(evPercent * 100) / 100;
+            const evClass = rounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+            return `<span class="${evClass}">${rounded}%</span>`;
+        }
+
+        function renderSgpResultsInMainTable(data) {
+            const body = document.getElementById("results-body");
+            const summary = document.getElementById("summary-bar");
+            if (!body || !summary) return;
+
+            body.innerHTML = "";
+
+            const targetBookLabel = document.querySelector("#target-book-select option:checked")?.textContent
+                || data?.target_book
+                || "Target book";
+
+            if (!data || (!data.best_sgp && !data.uncorrelated_sgp)) {
+                body.innerHTML = '<tr><td colspan="5" class="small-text">No same-game parlay recommendation available for this game right now.</td></tr>';
+                summary.textContent = "No same-game parlay recommendations to show.";
+                return;
+            }
+
+            const sgpEntries = [];
+            if (data.best_sgp) sgpEntries.push({ label: "Top SGP", sgp: data.best_sgp });
+            if (data.uncorrelated_sgp) sgpEntries.push({ label: "Uncorrelated SGP", sgp: data.uncorrelated_sgp });
+
+            summary.textContent = `Showing ${sgpEntries.length} same-game parlay option${sgpEntries.length > 1 ? "s" : ""} from the SGP builder.`;
+
+            sgpEntries.forEach(({ label, sgp }) => {
+                const headerRow = document.createElement('tr');
+                headerRow.className = 'sgp-header-row';
+                const headerCell = document.createElement('td');
+                headerCell.colSpan = 5;
+                const startText = sgp.start_time ? ` • ${formatStartTime(sgp.start_time)}` : "";
+                const boosted = sgp.boosted_american_odds !== null && sgp.boosted_american_odds !== undefined
+                    ? formatOdds(sgp.boosted_american_odds)
+                    : formatOdds(sgp.combined_american_odds);
+                headerCell.innerHTML = `<div style="display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; flex-wrap: wrap;">
+                    <div><strong>${label}</strong> — ${sgp.matchup}${startText}</div>
+                    <div class="small-text">Boosted ${sgp.boost_percent}%: <strong>${boosted || '—'}</strong></div>
+                </div>`;
+                headerRow.appendChild(headerCell);
+                body.appendChild(headerRow);
+
+                sgp.legs.forEach((leg) => {
+                    const tr = document.createElement("tr");
+
+                    const playerCell = document.createElement("td");
+                    playerCell.innerHTML = `<strong>${leg.outcome_name}</strong><br><span class="small-text">${leg.market || ''}</span>`;
+                    tr.appendChild(playerCell);
+
+                    const betCell = document.createElement("td");
+                    const oddsHtml = leg.book_price !== null && leg.book_price !== undefined
+                        ? formatOddsWithColor(leg.book_price)
+                        : '<span class="small-text">—</span>';
+                    betCell.innerHTML = `<div>${oddsHtml}</div><div class="small-text">${targetBookLabel}</div>`;
+                    tr.appendChild(betCell);
+
+                    const hedgeCell = document.createElement("td");
+                    const hedgeValue = (leg.hedge_ev_percent !== null && leg.hedge_ev_percent !== undefined)
+                        ? leg.hedge_ev_percent
+                        : leg.ev_percent;
+                    const hedgeText = hedgeValue === null || hedgeValue === undefined || Number.isNaN(hedgeValue)
+                        ? '—'
+                        : `${hedgeValue.toFixed(2)}% ${leg.hedge_ev_percent !== null && leg.hedge_ev_percent !== undefined ? 'hedge EV' : 'EV'}`;
+                    hedgeCell.innerHTML = `<span class="small-text">${hedgeText}</span>`;
+                    tr.appendChild(hedgeCell);
+
+                    const arbCell = document.createElement("td");
+                    arbCell.innerHTML = formatEvBadge(hedgeValue);
+                    tr.appendChild(arbCell);
+
+                    const startCell = document.createElement("td");
+                    startCell.textContent = formatStartTime(sgp.start_time);
+                    tr.appendChild(startCell);
+
+                    body.appendChild(tr);
+                });
+
+                const summaryRow = document.createElement('tr');
+                summaryRow.className = 'sgp-summary-row';
+                const summaryCell = document.createElement('td');
+                summaryCell.colSpan = 5;
+                summaryCell.innerHTML = `<div class="small-text">Combined odds: <strong>${formatOdds(sgp.combined_american_odds)}</strong> (${sgp.combined_decimal_odds ? sgp.combined_decimal_odds.toFixed(2) + 'x' : '—'}) • Boosted: <strong>${formatOdds(sgp.boosted_american_odds)}</strong> (${sgp.boosted_decimal_odds ? sgp.boosted_decimal_odds.toFixed(2) + 'x' : '—'})${sgp.note ? ` • ${sgp.note}` : ''}</div>`;
+                summaryRow.appendChild(summaryCell);
+                body.appendChild(summaryRow);
+            });
+        }
+
         function clampBoostPercent(value) {
             if (Number.isNaN(value)) return 30;
             return Math.min(100, Math.max(20, value));
@@ -1051,11 +1160,13 @@
         }
 
         function renderSgpResults(data) {
+            lastSgpData = data;
             const container = document.getElementById('sgp-results');
             if (!container) return;
 
             if (!data || (!data.best_sgp && !data.uncorrelated_sgp)) {
                 container.textContent = (data && data.warnings && data.warnings.join(' ')) || 'No same-game parlay recommendation available for this game right now.';
+                renderSgpResultsInMainTable(data);
                 return;
             }
 
@@ -1072,6 +1183,7 @@
             }
 
             container.innerHTML = html;
+            renderSgpResultsInMainTable(data);
         }
 
         function setSgpStatus(message) {
@@ -1183,6 +1295,7 @@
                 return;
             }
 
+            lastSgpData = null;
             setStatus("Fetching player prop value plays...");
             try {
                 const res = await fetch("/api/player-props", {
