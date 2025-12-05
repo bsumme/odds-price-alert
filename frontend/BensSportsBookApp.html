@@ -895,20 +895,24 @@
 
         function formatStartTime(isoString) {
             if (!isoString) return "";
-            try {
-                const date = new Date(isoString);
-                const options = {
-                    timeZone: "America/New_York",
-                    month: "short",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                    hour12: true,
-                };
-                return date.toLocaleString("en-US", options) + " ET";
-            } catch (e) {
-                return isoString;
+
+            const trimmed = String(isoString).trim();
+            if (!trimmed) return "";
+
+            const date = new Date(trimmed);
+            if (Number.isNaN(date.getTime())) {
+                return trimmed;
             }
+
+            const options = {
+                timeZone: "America/New_York",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+            };
+            return date.toLocaleString("en-US", options) + " ET";
         }
 
         function formatMarketLabel(marketKey) {
