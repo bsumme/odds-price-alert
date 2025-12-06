@@ -123,7 +123,7 @@ class ValuePlayOutcome(BaseModel):
     novig_reverse_price: Optional[int]
     book_price: int
     ev_percent: float        # estimated edge in percent (vs Novig same side)
-    hedge_ev_percent: Optional[float] = None  # legacy: edge vs Novig opposite side (not used for sort)
+    hedge_ev_percent: Optional[float] = None  # Hedge score (arb margin %) when an opposite side exists
     is_arbitrage: bool = False
     arb_margin_percent: Optional[float] = None  # % margin of arb if present (book vs Novig opposite)
 
@@ -1105,9 +1105,6 @@ def collect_value_plays(
             if other_compare is not None:
                 novig_reverse_name = other_compare.get("name")
                 novig_reverse_price = other_compare.get("price")
-                hedge_ev_percent = estimate_ev_percent(
-                    book_odds=adjusted_price, sharp_odds=novig_reverse_price
-                )
 
                 # 2-way arb math:
                 #  - back this side at target_book (book_price with vig adjustment)
@@ -1119,6 +1116,7 @@ def collect_value_plays(
                 # Add a small buffer (0.001 = 0.1%) to prevent exactly 0% margins from showing
                 # This ensures arbitrage opportunities are truly rare
                 arb_margin_percent = (1.0 - inv_sum) * 100.0 - 0.1
+                hedge_ev_percent = arb_margin_percent
                 if arb_margin_percent > 0:
                     is_arb = True
 
@@ -1786,6 +1784,8 @@ def _apply_boost(decimal_odds: Optional[float], boost_percent: float) -> tuple[O
 
 
 def _hedge_value(play: ValuePlayOutcome) -> float:
+    if play.arb_margin_percent is not None:
+        return play.arb_margin_percent
     if play.hedge_ev_percent is not None:
         return play.hedge_ev_percent
     return play.ev_percent
