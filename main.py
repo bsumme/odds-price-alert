@@ -986,6 +986,19 @@ def collect_value_plays(
         if not compare_market or not book_market:
             continue
 
+        # For moneylines, only process events where the target book has posted both sides.
+        # This avoids calculating synthetic prices when the sportsbook has not actually
+        # published the moneyline market yet.
+        book_outcomes = book_market.get("outcomes", [])
+        if market_key == "h2h":
+            posted_prices = [
+                o.get("price")
+                for o in book_outcomes
+                if o.get("price") is not None and abs(o.get("price")) < MAX_VALID_AMERICAN_ODDS
+            ]
+            if len(posted_prices) < 2:
+                continue
+
         # Allow 0.5-point flex for spreads, totals, and player props (Odds API sometimes
         # differs by 0.5 between books).
         is_player_prop = market_key.startswith("player_")
@@ -1009,7 +1022,7 @@ def collect_value_plays(
         if not compare_outcomes:
             continue
 
-        for o in book_market.get("outcomes", []):
+        for o in book_outcomes:
             name = o.get("name")
             price = o.get("price")
             point = o.get("point", None)
