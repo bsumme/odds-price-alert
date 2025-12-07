@@ -342,6 +342,36 @@
             }
         };
 
+        async function syncServerSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                if (!res.ok) throw new Error('Failed to fetch server settings');
+                const serverSettings = await res.json();
+
+                const current = loadSettings();
+                const merged = {
+                    ...DEFAULT_SETTINGS,
+                    ...current,
+                    useDummyData: !!serverSettings.use_dummy_data
+                };
+                saveSettings(merged);
+            } catch (err) {
+                console.warn('Unable to sync server settings; using local defaults', err);
+            }
+        }
+
+        async function persistServerSettings(settings) {
+            const response = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ use_dummy_data: settings.useDummyData })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to persist server settings');
+            }
+        }
+
         // Load settings from localStorage
         function loadSettings() {
             const stored = localStorage.getItem(SETTINGS_KEY);
@@ -406,7 +436,7 @@
         }
 
         // Save button handler
-        document.getElementById('save-settings-btn').addEventListener('click', () => {
+        document.getElementById('save-settings-btn').addEventListener('click', async () => {
             const settings = {
                 useDummyData: document.getElementById('dummy-data-setting').checked,
                 enableLogging: document.getElementById('logging-setting').checked,
@@ -420,16 +450,29 @@
             });
 
             saveSettings(settings);
-            showStatus('Settings saved successfully!', true);
+
+            try {
+                await persistServerSettings(settings);
+                showStatus('Settings saved successfully!', true);
+            } catch (err) {
+                console.error(err);
+                showStatus('Saved locally, but server settings failed to update', false);
+            }
         });
 
         // Reset button handler
         document.getElementById('reset-settings-btn').addEventListener('click', () => {
             if (confirm('Are you sure you want to reset all settings to defaults?')) {
                 saveSettings(DEFAULT_SETTINGS);
+                try {
+                    await persistServerSettings(DEFAULT_SETTINGS);
+                    showStatus('Settings reset to defaults', true);
+                } catch (err) {
+                    console.error('Failed to reset server settings', err);
+                    showStatus('Local settings reset, but server update failed', false);
+                }
                 updateUI();
                 populateSports();
-                showStatus('Settings reset to defaults', true);
             }
         });
 
@@ -457,16 +500,17 @@
         }
 
         // Initialize page
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                updateUI();
-                populateSports();
-                fadeInPage();
-            });
-        } else {
+        async function initializeSettingsPage() {
+            await syncServerSettings();
             updateUI();
             populateSports();
             fadeInPage();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeSettingsPage);
+        } else {
+            initializeSettingsPage();
         }
 
         window.addEventListener('pageshow', (event) => {
