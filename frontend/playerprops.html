@@ -232,6 +232,12 @@
             color: #94a3b8;
         }
 
+        .hedge-stake {
+            color: #cbd5e1;
+            display: inline-block;
+            margin-top: 0.25rem;
+        }
+
         .badge {
             display: inline-block;
             border-radius: 999px;
@@ -869,6 +875,8 @@
             setSummary("");
         }
 
+        const DEFAULT_HEDGE_STAKE = 25;
+
         // Odds format conversion functions
         function americanToDecimal(odds) {
             if (odds === null || odds === undefined) return null;
@@ -962,6 +970,34 @@
             return `<span class="odds-chip ${className}">${formatted}</span>`;
         }
 
+        function calculateHedgeStakeAmounts(targetOdds, hedgeOdds, baseStake = DEFAULT_HEDGE_STAKE) {
+            const targetDecimal = americanToDecimal(targetOdds);
+            const hedgeDecimal = americanToDecimal(hedgeOdds);
+
+            if (!targetDecimal || !hedgeDecimal) {
+                return null;
+            }
+
+            const targetIsShorter = targetDecimal <= hedgeDecimal;
+            const shorterDecimal = targetIsShorter ? targetDecimal : hedgeDecimal;
+            const longerDecimal = targetIsShorter ? hedgeDecimal : targetDecimal;
+            const shorterStake = baseStake;
+            const targetPayout = shorterStake * shorterDecimal;
+            const longerStake = targetPayout / longerDecimal;
+
+            return {
+                targetStake: targetIsShorter ? shorterStake : longerStake,
+                hedgeStake: targetIsShorter ? longerStake : shorterStake,
+            };
+        }
+
+        function formatStakeAmount(amount) {
+            if (amount === null || amount === undefined || Number.isNaN(amount)) {
+                return null;
+            }
+            return `$${Number(amount).toFixed(2)}`;
+        }
+
         let lastData = null;
 
         function renderResults(data) {
@@ -977,6 +1013,9 @@
             const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
 
             data.plays.forEach(play => {
+                const hedgeStakeAmounts = calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
+                const targetStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.targetStake) : null;
+                const hedgeStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null;
                 const tr = document.createElement("tr");
 
                 const playerCell = document.createElement("td");
@@ -988,13 +1027,15 @@
                 const targetCell = document.createElement("td");
                 const formattedTargetOdds = formatOddsWithColor(play.book_price);
                 const matchupText = play.matchup ? `<span class="small-text">${play.matchup}</span><br>` : "";
-                targetCell.innerHTML = `${matchupText}<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>`;
+                const targetStakeLine = targetStakeText ? `<div class="small-text hedge-stake">Hedge Stake: ${targetStakeText}</div>` : "";
+                targetCell.innerHTML = `${matchupText}<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>${targetStakeLine}`;
                 tr.appendChild(targetCell);
 
                 const hedgeCell = document.createElement("td");
                 if (play.novig_reverse_name && play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
                     const formattedHedgeOdds = formatOddsWithColor(play.novig_reverse_price);
-                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name}</strong><br>${formattedHedgeOdds}<br><span class="small-text">@ ${compareBookLabel}</span>`;
+                    const hedgeStakeLine = hedgeStakeText ? `<div class="small-text hedge-stake">Hedge Stake: ${hedgeStakeText}</div>` : "";
+                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name}</strong><br>${formattedHedgeOdds}<br><span class="small-text">@ ${compareBookLabel}</span>${hedgeStakeLine}`;
                 } else {
                     hedgeCell.innerHTML = '<span class="small-text">-</span>';
                 }

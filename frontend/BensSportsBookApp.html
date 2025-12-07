@@ -414,6 +414,12 @@
             color: #94a3b8;
         }
 
+        .hedge-stake {
+            color: #cbd5e1;
+            display: inline-block;
+            margin-top: 0.2rem;
+        }
+
         .odds-highlight {
             font-weight: 800;
         }
@@ -1469,6 +1475,46 @@
         }
 
 
+        const DEFAULT_HEDGE_STAKE = 25;
+
+        function americanToDecimal(odds) {
+            if (odds === null || odds === undefined) return null;
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) return null;
+            if (numOdds > 0) {
+                return 1.0 + numOdds / 100.0;
+            }
+            return 1.0 + 100.0 / Math.abs(numOdds);
+        }
+
+        function calculateHedgeStakeAmounts(targetOdds, hedgeOdds, baseStake = DEFAULT_HEDGE_STAKE) {
+            const targetDecimal = americanToDecimal(targetOdds);
+            const hedgeDecimal = americanToDecimal(hedgeOdds);
+
+            if (!targetDecimal || !hedgeDecimal) {
+                return null;
+            }
+
+            const targetIsShorter = targetDecimal <= hedgeDecimal;
+            const shorterDecimal = targetIsShorter ? targetDecimal : hedgeDecimal;
+            const longerDecimal = targetIsShorter ? hedgeDecimal : targetDecimal;
+            const shorterStake = baseStake;
+            const targetPayout = shorterStake * shorterDecimal;
+            const longerStake = targetPayout / longerDecimal;
+
+            return {
+                targetStake: targetIsShorter ? shorterStake : longerStake,
+                hedgeStake: targetIsShorter ? longerStake : shorterStake,
+            };
+        }
+
+        function formatStakeAmount(amount) {
+            if (amount === null || amount === undefined || Number.isNaN(amount)) {
+                return null;
+            }
+            return `$${Number(amount).toFixed(2)}`;
+        }
+
         function formatOdds(odds) {
             /**
              * Format odds in American format.
@@ -1913,6 +1959,9 @@
                 let teamName = parseTeamFromOutcome(play.outcome_name);
                 const marketLabel = marketLabels[play.market] || play.market;
                 const formattedOdds = formatOdds(play.book_price);
+                const hedgeStakeAmounts = calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
+                const targetStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.targetStake) : null;
+                const hedgeStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null;
 
                 // For totals markets, extract team from matchup since outcome is "Over" or "Under"
                 let logoTeamName = teamName;
@@ -1951,6 +2000,12 @@
                     }
                 }
                 betText.innerHTML = `<div><strong>${betDescription} <span class="odds-highlight ${betOddsClass}">${formattedOdds}</span></strong></div><div class="small-text">@ ${targetBookLabel}</div>`;
+                if (targetStakeText) {
+                    const stakeNote = document.createElement("div");
+                    stakeNote.className = "small-text hedge-stake";
+                    stakeNote.textContent = `Hedge Stake: ${targetStakeText}`;
+                    betText.appendChild(stakeNote);
+                }
                 targetRow.appendChild(betText);
 
                 recommendedCell.appendChild(targetRow);
@@ -1981,6 +2036,12 @@
                     const hedgeText = document.createElement("div");
                     hedgeText.className = "bet-text";
                     hedgeText.innerHTML = `<div><strong>${hedgeDescription} <span class="odds-highlight ${hedgeOddsClass}">${formattedHedgeOdds}</span></strong></div><div class="small-text">@ ${compareBookLabel}</div>`;
+                    if (hedgeStakeText) {
+                        const stakeNote = document.createElement("div");
+                        stakeNote.className = "small-text hedge-stake";
+                        stakeNote.textContent = `Hedge Stake: ${hedgeStakeText}`;
+                        hedgeText.appendChild(stakeNote);
+                    }
 
                     hedgeRow.appendChild(hedgeText);
                     hedgeCell.appendChild(hedgeRow);
