@@ -193,6 +193,7 @@ class BestValuePlaysResponse(BaseModel):
     target_book: str
     compare_book: str
     plays: List[BestValuePlayOutcome]
+    used_dummy_data: bool = False
 
 
 class PlayerPropsRequest(BaseModel):
@@ -372,6 +373,7 @@ class ParlayBuilderResponse(BaseModel):
     boosted_decimal_odds: Optional[float]
     boosted_american_odds: Optional[int]
     notes: List[str] = Field(default_factory=list)
+    used_dummy_data: bool = False
 
 
 class SGPSuggestion(BaseModel):
@@ -1764,6 +1766,7 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
         target_book=target_book,
         compare_book=compare_book,
         plays=top_plays,
+        used_dummy_data=payload.use_dummy_data,
     )
 
 
@@ -1842,6 +1845,9 @@ def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
     legs = _select_top_parlay_legs(best_response.plays, payload.parlay_size)
     notes: List[str] = []
 
+    if payload.use_dummy_data:
+        notes.append("Using dummy odds data for development; prices are sample values and not live lines.")
+
     if not legs:
         notes.append("No eligible legs found for the requested parlay size.")
         combined_decimal = None
@@ -1865,6 +1871,7 @@ def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
         boosted_decimal_odds=boosted_decimal,
         boosted_american_odds=boosted_american,
         notes=notes,
+        used_dummy_data=payload.use_dummy_data,
     )
 
 

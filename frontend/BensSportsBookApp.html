@@ -1583,6 +1583,10 @@
                 html += `<div class="small-text" style="color: #fbbf24; margin-top: 0.25rem;">${data.notes.join(' ')}</div>`;
             }
 
+            if (data.used_dummy_data) {
+                html += '<div class="small-text" style="color: #f87171; margin-top: 0.25rem;">Dummy odds enabled — switch off "Use dummy data" to fetch live lines.</div>';
+            }
+
             container.innerHTML = html;
         }
 
