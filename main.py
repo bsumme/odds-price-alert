@@ -4,6 +4,7 @@ import os
 import random
 import subprocess
 import sys
+import os
 import threading
 from collections import deque
 from datetime import datetime, timedelta, timezone
@@ -71,6 +72,8 @@ FEATURED_SPORTS = [
 FEATURED_MARKETS = ["h2h", "spreads", "totals"]
 FEATURED_LOOKAHEAD_HOURS = 36
 
+SERVER_SETTINGS_PATH = Path(__file__).parent / "data" / "server_settings.json"
+
 # -------------------------------------------------------------------
 # Pydantic Models
 # -------------------------------------------------------------------
@@ -80,6 +83,7 @@ class PriceOut(BaseModel):
     bookmaker_key: str
     bookmaker_name: str
     price: Optional[int]  # the best price for that side, if available
+    verified_from_api: bool = False
 
 
 class BetRequest(BaseModel):
@@ -92,6 +96,12 @@ class BetRequest(BaseModel):
     team: str    # for props, this might be a player name instead
     point: Optional[float] = None
     bookmaker_keys: List[str]  # e.g. ["draftkings", "fanduel", "novig"]
+
+
+class ServerSettings(BaseModel):
+    """Persisted server-side settings toggled from the Settings tab."""
+
+    use_dummy_data: bool = False
 
 
 class OddsRequest(BaseModel):
@@ -1279,6 +1289,8 @@ class HedgeWatcherManager:
         if self.is_running():
             raise RuntimeError("Hedge watcher is already running")
 
+        use_dummy_data = _require_dummy_data_allowed(request.use_dummy_data)
+
         self._logs.clear()
         from hedge_watcher import HedgeWatcher, HedgeWatcherConfig
         config = HedgeWatcherConfig(
@@ -1289,7 +1301,7 @@ class HedgeWatcherManager:
             interval_seconds=request.interval_seconds,
             max_results=request.max_results,
             min_margin_percent=request.min_margin_percent,
-            use_dummy_data=request.use_dummy_data,
+            use_dummy_data=use_dummy_data,
         )
 
         self._config = config
@@ -1391,6 +1403,73 @@ hedge_watcher_manager = HedgeWatcherManager()
 app = FastAPI()
 
 
+def _load_server_settings() -> ServerSettings:
+    """Load persisted server settings, falling back to defaults on error."""
+
+    if not SERVER_SETTINGS_PATH.exists():
+        return ServerSettings()
+
+    try:
+        payload = json.loads(SERVER_SETTINGS_PATH.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            logger.warning("Server settings file malformed; using defaults")
+            return ServerSettings()
+        return ServerSettings(**payload)
+    except Exception:
+        logger.exception("Failed to read server settings; using defaults")
+        return ServerSettings()
+
+
+def _persist_server_settings(settings: ServerSettings) -> None:
+    """Persist server settings to disk for reuse across requests."""
+
+    try:
+        SERVER_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        SERVER_SETTINGS_PATH.write_text(settings.model_dump_json(), encoding="utf-8")
+    except Exception:
+        logger.exception("Failed to persist server settings")
+
+
+def _require_dummy_data_allowed(requested: bool) -> bool:
+    """Return True when dummy data is requested *and* enabled in settings."""
+
+    if not requested:
+        return False
+
+    settings = _load_server_settings()
+    if not settings.use_dummy_data:
+        allow_test_override = os.getenv("ALLOW_DUMMY_DATA_FOR_TESTS", "")
+        if allow_test_override.lower() in {"1", "true", "yes"}:
+            logger.warning(
+                "Allowing dummy data because ALLOW_DUMMY_DATA_FOR_TESTS is enabled"
+            )
+            return True
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Dummy data is disabled. Enable it from the Settings tab before "
+                "requesting mock odds."
+            ),
+        )
+
+    return True
+
+
+def _validate_data_source(events: List[Dict[str, Any]], allow_dummy: bool) -> None:
+    """Ensure dummy payloads never leak into live calls unexpectedly."""
+
+    if allow_dummy:
+        return
+
+    dummy_events = [e for e in events if str(e.get("id", "")).startswith("dummy_")]
+    if dummy_events:
+        logger.error("Dummy data returned while disabled: ids=%s", [e.get("id") for e in dummy_events])
+        raise HTTPException(
+            status_code=502,
+            detail="Received placeholder odds while live data is required",
+        )
+
+
 def _load_sports_schema() -> list:
     schema_path = Path(__file__).parent / "data" / "sports_schema.json"
     if not schema_path.exists():
@@ -1422,6 +1501,21 @@ def get_sports_schema():
     return payload
 
 
+@app.get("/api/settings", response_model=ServerSettings)
+def get_server_settings() -> ServerSettings:
+    """Expose persisted server settings for the Settings tab."""
+
+    return _load_server_settings()
+
+
+@app.post("/api/settings", response_model=ServerSettings)
+def update_server_settings(settings: ServerSettings) -> ServerSettings:
+    """Persist server settings submitted by the Settings tab."""
+
+    _persist_server_settings(settings)
+    return settings
+
+
 @app.post("/api/odds", response_model=OddsResponse)
 def get_odds(payload: OddsRequest) -> OddsResponse:
     """
@@ -1431,8 +1525,10 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
     if not payload.bets:
         raise HTTPException(status_code=400, detail="No bets provided")
 
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
     api_key = ""
-    if not payload.use_dummy_data:
+    if not use_dummy_data:
         try:
             api_key = get_api_key()
         except RuntimeError as e:
@@ -1463,14 +1559,17 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
             regions=regions,
             markets=",".join(markets),
             bookmaker_keys=bookmaker_keys,
-            use_dummy_data=payload.use_dummy_data,
+            use_dummy_data=use_dummy_data,
         )
+
+        _validate_data_source(events, allow_dummy=use_dummy_data)
 
         for bet in bets_for_sport:
             prices_per_book: List[PriceOut] = []
 
             for book_key in bet.bookmaker_keys:
                 price_for_team: Optional[int] = None
+                verified_from_api = False
 
                 for event in events:
                     home = event.get("home_team")
@@ -1512,16 +1611,18 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
                             continue
 
                         price_for_team = price
+                        verified_from_api = not use_dummy_data
                         break
 
-                    if price_for_team is not None:
-                        break
+                if price_for_team is not None:
+                    break
 
                 prices_per_book.append(
                     PriceOut(
                         bookmaker_key=book_key,
                         bookmaker_name=pretty_book_label(book_key),
                         price=price_for_team,
+                        verified_from_api=verified_from_api,
                     )
                 )
 
@@ -1578,8 +1679,10 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
             detail="Target book and comparison book cannot be the same.",
         )
 
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
     api_key = ""
-    if not payload.use_dummy_data:
+    if not use_dummy_data:
         try:
             api_key = get_api_key()
         except RuntimeError as e:
@@ -1594,8 +1697,10 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         regions=regions,
         markets=market_key,
         bookmaker_keys=bookmaker_keys,
-        use_dummy_data=payload.use_dummy_data,
+        use_dummy_data=use_dummy_data,
     )
+
+    _validate_data_source(events, allow_dummy=use_dummy_data)
 
     raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
 
@@ -1669,8 +1774,10 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
             detail="At least one sport and one market must be specified.",
         )
 
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
     api_key = ""
-    if not payload.use_dummy_data:
+    if not use_dummy_data:
         try:
             api_key = get_api_key()
         except RuntimeError as e:
@@ -1691,8 +1798,10 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
                     regions=regions,
                     markets=market_key,
                     bookmaker_keys=bookmaker_keys,
-                    use_dummy_data=payload.use_dummy_data,
+                    use_dummy_data=use_dummy_data,
                 )
+
+                _validate_data_source(events, allow_dummy=use_dummy_data)
 
                 raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
 
@@ -1766,7 +1875,7 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
         target_book=target_book,
         compare_book=compare_book,
         plays=top_plays,
-        used_dummy_data=payload.use_dummy_data,
+        used_dummy_data=use_dummy_data,
     )
 
 
@@ -1829,6 +1938,8 @@ def _select_top_parlay_legs(
 def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
     """Build a high-value parlay using the best hedge EV plays across sports/markets."""
 
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
     boost_percent = _clamp_boost_percent(payload.boost_percent)
     # Request extra results to increase the chance of filling out the parlay.
     desired_results = max(payload.max_results or 50, payload.parlay_size * 4)
@@ -1838,14 +1949,14 @@ def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
         target_book=payload.target_book,
         compare_book=payload.compare_book,
         max_results=desired_results,
-        use_dummy_data=payload.use_dummy_data,
+        use_dummy_data=use_dummy_data,
     )
 
     best_response = get_best_value_plays(best_request)
     legs = _select_top_parlay_legs(best_response.plays, payload.parlay_size)
     notes: List[str] = []
 
-    if payload.use_dummy_data:
+    if use_dummy_data:
         notes.append("Using dummy odds data for development; prices are sample values and not live lines.")
 
     if not legs:
@@ -1871,7 +1982,7 @@ def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
         boosted_decimal_odds=boosted_decimal,
         boosted_american_odds=boosted_american,
         notes=notes,
-        used_dummy_data=payload.use_dummy_data,
+        used_dummy_data=use_dummy_data,
     )
 
 
@@ -1961,6 +2072,8 @@ def _sgp_within_odds_range(
 def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
     """Recommend SGP legs by picking the best player props within a single game."""
 
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
     boost_percent = _clamp_boost_percent(payload.boost_percent)
     warnings: List[str] = []
     min_total_odds = payload.min_total_american_odds or 100
@@ -1985,7 +2098,7 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
         markets=markets,
         target_book=payload.target_book,
         compare_book=payload.compare_book,
-        use_dummy_data=payload.use_dummy_data,
+        use_dummy_data=use_dummy_data,
     )
 
     props_response = get_player_props(props_request)
@@ -2155,6 +2268,8 @@ def _within_featured_window(event: Dict[str, Any]) -> bool:
 def list_featured_games(use_dummy_data: bool = False) -> FeaturedGamesResponse:
     """Return a ranked list of upcoming headline games for SGP building."""
 
+    use_dummy_data = _require_dummy_data_allowed(use_dummy_data)
+
     bookmaker_keys = ["draftkings", "fanduel", "novig"]
     regions = compute_regions_for_books(bookmaker_keys)
 
@@ -2183,6 +2298,8 @@ def list_featured_games(use_dummy_data: bool = False) -> FeaturedGamesResponse:
                 "Skipping featured games for sport=%s: %s", sport_key, exc.detail
             )
             continue
+
+        _validate_data_source(events, allow_dummy=use_dummy_data)
 
         for event in _filter_upcoming_events_only(events):
             if not _within_featured_window(event):
@@ -2256,11 +2373,13 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
     if payload.sport_key not in available_keys:
         raise HTTPException(status_code=400, detail=f"Unknown sport key: {payload.sport_key}. See /api/sports for available keys.")
 
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
     )
 
-    if payload.use_dummy_data:
+    if use_dummy_data:
         events = generate_dummy_player_props_data(
             sport_key=payload.sport_key,
             markets=discovery_markets,
@@ -2277,9 +2396,11 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
         try:
             events = fetch_sport_events(api_key=api_key, sport_key=payload.sport_key)
         except HTTPException as exc:
-            logger.error("Events API error for sport=%s: %s", payload.sport_key, exc.detail)
-            # Surface a clearer error to the caller
-            raise HTTPException(status_code=502, detail=f"Events API error for sport {payload.sport_key}: {exc.detail}")
+                logger.error("Events API error for sport=%s: %s", payload.sport_key, exc.detail)
+                # Surface a clearer error to the caller
+                raise HTTPException(status_code=502, detail=f"Events API error for sport {payload.sport_key}: {exc.detail}")
+
+    _validate_data_source(events, allow_dummy=use_dummy_data)
 
     events = _filter_upcoming_events_only(events)
 
@@ -2316,6 +2437,8 @@ def list_player_prop_markets(
     if payload.sport_key not in available_keys:
         raise HTTPException(status_code=400, detail=f"Unknown sport key: {payload.sport_key}. See /api/sports for available keys.")
 
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
     )
@@ -2328,7 +2451,7 @@ def list_player_prop_markets(
     if not bookmaker_keys:
         bookmaker_keys = ["novig", "draftkings"]
 
-    if payload.use_dummy_data:
+    if use_dummy_data:
         events = generate_dummy_player_props_data(
             sport_key=payload.sport_key,
             markets=discovery_markets,
@@ -2357,6 +2480,8 @@ def list_player_prop_markets(
         except HTTPException as exc:
             logger.error("Player props API error for sport=%s: %s", payload.sport_key, exc.detail)
             raise HTTPException(status_code=502, detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}")
+
+    _validate_data_source(events, allow_dummy=use_dummy_data)
 
     events = _filter_upcoming_events_only(events)
     all_markets, _ = collect_available_player_prop_markets(
@@ -2391,6 +2516,8 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         payload.use_dummy_data,
     )
 
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
     # Validate sport key against local schema
     schema = _load_sports_schema()
     available_keys = {item.get('key') for item in schema if isinstance(item, dict) and item.get('key')}
@@ -2410,7 +2537,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         )
 
     api_key = ""
-    if not payload.use_dummy_data:
+    if not use_dummy_data:
         try:
             api_key = get_api_key()
         except RuntimeError as e:
@@ -2431,7 +2558,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     )
     discovery_market_param = ",".join(discovery_markets)
 
-    if payload.use_dummy_data:
+    if use_dummy_data:
         logger.info(
             "Using dummy player props data for sport=%s markets=%s",
             payload.sport_key,
@@ -2467,26 +2594,29 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             logger.error("Player props fetch failed for sport=%s: %s", payload.sport_key, exc.detail)
             raise HTTPException(status_code=502, detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}")
 
-        # Filter by team if specified
-        if payload.team and not payload.event_id:
-            before_team_filter = len(events)
-            team_lower = payload.team.lower()
+    _validate_data_source(events, allow_dummy=use_dummy_data)
 
-            def _matches_team(event_team: str) -> bool:
-                name = event_team.lower()
-                return team_lower in name or name in team_lower
+    # Filter by team if specified
+    if payload.team and not payload.event_id:
+        before_team_filter = len(events)
+        team_lower = payload.team.lower()
 
-            events = [
-                e for e in events
-                if _matches_team(e.get("home_team", ""))
-                or _matches_team(e.get("away_team", ""))
-            ]
-            logger.info(
-                "Filtered player props events by team '%s': %d -> %d",
-                payload.team,
-                before_team_filter,
-                len(events),
-            )
+        def _matches_team(event_team: str) -> bool:
+            name = event_team.lower()
+            return team_lower in name or name in team_lower
+
+        events = [
+            e
+            for e in events
+            if _matches_team(e.get("home_team", ""))
+            or _matches_team(e.get("away_team", ""))
+        ]
+        logger.info(
+            "Filtered player props events by team '%s': %d -> %d",
+            payload.team,
+            before_team_filter,
+            len(events),
+        )
 
     if payload.event_id:
         before_event_filter = len(events)
