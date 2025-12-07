@@ -2,330 +2,498 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Featured SGP Builder</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Same-Game Parlay Builder</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <style>
-        :root {
-            --bg: #0f172a;
-            --panel: #111827;
-            --border: #1f2937;
-            --text: #e2e8f0;
-            --muted: #94a3b8;
-            --accent: #22c55e;
-            --warning: #fbbf24;
-            --danger: #ef4444;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
         body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0f172a;
+            color: #e5e7eb;
             margin: 0;
-            background: var(--bg);
-            color: var(--text);
-            font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }
-
-        h1,
-        h2,
-        h3 {
-            margin: 0 0 0.4rem 0;
-        }
-
-        .page {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 1.5rem;
+            padding: 0;
         }
 
         header {
-            margin-bottom: 1rem;
-        }
-
-        header p {
-            color: var(--muted);
-            margin: 0.25rem 0 0 0;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            padding: 1rem 1.5rem;
+            background: #1e293b;
+            border-bottom: 2px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             gap: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        header nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin-left: 0.75rem;
+        }
+
+        header nav a:hover {
+            color: #e5e7eb;
+        }
+
+        header nav a.active {
+            color: #bbf7d0;
+            font-weight: 600;
+        }
+
+        .odds-format-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: 1rem;
+            padding: 0.5rem 0.75rem;
+            background: #1e293b;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+        }
+
+        .odds-format-toggle label {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            margin: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .odds-format-toggle input[type="radio"] {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        main {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: minmax(0, 1fr);
+            }
         }
 
         .card {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 1rem;
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+            background: #1e293b;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
         }
 
         label {
             display: block;
-            margin: 0.35rem 0 0.1rem 0;
-            font-weight: 600;
+            font-size: 0.85rem;
+            margin-top: 0.6rem;
+            margin-bottom: 0.15rem;
+            color: #cbd5e1;
+            font-weight: 500;
         }
 
         select,
-        input[type="number"],
-        button {
+        input[type="number"] {
             width: 100%;
-            padding: 0.5rem;
-            border-radius: 4px;
-            border: 1px solid var(--border);
-            background: #0b1224;
-            color: var(--text);
-            font-size: 0.95rem;
-        }
-
-        button {
-            cursor: pointer;
-            background: #1f2937;
-            border-color: #334155;
-            transition: background 0.15s ease;
-        }
-
-        button:hover {
-            background: #273449;
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .btn-primary {
-            background: #2563eb;
-            border-color: #3b82f6;
-        }
-
-        .btn-secondary {
-            background: #334155;
-            border-color: #475569;
-        }
-
-        .status {
-            margin-top: 0.6rem;
-            padding: 0.6rem;
-            background: #0b1224;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--muted);
+            padding: 0.45rem 0.6rem;
+            border-radius: 0.5rem;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #e5e7eb;
+            box-sizing: border-box;
             font-size: 0.9rem;
         }
 
-        .game-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 0.75rem;
+        select:hover,
+        input[type="number"]:hover {
+            border-color: #64748b;
         }
 
-        .game-card {
-            border: 1px solid var(--border);
-            background: #0b1224;
-            border-radius: 6px;
-            padding: 0.75rem;
-            cursor: pointer;
-            transition: border 0.15s ease, transform 0.15s ease;
+        select:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #166534;
+            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.2);
         }
 
-        .game-card:hover {
-            border-color: #475569;
-            transform: translateY(-2px);
-        }
-
-        .game-card h3 {
-            margin-bottom: 0.25rem;
-        }
-
-        .pill {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            background: rgba(34, 197, 94, 0.12);
-            color: var(--accent);
-            border: 1px solid rgba(34, 197, 94, 0.4);
-            border-radius: 999px;
-            font-size: 0.8rem;
+        input[type="checkbox"] {
             margin-right: 0.35rem;
         }
 
-        .muted {
-            color: var(--muted);
+        .btn {
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.9rem;
             font-size: 0.9rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+            margin-top: 0.75rem;
         }
 
-        .pool-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border: 1px solid var(--border);
-            background: #0b1224;
-            padding: 0.6rem;
-            border-radius: 5px;
-            margin-bottom: 0.4rem;
-            gap: 0.5rem;
+        .btn-primary {
+            background: #166534;
+            color: #bbf7d0;
         }
 
-        .pool-item button {
-            width: auto;
-            padding: 0.35rem 0.6rem;
+        .btn-primary:hover {
+            background: #15803d;
         }
 
-        .results {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
+        .btn-secondary {
+            background: #475569;
+            color: #e5e7eb;
         }
 
-        .result-card {
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 0.75rem;
-            background: #0b1224;
+        .btn-secondary:hover {
+            background: #64748b;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .status-bar {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 0.5rem;
         }
 
         .small-text {
-            font-size: 0.9rem;
-            color: var(--muted);
+            font-size: 0.8rem;
+            color: #94a3b8;
         }
 
-        ol {
-            margin: 0.35rem 0 0 1rem;
+        .sgp-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .sgp-card {
+            background: #111827;
+            border: 1px solid #334155;
+            border-radius: 0.65rem;
+            padding: 0.75rem 0.9rem;
+        }
+
+        .sgp-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            align-items: baseline;
+            margin-bottom: 0.35rem;
+        }
+
+        .sgp-legs {
+            margin: 0.35rem 0;
             padding-left: 1rem;
         }
 
-        .tag-list {
-            margin-top: 0.4rem;
+        .badge {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 0.1rem 0.45rem;
+            font-size: 0.7rem;
         }
 
-        .error-text {
-            color: var(--danger);
-            font-weight: 600;
+        .badge-positive {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .badge-negative {
+            background: #7f1d1d;
+            color: #fecaca;
+        }
+
+        .odds-chip {
+            display: inline-block;
+            padding: 0.1rem 0.45rem;
+            border-radius: 0.4rem;
+            font-weight: 700;
+        }
+
+        .odds-plus-strong {
+            background: #14532d;
+            color: #bbf7d0;
+        }
+
+        .odds-plus {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .odds-plus-light {
+            background: #15803d;
+            color: #dcfce7;
+        }
+
+        .odds-favorite-strong {
+            background: #7f1d1d;
+            color: #fecdd3;
+        }
+
+        .odds-favorite {
+            background: #991b1b;
+            color: #fecaca;
+        }
+
+        .odds-favorite-light {
+            background: #b91c1c;
+            color: #fee2e2;
+        }
+
+        .odds-neutral {
+            background: #374151;
+            color: #e5e7eb;
         }
     </style>
 </head>
 
 <body>
-    <div class="page">
-        <header>
-            <h1>Featured Same-Game Parlay Builder</h1>
-            <p>Pick from tonight's headline matchups or search by sport, then let the SGP builder hunt for the best legs using
-                the comparison book as your guide.</p>
-        </header>
-
-        <div class="grid">
-            <section class="card">
-                <h2>Builder Settings</h2>
-                <label for="target-book">Target book</label>
-                <select id="target-book">
-                    <option value="draftkings">DraftKings</option>
-                    <option value="fanduel">FanDuel</option>
-                    <option value="fliff">Fliff</option>
-                    <option value="novig">Novig</option>
-                </select>
-
-                <label for="compare-book">Compare against</label>
-                <select id="compare-book">
-                    <option value="novig" selected>Novig</option>
-                    <option value="draftkings">DraftKings</option>
-                    <option value="fanduel">FanDuel</option>
-                    <option value="fliff">Fliff</option>
-                </select>
-
-                <label for="boost-input">Promo boost % (20-100)</label>
-                <input id="boost-input" type="number" min="20" max="100" value="30" />
-
-                <label class="small-text" style="display:flex; align-items:center; gap:0.4rem; margin-top:0.5rem;">
-                    <input type="checkbox" id="avoid-correlation" checked style="width:auto;" />
-                    <span>Avoid correlated legs</span>
-                </label>
-
-                <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-                    <label class="small-text" style="flex:1; display:flex; align-items:center; gap:0.3rem;">
-                        Min odds
-                        <input id="min-odds" type="number" value="100" style="width:7rem;" />
-                    </label>
-                    <label class="small-text" style="flex:1; display:flex; align-items:center; gap:0.3rem;">
-                        Max odds
-                        <input id="max-odds" type="number" value="20000" style="width:7rem;" />
-                    </label>
-                </div>
-
-                <label class="small-text" style="display:flex; align-items:center; gap:0.35rem; margin-top:0.6rem;">
-                    <input type="checkbox" id="use-dummy" style="width:auto;" />
-                    <span>Use dummy data</span>
-                </label>
-
-                <button id="build-btn" class="btn-primary" style="margin-top:0.8rem;">Build SGPs for selected games</button>
-                <div id="status" class="status">Loading featured games…</div>
-            </section>
-
-            <section class="card">
-                <h2>Featured games tonight</h2>
-                <div class="small-text">Automatically pulled from the main markets across the top leagues. Click to add to your pool.</div>
-                <div id="featured-games" class="game-grid" style="margin-top:0.75rem;"></div>
-                <div id="featured-empty" class="small-text" style="margin-top:0.5rem; display:none;">No featured games available right now.</div>
-            </section>
-
-            <section class="card">
-                <h2>Find more by sport</h2>
-                <label for="sport-select">Sport</label>
-                <select id="sport-select"></select>
-                <button id="load-sport" class="btn-secondary" style="margin-top:0.6rem;">Show games</button>
-                <div id="sport-games" class="game-grid" style="margin-top:0.75rem;"></div>
-                <div id="sport-empty" class="small-text" style="margin-top:0.5rem; display:none;">Pick a sport to browse its schedule.</div>
-            </section>
-
-            <section class="card">
-                <h2>Selected game pool</h2>
-                <div id="pool"></div>
-                <div id="pool-empty" class="small-text">Add a featured game or filter by sport to build an SGP.</div>
-            </section>
+    <header>
+        <div>
+            <h1>Same-Game Parlay Builder</h1>
+            <div class="small-text">Pick a game, combine main markets and player props, and see the best boosted parlays.</div>
         </div>
+        <nav>
+            <a href="/BensSportsBookApp.html">Arbitrage Finder</a>
+            <a href="/value.html">Value Finder</a>
+            <a href="/playerprops.html">Player Props</a>
+            <a href="/sgp-builder.html" class="active">SGP Builder</a>
+            <a href="/settings.html">Settings</a>
+            <div class="odds-format-toggle">
+                <label>
+                    <input type="radio" name="odds-format" value="american" checked />
+                    <span>American</span>
+                </label>
+                <label>
+                    <input type="radio" name="odds-format" value="decimal" />
+                    <span>Decimal</span>
+                </label>
+            </div>
+        </nav>
+    </header>
 
-        <section class="card" style="margin-top:1rem;">
-            <h2>SGP results</h2>
-            <div id="results" class="results small-text">No SGPs built yet.</div>
+    <main>
+        <section class="card">
+            <h2>Build a Same-Game Parlay</h2>
+            <div class="small-text" style="margin-bottom: 0.5rem;">
+                Choose a matchup, then blend player props with core markets for one game to see the best boosted combination.
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <label style="margin: 0;">Sport</label>
+                <button id="toggle-all-sports-btn"
+                    style="padding: 0.3rem 0.6rem; font-size: 0.85rem; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px;">
+                    Show All Sports
+                </button>
+            </div>
+            <select id="sport-select">
+                <option value="">Select a sport</option>
+            </select>
+
+            <label for="game-select">Pick a game</label>
+            <select id="game-select" disabled>
+                <option value="">Select a sport first</option>
+            </select>
+            <div class="small-text" id="game-helper-text">Pick a sport to see upcoming games.</div>
+
+            <label for="target-book-select">Target book</label>
+            <select id="target-book-select">
+                <option value="draftkings">DraftKings</option>
+                <option value="fanduel">FanDuel</option>
+                <option value="fliff">Fliff</option>
+                <option value="novig">Novig</option>
+            </select>
+
+            <label for="compare-book-select">Compare against</label>
+            <select id="compare-book-select">
+                <option value="novig" selected>Novig</option>
+                <option value="draftkings">DraftKings</option>
+                <option value="fanduel">FanDuel</option>
+                <option value="fliff">Fliff</option>
+            </select>
+
+            <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
+                <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
+                <span>Use Dummy Data</span>
+            </label>
+
+            <label for="sgp-boost-input" style="margin-top: 0.75rem;">Promo boost % (20-100, default 30)</label>
+            <input id="sgp-boost-input" type="number" min="20" max="100" step="5" value="30" />
+
+            <label style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.6rem;">
+                <input type="checkbox" id="avoid-correlation-checkbox" checked />
+                <span>Avoid correlated legs (prefer diverse player props)</span>
+            </label>
+
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.6rem;">
+                <label class="small-text" style="display: flex; gap: 0.35rem; align-items: center;">
+                    Min total odds
+                    <input id="sgp-min-odds-input" type="number" value="100" style="width: 6rem;" />
+                </label>
+                <label class="small-text" style="display: flex; gap: 0.35rem; align-items: center;">
+                    Max total odds
+                    <input id="sgp-max-odds-input" type="number" value="20000" style="width: 6rem;" />
+                </label>
+            </div>
+
+            <button class="btn btn-primary" id="build-sgp-btn" disabled style="margin-top: 0.5rem;">Build SGP</button>
+            <div class="status-bar" id="sgp-status-bar">Select a sport and game to start building.</div>
         </section>
-    </div>
+
+        <section class="card">
+            <h2>Recommended Parlays</h2>
+            <div class="small-text" id="summary-bar">No same-game parlay generated yet.</div>
+            <div id="sgp-results" class="small-text" style="margin-top: 0.5rem;">Pick a game to see suggestions.</div>
+        </section>
+    </main>
 
     <script>
-        const featuredContainer = document.getElementById("featured-games");
-        const featuredEmpty = document.getElementById("featured-empty");
-        const sportContainer = document.getElementById("sport-games");
-        const sportEmpty = document.getElementById("sport-empty");
-        const poolContainer = document.getElementById("pool");
-        const poolEmpty = document.getElementById("pool-empty");
-        const resultsContainer = document.getElementById("results");
-        const statusBar = document.getElementById("status");
+        const ALL_PLAYER_PROPS_VALUE = "all_player_props";
+        let currentGames = [];
+        let showAllSports = false;
 
-        let featuredGames = [];
-        let sportGames = [];
-        let selectedGames = [];
-        const resultsByGame = new Map();
+        function setSgpStatus(message) {
+            const el = document.getElementById('sgp-status-bar');
+            if (el) el.textContent = message;
+        }
 
-        function formatStartTime(isoString) {
-            if (!isoString) return "Start time TBD";
-            try {
-                const date = new Date(isoString);
-                return date.toLocaleString(undefined, {
-                    weekday: "short",
+        function setSummary(message) {
+            const el = document.getElementById('summary-bar');
+            if (el) el.textContent = message;
+        }
+
+        function setResults(html) {
+            const container = document.getElementById('sgp-results');
+            if (container) container.innerHTML = html;
+        }
+
+        function formatGameLabel(game) {
+            const date = game.commence_time ? new Date(game.commence_time) : null;
+            const dateText = date
+                ? date.toLocaleString("en-US", {
                     month: "short",
                     day: "numeric",
                     hour: "numeric",
-                    minute: "2-digit"
-                });
-            } catch (e) {
-                return isoString;
+                    minute: "2-digit",
+                }) + " ET"
+                : "";
+            return dateText ? `${game.matchup} — ${dateText}` : game.matchup;
+        }
+
+        function formatStartTime(isoString) {
+            if (!isoString) return "";
+            const trimmed = String(isoString).trim();
+            if (!trimmed) return "";
+            const date = new Date(trimmed);
+            if (Number.isNaN(date.getTime())) return trimmed;
+            const options = {
+                timeZone: "America/New_York",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+            };
+            return date.toLocaleString("en-US", options) + " ET";
+        }
+
+        function americanToDecimal(odds) {
+            if (odds === null || odds === undefined) return null;
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) return null;
+            if (numOdds > 0) {
+                return 1.0 + numOdds / 100.0;
+            } else {
+                return 1.0 + 100.0 / Math.abs(numOdds);
             }
         }
 
-        function formatOdds(value) {
-            if (value === null || value === undefined) return "—";
-            return value > 0 ? `+${value}` : `${value}`;
+        function getOddsFormat() {
+            return localStorage.getItem("oddsFormat") || "american";
+        }
+
+        function setOddsFormat(format) {
+            localStorage.setItem("oddsFormat", format);
+        }
+
+        function formatOdds(odds) {
+            if (odds === null || odds === undefined) {
+                return "";
+            }
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (isNaN(numOdds)) {
+                return String(odds);
+            }
+            const format = getOddsFormat();
+            if (format === "decimal") {
+                const decimal = americanToDecimal(numOdds);
+                return decimal ? decimal.toFixed(2) : String(odds);
+            }
+            return numOdds > 0 ? `+${numOdds}` : String(numOdds);
+        }
+
+        function getOddsColorClass(odds) {
+            const numOdds = typeof odds === "string" ? parseInt(odds, 10) : odds;
+            if (numOdds === null || numOdds === undefined || isNaN(numOdds)) {
+                return "";
+            }
+
+            const absOdds = Math.abs(numOdds);
+
+            if (absOdds <= 115) return "odds-neutral";
+
+            if (numOdds > 0) {
+                if (numOdds >= 350) return "odds-plus-strong";
+                if (numOdds >= 200) return "odds-plus";
+                if (numOdds >= 120) return "odds-plus-light";
+                return "odds-neutral";
+            }
+
+            if (numOdds <= -350) return "odds-favorite-strong";
+            if (numOdds <= -200) return "odds-favorite";
+            if (numOdds <= -120) return "odds-favorite-light";
+            return "odds-neutral";
+        }
+
+        function formatOddsWithColor(odds) {
+            const formatted = formatOdds(odds);
+            const className = getOddsColorClass(odds);
+            if (!className) return formatted;
+            return `<span class="odds-chip ${className}">${formatted}</span>`;
+        }
+
+        function formatEvBadge(evPercent) {
+            if (evPercent === null || evPercent === undefined || Number.isNaN(evPercent)) {
+                return '<span class="small-text">-</span>';
+            }
+
+            const rounded = Math.round(evPercent * 100) / 100;
+            const evClass = rounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+            return `<span class="${evClass}">${rounded}%</span>`;
         }
 
         function clampBoostPercent(value) {
@@ -333,99 +501,44 @@
             return Math.min(100, Math.max(20, value));
         }
 
-        function parseOddsInput(input, fallback) {
-            const parsed = Number.parseInt(input.value, 10);
+        function parseOddsRangeInput(element, fallback) {
+            const parsed = Number.parseInt(element?.value, 10);
             if (Number.isNaN(parsed)) {
-                input.value = fallback;
+                if (element) element.value = fallback;
                 return fallback;
             }
             return parsed;
         }
 
-        function setStatus(message) {
-            statusBar.textContent = message;
-        }
+        function getSgpOddsRange() {
+            const minInput = document.getElementById("sgp-min-odds-input");
+            const maxInput = document.getElementById("sgp-max-odds-input");
 
-        function createGameCard(game) {
-            const card = document.createElement("div");
-            card.className = "game-card";
-            card.innerHTML = `
-                <div class="pill">${game.sport_key}</div>
-                <h3>${game.matchup}</h3>
-                <div class="muted">${formatStartTime(game.commence_time)}</div>
-                <div class="tag-list">${(game.available_markets || []).map(m => `<span class="pill">${m}</span>`).join("")}</div>
-            `;
-            card.addEventListener("click", () => addGameToPool(game));
-            return card;
-        }
+            const minOdds = parseOddsRangeInput(minInput, 100);
+            const maxOdds = parseOddsRangeInput(maxInput, 20000);
 
-        function renderFeaturedGames() {
-            featuredContainer.innerHTML = "";
-            featuredEmpty.style.display = featuredGames.length ? "none" : "block";
-            featuredGames.forEach((game) => {
-                featuredContainer.appendChild(createGameCard(game));
-            });
-        }
-
-        function renderSportGames() {
-            sportContainer.innerHTML = "";
-            sportEmpty.style.display = sportGames.length ? "none" : "block";
-            sportGames.forEach((game) => {
-                sportContainer.appendChild(createGameCard(game));
-            });
-        }
-
-        function renderPool() {
-            poolContainer.innerHTML = "";
-            poolEmpty.style.display = selectedGames.length ? "none" : "block";
-            selectedGames.forEach((game) => {
-                const row = document.createElement("div");
-                row.className = "pool-item";
-                row.innerHTML = `
-                    <div>
-                        <div><strong>${game.matchup}</strong></div>
-                        <div class="small-text">${game.sport_key} • ${formatStartTime(game.commence_time)}</div>
-                    </div>
-                `;
-                const removeBtn = document.createElement("button");
-                removeBtn.textContent = "Remove";
-                removeBtn.className = "btn-secondary";
-                removeBtn.addEventListener("click", () => removeFromPool(game.event_id));
-                row.appendChild(removeBtn);
-                poolContainer.appendChild(row);
-            });
-        }
-
-        function addGameToPool(game) {
-            if (!game || !game.event_id) return;
-            if (selectedGames.some(g => g.event_id === game.event_id)) {
-                setStatus(`${game.matchup} is already in your pool.`);
-                return;
+            if (minOdds > maxOdds && maxInput) {
+                maxInput.value = minOdds;
+                return { minOdds, maxOdds: minOdds };
             }
-            selectedGames.push(game);
-            renderPool();
-            setStatus(`Added ${game.matchup} to the SGP pool.`);
-        }
 
-        function removeFromPool(eventId) {
-            selectedGames = selectedGames.filter(g => g.event_id !== eventId);
-            renderPool();
-            setStatus("Updated game pool.");
+            return { minOdds, maxOdds };
         }
 
         function describeSgp(label, sgp) {
             if (!sgp) return "";
-            let html = `<div style="margin-top: 0.35rem;"><strong>${label}</strong> (${sgp.legs.length} legs) — ${sgp.matchup}`;
+            let html = `<div class="sgp-card"><div class="sgp-header"><div><strong>${label}</strong> — ${sgp.matchup}`;
             if (sgp.start_time) {
                 html += ` • ${formatStartTime(sgp.start_time)}`;
             }
-            html += '</div><ol>';
+            html += `</div><div class="small-text">Boosted ${sgp.boost_percent}%: <strong>${formatOdds(sgp.boosted_american_odds)}</strong></div></div>`;
+            html += '<ol class="sgp-legs">';
             sgp.legs.forEach((leg) => {
-                const hedgeText = (leg.hedge_ev_percent !== null && leg.hedge_ev_percent !== undefined)
+                const hedgeText = leg.hedge_ev_percent !== null && leg.hedge_ev_percent !== undefined
                     ? `${leg.hedge_ev_percent.toFixed(2)}%`
                     : `${leg.ev_percent.toFixed(2)}%`;
-                html += `<li style="margin-bottom:0.35rem;">
-                    <div><strong>${leg.outcome_name}</strong> (${formatOdds(leg.book_price)})</div>
+                html += `<li style="margin-bottom: 0.35rem;">
+                    <div><strong>${leg.outcome_name}</strong> (${formatOddsWithColor(leg.book_price)})</div>
                     <div class="small-text">${leg.market || ''} • Hedge EV: ${hedgeText}</div>
                 </li>`;
             });
@@ -441,195 +554,247 @@
             html += `<div class="small-text">Base Odds: <strong>${baseOdds}</strong> (${baseDecimal})</div>`;
             html += `<div class="small-text">Boosted (${sgp.boost_percent}%): <strong>${boostedOdds}</strong> (${boostedDecimal})</div>`;
             if (sgp.note) {
-                html += `<div class="small-text" style="color: var(--warning);">${sgp.note}</div>`;
+                html += `<div class="small-text" style="color: #fbbf24;">${sgp.note}</div>`;
             }
+            html += '</div>';
             return html;
         }
 
-        function renderResultCard(game, data) {
-            const card = document.createElement("div");
-            card.className = "result-card";
-            const header = document.createElement("div");
-            header.innerHTML = `<strong>${game.matchup}</strong> • ${formatStartTime(game.commence_time)} • ${game.sport_key}`;
-            card.appendChild(header);
-
+        function renderSgpResults(data) {
             if (!data || (!data.best_sgp && !data.uncorrelated_sgp)) {
-                const warning = (data && data.warnings && data.warnings.join(" ")) || "No SGP recommendations found.";
-                card.innerHTML += `<div class="small-text error-text" style="margin-top:0.35rem;">${warning}</div>`;
-                return card;
+                setSummary((data && data.warnings && data.warnings.join(' ')) || 'No same-game parlay recommendation available for this game right now.');
+                setResults('');
+                return;
             }
 
+            let html = '<ul class="sgp-list">';
             if (data.best_sgp) {
-                card.innerHTML += describeSgp("Top SGP", data.best_sgp);
+                html += `<li>${describeSgp('Top SGP', data.best_sgp)}</li>`;
             }
             if (data.uncorrelated_sgp) {
-                card.innerHTML += describeSgp("Uncorrelated SGP", data.uncorrelated_sgp);
+                html += `<li>${describeSgp('Uncorrelated SGP', data.uncorrelated_sgp)}</li>`;
             }
+            html += '</ul>';
+
             if (data.warnings && data.warnings.length) {
-                card.innerHTML += `<div class="small-text" style="margin-top:0.35rem; color: var(--warning);">${data.warnings.join(" ")}</div>`;
+                html += `<div class="small-text" style="color: #fbbf24; margin-top: 0.35rem;">${data.warnings.join(' ')}</div>`;
             }
-            return card;
+
+            setResults(html);
+
+            const entries = [data.best_sgp, data.uncorrelated_sgp].filter(Boolean);
+            setSummary(`Showing ${entries.length} same-game parlay option${entries.length === 1 ? '' : 's'}.`);
         }
 
-        function renderResults() {
-            resultsContainer.innerHTML = "";
-            if (!resultsByGame.size) {
-                resultsContainer.textContent = "No SGPs built yet.";
+        function updateBuildButtonState() {
+            const sport = document.getElementById("sport-select").value;
+            const gameId = document.getElementById("game-select").value;
+            const btn = document.getElementById("build-sgp-btn");
+            const helper = document.getElementById("game-helper-text");
+
+            const disabled = !sport || !gameId;
+            btn.disabled = disabled;
+            helper.textContent = disabled
+                ? "Pick a sport and game to build an SGP from player props and main markets."
+                : "Ready to build for your selected matchup.";
+        }
+
+        async function loadGames() {
+            const sport = document.getElementById("sport-select").value;
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+            const helper = document.getElementById("game-helper-text");
+            const select = document.getElementById("game-select");
+
+            select.disabled = true;
+            select.innerHTML = '<option value="">Loading…</option>';
+
+            if (!sport) {
+                helper.textContent = "Pick a sport to see upcoming games.";
+                select.innerHTML = '<option value="">Select a sport first</option>';
+                updateBuildButtonState();
                 return;
             }
 
-            for (const [eventId, payload] of resultsByGame.entries()) {
-                const game = selectedGames.find(g => g.event_id === eventId);
-                if (!game) continue;
-                resultsContainer.appendChild(renderResultCard(game, payload));
-            }
-        }
+            helper.textContent = "Loading games...";
+            currentGames = [];
 
-        async function loadSports() {
-            try {
-                const res = await fetch("/api/sports");
-                if (!res.ok) throw new Error(await res.text());
-                const data = await res.json();
-                const select = document.getElementById("sport-select");
-                select.innerHTML = "";
-                data.forEach((sport) => {
-                    const option = document.createElement("option");
-                    option.value = sport.key;
-                    option.textContent = sport.title || sport.key;
-                    select.appendChild(option);
-                });
-                sportEmpty.style.display = "block";
-            } catch (err) {
-                console.error(err);
-                sportEmpty.textContent = "Unable to load sports right now.";
-                sportEmpty.style.display = "block";
-            }
-        }
-
-        async function loadFeaturedGames() {
-            featuredContainer.innerHTML = "";
-            featuredEmpty.style.display = "none";
-            try {
-                const useDummy = document.getElementById("use-dummy").checked;
-                const res = await fetch(`/api/featured-games?use_dummy_data=${useDummy}`);
-                if (!res.ok) throw new Error(await res.text());
-                const data = await res.json();
-                featuredGames = data.games || [];
-                renderFeaturedGames();
-                setStatus("Featured games updated.");
-            } catch (err) {
-                console.error(err);
-                featuredGames = [];
-                renderFeaturedGames();
-                setStatus(`Failed to load featured games: ${err.message}`);
-            }
-        }
-
-        async function loadSportGames() {
-            const sportKey = document.getElementById("sport-select").value;
-            const useDummy = document.getElementById("use-dummy").checked;
-            if (!sportKey) {
-                sportGames = [];
-                renderSportGames();
-                return;
-            }
-            setStatus(`Fetching games for ${sportKey}...`);
             try {
                 const res = await fetch("/api/player-props/games", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ sport_key: sportKey, use_dummy_data: useDummy })
+                    body: JSON.stringify({
+                        sport_key: sport,
+                        use_dummy_data: useDummyData,
+                    }),
                 });
-                if (!res.ok) throw new Error(await res.text());
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || `HTTP ${res.status}`);
+                }
+
                 const data = await res.json();
-                sportGames = (data.games || []).map(game => ({
-                    ...game,
-                    sport_key: sportKey,
-                    available_markets: []
-                }));
-                renderSportGames();
-                setStatus(`Loaded ${sportGames.length} game(s) for ${sportKey}.`);
+                currentGames = data.games || [];
+                select.innerHTML = '<option value="">Select a game</option>';
+
+                if (!currentGames.length) {
+                    helper.textContent = "No upcoming games with player props found for this sport.";
+                } else {
+                    helper.textContent = "Select a game to search every available prop and main market for that matchup.";
+                    const fragment = document.createDocumentFragment();
+                    currentGames.forEach(game => {
+                        const option = document.createElement("option");
+                        option.value = game.event_id;
+                        option.textContent = formatGameLabel(game);
+                        fragment.appendChild(option);
+                    });
+                    select.appendChild(fragment);
+                }
             } catch (err) {
                 console.error(err);
-                sportGames = [];
-                renderSportGames();
-                setStatus(`Failed to load games: ${err.message}`);
+                helper.textContent = `Couldn't load games: ${err.message}`;
+                select.innerHTML = '<option value="">Select a sport first</option>';
+            } finally {
+                select.disabled = false;
+                updateBuildButtonState();
             }
         }
 
-        async function buildSgps() {
-            if (!selectedGames.length) {
-                setStatus("Add at least one game to build an SGP.");
-                return;
-            }
-
-            const targetBook = document.getElementById("target-book").value;
-            const compareBook = document.getElementById("compare-book").value;
-            const boostInput = document.getElementById("boost-input");
-            const avoidCorrelation = document.getElementById("avoid-correlation").checked;
-            const minOddsInput = document.getElementById("min-odds");
-            const maxOddsInput = document.getElementById("max-odds");
-            const useDummy = document.getElementById("use-dummy").checked;
-
-            if (targetBook === compareBook) {
-                setStatus("Target book and comparison book must be different.");
-                return;
-            }
-
+        function clampBoostInput() {
+            const boostInput = document.getElementById("sgp-boost-input");
             const boostPercent = clampBoostPercent(parseFloat(boostInput.value));
             boostInput.value = boostPercent;
-            const minOdds = parseOddsInput(minOddsInput, 100);
-            const maxOdds = parseOddsInput(maxOddsInput, 20000);
-
-            resultsByGame.clear();
-            renderResults();
-            setStatus("Building SGPs from your pool...");
-
-            for (const game of selectedGames) {
-                try {
-                    setStatus(`Building for ${game.matchup}...`);
-                    const res = await fetch("/api/sgp-builder", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            sport_key: game.sport_key,
-                            event_id: game.event_id,
-                            target_book: targetBook,
-                            compare_book: compareBook,
-                            boost_percent: boostPercent,
-                            use_dummy_data: useDummy,
-                            avoid_correlation: avoidCorrelation,
-                            min_total_american_odds: minOdds,
-                            max_total_american_odds: maxOdds,
-                        })
-                    });
-                    if (!res.ok) throw new Error(await res.text());
-                    const data = await res.json();
-                    resultsByGame.set(game.event_id, data);
-                    renderResults();
-                } catch (err) {
-                    console.error(err);
-                    resultsByGame.set(game.event_id, {
-                        warnings: [err.message || "Failed to build SGP"]
-                    });
-                    renderResults();
-                }
-            }
-
-            setStatus("Finished building SGPs for your pool.");
+            return boostPercent;
         }
 
-        document.getElementById("load-sport").addEventListener("click", loadSportGames);
-        document.getElementById("build-btn").addEventListener("click", buildSgps);
-        document.getElementById("use-dummy").addEventListener("change", () => {
-            loadFeaturedGames();
-            if (document.getElementById("sport-select").value) {
-                loadSportGames();
-            }
-        });
+        async function buildSgpForSelectedGame() {
+            const sport = document.getElementById("sport-select").value;
+            const eventId = document.getElementById("game-select").value || null;
+            const targetBook = document.getElementById("target-book-select").value;
+            const compareBook = document.getElementById("compare-book-select").value;
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+            const avoidCorrelation = document.getElementById("avoid-correlation-checkbox").checked;
+            const boostPercent = clampBoostInput();
+            const { minOdds, maxOdds } = getSgpOddsRange();
 
-        loadSports();
-        loadFeaturedGames();
+            if (!sport) {
+                setSgpStatus("Select a sport first.");
+                return;
+            }
+            if (!eventId) {
+                setSgpStatus("Pick a game to build a same-game parlay.");
+                return;
+            }
+            if (targetBook === compareBook) {
+                setSgpStatus("Target book and comparison book must differ for SGP building.");
+                return;
+            }
+
+            const selectedGame = currentGames.find(g => g.event_id === eventId);
+            const gameLabel = selectedGame ? formatGameLabel(selectedGame) : "selected game";
+            setSgpStatus(`Building SGP from player props and main markets for ${gameLabel}...`);
+
+            try {
+                const res = await fetch("/api/sgp-builder", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_key: sport,
+                        event_id: eventId,
+                        target_book: targetBook,
+                        compare_book: compareBook,
+                        boost_percent: boostPercent,
+                        use_dummy_data: useDummyData,
+                        avoid_correlation: avoidCorrelation,
+                        min_total_american_odds: minOdds,
+                        max_total_american_odds: maxOdds,
+                    })
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || ("HTTP " + res.status));
+                }
+
+                const data = await res.json();
+                renderSgpResults(data);
+                setSgpStatus(`Updated SGP recommendations for ${gameLabel}.`);
+            } catch (err) {
+                console.error(err);
+                setSgpStatus(`SGP builder failed: ${err.message}`);
+            }
+        }
+
+        async function fetchAndPopulateSports(showAll = false) {
+            try {
+                const res = await fetch('/api/sports');
+                if (!res.ok) throw new Error('Failed to fetch sports');
+                const list = await res.json();
+                const sel = document.getElementById('sport-select');
+                if (!sel) return;
+                sel.innerHTML = '';
+                const defaultOpt = document.createElement('option');
+                defaultOpt.value = '';
+                defaultOpt.textContent = 'Select a sport';
+                sel.appendChild(defaultOpt);
+                for (const s of list) {
+                    if (!s || !s.key) continue;
+                    if (!showAll && !s.active) continue;
+                    const opt = document.createElement('option');
+                    opt.value = s.key;
+                    opt.textContent = s.title || s.key;
+                    sel.appendChild(opt);
+                }
+            } catch (err) {
+                console.warn('Could not load sports schema for SGP builder', err);
+            }
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            document.querySelectorAll('input[name="odds-format"]').forEach(r => {
+                r.disabled = false;
+            });
+
+            const savedFormat = localStorage.getItem("oddsFormat") || "american";
+            document.querySelectorAll('input[name="odds-format"]').forEach(radio => {
+                if (radio.value === savedFormat) {
+                    radio.checked = true;
+                }
+                radio.addEventListener("change", (e) => {
+                    if (e.target.checked) {
+                        setOddsFormat(e.target.value);
+                        // Rerender results to respect the new odds format
+                        const sport = document.getElementById("sport-select").value;
+                        if (sport && document.getElementById("game-select").value) {
+                            buildSgpForSelectedGame();
+                        }
+                    }
+                });
+            });
+
+            fetchAndPopulateSports();
+            loadGames();
+
+            document.getElementById('toggle-all-sports-btn').addEventListener('click', () => {
+                showAllSports = !showAllSports;
+                const btn = document.getElementById('toggle-all-sports-btn');
+                btn.textContent = showAllSports ? 'Show Active Only' : 'Show All Sports';
+                btn.style.backgroundColor = showAllSports ? '#e8f5e9' : '#f0f0f0';
+                fetchAndPopulateSports(showAllSports);
+            });
+
+            document.getElementById("sport-select").addEventListener("change", () => {
+                loadGames();
+            });
+
+            document.getElementById("dummy-data-checkbox").addEventListener("change", loadGames);
+            document.getElementById("game-select").addEventListener("change", updateBuildButtonState);
+
+            document.getElementById("target-book-select").addEventListener("change", updateBuildButtonState);
+            document.getElementById("compare-book-select").addEventListener("change", updateBuildButtonState);
+
+            document.getElementById("build-sgp-btn").onclick = buildSgpForSelectedGame;
+        });
     </script>
 </body>
 
