@@ -714,7 +714,8 @@
                         <span>Save search results as JSON</span>
                     </label>
 
-                    <label for="promo-boost-input" style="margin-top: 0.5rem;">Promo boost % (20-100, default 30)</label>
+                    <label for="promo-boost-input" style="margin-top: 0.5rem;">Promo boost % (20-100, default
+                        30)</label>
                     <input id="promo-boost-input" type="number" min="20" max="100" step="5" value="30" />
 
                     <!-- Parlay Calculator -->
@@ -742,13 +743,17 @@
 
                     <div class="filter-actions">
                         <div style="margin-top: 0.25rem;">
-                            <button class="btn btn-primary" id="find-best-btn">Find Arbitrage Opportunities</button>
+                            <button class="btn btn-primary" id="find-best-btn" onclick="fetchBestValuePlays()">
+                                Find Arbitrage Opportunities
+                            </button>
+
                             <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
                         </div>
 
                         <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-secondary" id="build-parlay-btn">Build Best Parlay</button>
-                            <a class="btn btn-secondary" href="/sgp-builder.html" style="text-align: center; text-decoration: none;">Open SGP Builder</a>
+                            <a class="btn btn-secondary" href="/sgp-builder.html"
+                                style="text-align: center; text-decoration: none;">Open SGP Builder</a>
                         </div>
 
                         <div class="small-text" style="margin-top: 0.5rem;">
@@ -798,9 +803,11 @@
             <section class="card" id="builder-results-section">
                 <h2>Parlay Builder</h2>
                 <div class="small-text" id="builder-status-bar" style="margin-bottom: 0.4rem;">Ready.</div>
-                <div id="parlay-builder-output" class="small-text" style="margin-bottom: 0.75rem;">Use the builder buttons to generate high-value parlays based on hedge EV.</div>
+                <div id="parlay-builder-output" class="small-text" style="margin-bottom: 0.75rem;">Use the builder
+                    buttons to generate high-value parlays based on hedge EV.</div>
                 <div class="small-text">
-                    Looking for same-game parlays? Head to the <a href="/sgp-builder.html">dedicated SGP page</a> to choose a game and stack boosted legs.
+                    Looking for same-game parlays? Head to the <a href="/sgp-builder.html">dedicated SGP page</a> to
+                    choose a game and stack boosted legs.
                 </div>
             </section>
 
