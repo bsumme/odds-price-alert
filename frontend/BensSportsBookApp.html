@@ -2628,35 +2628,60 @@
                 });
             });
 
+            // Server watcher auto-poll
+            let serverWatcherStatusTimer = null;
+
             const autoPollCheckbox = document.getElementById('auto-poll-server-watcher-checkbox');
-            // Load saved preference (default: off)
-            const savedAutoPoll = localStorage.getItem('autoPollServerWatcher');
-            if (savedAutoPoll === 'true') {
-                autoPollCheckbox.checked = true;
-            }
-            function startServerWatcherPolling() {
-                try {
-                    refreshServerWatcherStatus();
-                } catch (e) {
-                    // ignore
+
+            if (autoPollCheckbox) {
+                // Load saved preference (default: off)
+                const savedAutoPoll = localStorage.getItem('autoPollServerWatcher');
+                if (savedAutoPoll === 'true') {
+                    autoPollCheckbox.checked = true;
                 }
-                if (serverWatcherStatusTimer) clearInterval(serverWatcherStatusTimer);
-                serverWatcherStatusTimer = setInterval(refreshServerWatcherStatus, 15000);
-                appendClientLog('Started auto-polling server watcher status');
-            }
-            function stopServerWatcherPolling() {
-                if (serverWatcherStatusTimer) {
-                    clearInterval(serverWatcherStatusTimer);
-                    serverWatcherStatusTimer = null;
+
+                function startServerWatcherPolling() {
+                    try {
+                        refreshServerWatcherStatus();
+                    } catch (e) {
+                        // swallow errors so watcher can't break the rest of the app
+                        console.warn('refreshServerWatcherStatus failed:', e);
+                    }
+                    if (serverWatcherStatusTimer) {
+                        clearInterval(serverWatcherStatusTimer);
+                    }
+                    serverWatcherStatusTimer = setInterval(() => {
+                        try {
+                            refreshServerWatcherStatus();
+                        } catch (e) {
+                            console.warn('refreshServerWatcherStatus failed inside interval:', e);
+                        }
+                    }, 15000);
+                    appendClientLog('Started auto-polling server watcher status');
                 }
-                appendClientLog('Stopped auto-polling server watcher status');
+
+                function stopServerWatcherPolling() {
+                    if (serverWatcherStatusTimer) {
+                        clearInterval(serverWatcherStatusTimer);
+                        serverWatcherStatusTimer = null;
+                    }
+                    appendClientLog('Stopped auto-polling server watcher status');
+                }
+
+                autoPollCheckbox.addEventListener('change', (e) => {
+                    const on = e.target.checked;
+                    localStorage.setItem('autoPollServerWatcher', on ? 'true' : 'false');
+                    if (on) startServerWatcherPolling();
+                    else stopServerWatcherPolling();
+                });
+
+                if (autoPollCheckbox.checked) {
+                    startServerWatcherPolling();
+                }
+            } else {
+                // If the checkbox doesn't exist, just don't wire auto-poll
+                console.warn('auto-poll-server-watcher-checkbox not found; server watcher auto-poll disabled');
             }
-            autoPollCheckbox.addEventListener('change', (e) => {
-                const on = e.target.checked;
-                localStorage.setItem('autoPollServerWatcher', on ? 'true' : 'false');
-                if (on) startServerWatcherPolling(); else stopServerWatcherPolling();
-            });
-            if (autoPollCheckbox.checked) startServerWatcherPolling();
 
             // Load dummy data setting from localStorage
             const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
@@ -2719,7 +2744,6 @@
             const serverWatcherStatusBar = document.getElementById("server-watcher-status");
             const serverWatcherLog = document.getElementById("server-watcher-log");
             const serverWatcherModes = document.querySelectorAll("input[name='server-watcher-mode']");
-            let serverWatcherStatusTimer = null;
 
             // Request notification permission on page load
             requestNotificationPermission();
@@ -2789,7 +2813,7 @@
             }
 
             function renderServerWatcherStatus(status) {
-                if (!status) return;
+                if (!status || !serverWatcherStatusBar || !serverWatcherLog) return;
                 const running = Boolean(status.running);
                 const mode = status.mode || getSelectedServerWatcherMode();
                 const startedAt = status.started_at ? new Date(status.started_at) : null;
@@ -2812,6 +2836,7 @@
             }
 
             async function refreshServerWatcherStatus() {
+                if (!serverWatcherStatusBar || !serverWatcherLog) return;
                 try {
                     const res = await loggedFetch("/api/hedge-watcher/status", {}, 'watcher-status');
                     const data = await res.json();
