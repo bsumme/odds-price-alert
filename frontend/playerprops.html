@@ -868,6 +868,17 @@
             document.getElementById("status-bar").textContent = msg;
         }
 
+        function updateSearchButtonState() {
+            const sportSelect = document.getElementById("sport-select");
+            const findButton = document.getElementById("find-btn");
+
+            if (!sportSelect || !findButton) {
+                return;
+            }
+
+            findButton.disabled = !sportSelect.value;
+        }
+
         function setSummary(msg) {
             document.getElementById("summary-bar").textContent = msg;
         }
@@ -1281,6 +1292,7 @@
             renderMarketOptions();
             loadMarketOptions();
             loadGames();
+            updateSearchButtonState();
 
             // Update teams when sport changes
             document.getElementById("sport-select").addEventListener("change", () => {
@@ -1288,6 +1300,7 @@
                 renderMarketOptions();
                 loadMarketOptions();
                 loadGames();
+                updateSearchButtonState();
             });
 
             document.getElementById("dummy-data-checkbox").addEventListener("change", () => {
@@ -1360,8 +1373,10 @@
                     opt.textContent = s.title || s.key;
                     sel.appendChild(opt);
                 }
+                updateSearchButtonState();
             } catch (err) {
                 console.warn('Could not load sports schema for player props', err);
+                updateSearchButtonState();
             }
         }
 
