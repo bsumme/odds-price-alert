@@ -21,6 +21,7 @@ from services.odds_api import (
     fetch_sport_events,
     BASE_URL,
 )
+from services.promos import get_promotions
 from services.odds_utils import (
     american_to_decimal,
     estimate_ev_percent,
@@ -180,6 +181,23 @@ class BestValuePlaysResponse(BaseModel):
     compare_book: str
     plays: List[BestValuePlayOutcome]
     used_dummy_data: bool = False
+
+
+class PromoOffer(BaseModel):
+    sportsbook: str
+    title: str
+    description: str
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    link: Optional[str] = None
+    source: Optional[str] = None
+
+
+class PromoResponse(BaseModel):
+    promos: List[PromoOffer]
+    used_fallback: bool = False
+    errors: List[str] = Field(default_factory=list)
+    fetched_at: str
 
 
 class PlayerPropsRequest(BaseModel):
@@ -1321,6 +1339,26 @@ def get_sports_schema():
         if not isinstance(item, dict) or "key" not in item:
             raise HTTPException(status_code=500, detail="Sports schema malformed")
     return payload
+
+
+@app.get("/api/promos/today", response_model=PromoResponse)
+def get_today_promos() -> PromoResponse:
+    """Expose today's sportsbook promos.
+
+    The function attempts to pull live promos from sportsbook JSON feeds and
+    falls back to a schedule-based set of likely offers when network access is
+    blocked.
+    """
+
+    result = get_promotions()
+    promos = [PromoOffer(**promo) for promo in result.get("promos", [])]
+
+    return PromoResponse(
+        promos=promos,
+        used_fallback=bool(result.get("used_fallback")),
+        errors=result.get("errors", []),
+        fetched_at=str(result.get("fetched_at")),
+    )
 
 
 @app.get("/api/settings", response_model=ServerSettings)

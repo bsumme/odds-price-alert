@@ -460,6 +460,63 @@
             gap: 0.1rem;
         }
 
+        .promo-list {
+            list-style: none;
+            padding: 0;
+            margin: 0.75rem 0 0 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .promo-item {
+            padding: 0.6rem 0.75rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.45rem;
+        }
+
+        .promo-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.35rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .promo-title {
+            margin: 0;
+            font-size: 1rem;
+            color: #e2e8f0;
+        }
+
+        .promo-description {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #cbd5e1;
+        }
+
+        .promo-badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            background: #334155;
+            color: #e2e8f0;
+            padding: 0.15rem 0.45rem;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+        .promo-source-fallback {
+            background: #7c2d12;
+            color: #ffedd5;
+        }
+
+        .promo-link {
+            color: #93c5fd;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+
         .badge {
             display: inline-block;
             border-radius: 999px;
@@ -811,6 +868,19 @@
                 </div>
             </section>
 
+            <section class="card" id="promos-section">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+                    <div>
+                        <h2 style="margin: 0;">Today's Promos</h2>
+                        <div class="small-text">DraftKings and FanDuel boosts pulled live when available.</div>
+                    </div>
+                    <button class="btn btn-secondary" id="load-promos-btn">Show Today's Promos</button>
+                </div>
+                <div id="promo-status" class="small-text" style="margin-top: 0.35rem;">Tap the button to load promos.</div>
+                <div id="promo-errors" class="small-text" style="margin-top: 0.25rem; color: #fbbf24; display: none;"></div>
+                <ul id="promo-list" class="promo-list"></ul>
+            </section>
+
         </div>
 
         <div class="toggle-buttons" id="builder-toggle-container" style="display: none;">
@@ -957,6 +1027,109 @@
                 , mma_mixed_martial_arts: "UFC / MMA"
             };
             return mapping[sportKey] || sportKey.toUpperCase();
+        }
+
+        function renderPromos(data) {
+            const list = document.getElementById('promo-list');
+            const statusEl = document.getElementById('promo-status');
+            const errorsEl = document.getElementById('promo-errors');
+
+            if (!list || !statusEl || !errorsEl) return;
+
+            list.innerHTML = '';
+            const promos = Array.isArray(data?.promos) ? data.promos : [];
+
+            const usedFallback = Boolean(data?.used_fallback);
+            statusEl.textContent = usedFallback
+                ? 'Showing schedule-based promos (live feeds blocked).'
+                : 'Live promos loaded.';
+
+            if (Array.isArray(data?.errors) && data.errors.length) {
+                errorsEl.style.display = 'block';
+                errorsEl.textContent = `Feed issues: ${data.errors.join('; ')}`;
+            } else {
+                errorsEl.style.display = 'none';
+                errorsEl.textContent = '';
+            }
+
+            if (!promos.length) {
+                const empty = document.createElement('li');
+                empty.className = 'small-text';
+                empty.textContent = 'No promos available right now. Try again soon.';
+                list.appendChild(empty);
+                return;
+            }
+
+            promos.forEach(promo => {
+                const li = document.createElement('li');
+                li.className = 'promo-item';
+
+                const header = document.createElement('div');
+                header.className = 'promo-header';
+
+                const title = document.createElement('h3');
+                title.className = 'promo-title';
+                title.textContent = `${promo.sportsbook || 'Sportsbook'} — ${promo.title || 'Promo'}`;
+
+                const badge = document.createElement('span');
+                badge.className = 'promo-badge';
+                if (promo.source === 'schedule') {
+                    badge.classList.add('promo-source-fallback');
+                    badge.textContent = 'Schedule-based';
+                } else {
+                    badge.textContent = 'Live feed';
+                }
+
+                header.appendChild(title);
+                header.appendChild(badge);
+
+                const description = document.createElement('p');
+                description.className = 'promo-description';
+                description.textContent = promo.description || 'Check the book for details.';
+
+                li.appendChild(header);
+                li.appendChild(description);
+
+                if (promo.link) {
+                    const link = document.createElement('a');
+                    link.href = promo.link;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'promo-link';
+                    link.textContent = 'Open promo';
+                    li.appendChild(link);
+                }
+
+                list.appendChild(li);
+            });
+        }
+
+        async function loadPromos() {
+            const statusEl = document.getElementById('promo-status');
+            if (statusEl) {
+                statusEl.textContent = 'Loading promos...';
+            }
+            try {
+                const res = await loggedFetch('/api/promos/today', {}, 'promos');
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+                const data = await res.json();
+                renderPromos(data);
+            } catch (err) {
+                if (statusEl) {
+                    statusEl.textContent = 'Unable to load promos right now.';
+                }
+                const list = document.getElementById('promo-list');
+                if (list) {
+                    list.innerHTML = '';
+                }
+                const errorsEl = document.getElementById('promo-errors');
+                if (errorsEl) {
+                    errorsEl.style.display = 'block';
+                    errorsEl.textContent = err.message || 'Promo fetch failed';
+                }
+            }
         }
 
         // Fetch sports schema from server and render checkboxes
@@ -2614,6 +2787,11 @@
 
             // Start credits refresh
             startCreditsRefresh();
+
+            const promoButton = document.getElementById('load-promos-btn');
+            if (promoButton) {
+                promoButton.addEventListener('click', loadPromos);
+            }
 
             // Load sports schema, then restore saved form selections and attach listeners
             fetchAndRenderSports().then(() => {
