@@ -503,6 +503,12 @@
             novig: "Novig",
         };
 
+        const SUPPORTED_PLAYER_PROP_SPORTS = new Set([
+            "basketball_nba",
+            "americanfootball_nfl",
+            "icehockey_nhl",
+        ]);
+
         let sportTitleByKey = {};
 
         const marketOptions = {
@@ -1367,6 +1373,7 @@
                 for (const s of list) {
                     if (!s || !s.key) continue;
                     if (!showAll && !s.active) continue;
+                    if (!SUPPORTED_PLAYER_PROP_SPORTS.has(s.key)) continue;
                     sportTitleByKey[s.key] = s.title || s.key;
                     const opt = document.createElement('option');
                     opt.value = s.key;
