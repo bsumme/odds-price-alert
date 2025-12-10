@@ -847,38 +847,6 @@
                 <div class="status-bar" id="watcher-status-bar" style="margin-top: 0.4rem;">Watcher stopped.</div>
                 <div class="status-bar" id="test-sms-status" style="margin-top: 0.4rem; display: none;"></div>
 
-                <hr style="border: 1px solid #334155; margin: 0.75rem 0;">
-                <div class="small-text" style="margin-bottom: 0.5rem;">
-                    Start the Python hedge watcher directly from this panel. Headless mode keeps it hidden;
-                    the detached subprocess option launches the CLI without blocking the web app.
-                </div>
-
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                    <label style="display: flex; align-items: center; gap: 0.35rem;">
-                        <input type="radio" name="server-watcher-mode" value="headless" checked>
-                        <span>Headless background</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 0.35rem;">
-                        <input type="radio" name="server-watcher-mode" value="subprocess">
-                        <span>Detached subprocess</span>
-                    </label>
-                </div>
-
-                <div style="margin-top: 0.5rem;">
-                    <button class="btn btn-primary" id="start-server-watcher-btn">Start Python Watcher</button>
-                    <button class="btn btn-secondary" id="stop-server-watcher-btn" disabled>Stop Python Watcher</button>
-                </div>
-
-                <div class="status-bar" id="server-watcher-status" style="margin-top: 0.4rem;">Server watcher not
-                    running.</div>
-                <div class="log-box" id="server-watcher-log" aria-live="polite" style="margin-top: 0.35rem;">No watcher
-                    logs yet.</div>
-                <div style="margin-top:0.5rem; display:flex; gap:0.5rem; align-items:center;">
-                    <label style="display:flex; align-items:center; gap:0.35rem;">
-                        <input type="checkbox" id="auto-poll-server-watcher-checkbox">
-                        <span>Auto-poll server watcher status</span>
-                    </label>
-                </div>
                 <div class="log-box" id="client-log" aria-live="polite"
                     style="margin-top: 0.35rem; max-height:10rem; overflow:auto;">Client log initialized.</div>
             </section>
@@ -2682,61 +2650,6 @@
                 });
             });
 
-            // Server watcher auto-poll
-            let serverWatcherStatusTimer = null;
-
-            const autoPollCheckbox = document.getElementById('auto-poll-server-watcher-checkbox');
-
-            if (autoPollCheckbox) {
-                // Load saved preference (default: off)
-                const savedAutoPoll = localStorage.getItem('autoPollServerWatcher');
-                if (savedAutoPoll === 'true') {
-                    autoPollCheckbox.checked = true;
-                }
-
-                function startServerWatcherPolling() {
-                    try {
-                        refreshServerWatcherStatus();
-                    } catch (e) {
-                        // swallow errors so watcher can't break the rest of the app
-                        console.warn('refreshServerWatcherStatus failed:', e);
-                    }
-                    if (serverWatcherStatusTimer) {
-                        clearInterval(serverWatcherStatusTimer);
-                    }
-                    serverWatcherStatusTimer = setInterval(() => {
-                        try {
-                            refreshServerWatcherStatus();
-                        } catch (e) {
-                            console.warn('refreshServerWatcherStatus failed inside interval:', e);
-                        }
-                    }, 15000);
-                    appendClientLog('Started auto-polling server watcher status');
-                }
-
-                function stopServerWatcherPolling() {
-                    if (serverWatcherStatusTimer) {
-                        clearInterval(serverWatcherStatusTimer);
-                        serverWatcherStatusTimer = null;
-                    }
-                    appendClientLog('Stopped auto-polling server watcher status');
-                }
-
-                autoPollCheckbox.addEventListener('change', (e) => {
-                    const on = e.target.checked;
-                    localStorage.setItem('autoPollServerWatcher', on ? 'true' : 'false');
-                    if (on) startServerWatcherPolling();
-                    else stopServerWatcherPolling();
-                });
-
-                if (autoPollCheckbox.checked) {
-                    startServerWatcherPolling();
-                }
-            } else {
-                // If the checkbox doesn't exist, just don't wire auto-poll
-                console.warn('auto-poll-server-watcher-checkbox not found; server watcher auto-poll disabled');
-            }
-
             // Load dummy data setting from localStorage
             const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
             const savedDummyData = localStorage.getItem("useDummyData");
@@ -2799,11 +2712,6 @@
             const startWatcherBtn = document.getElementById("start-watcher-btn");
             const stopWatcherBtn = document.getElementById("stop-watcher-btn");
             const watcherStatusBar = document.getElementById("watcher-status-bar");
-            const startServerWatcherBtn = document.getElementById("start-server-watcher-btn");
-            const stopServerWatcherBtn = document.getElementById("stop-server-watcher-btn");
-            const serverWatcherStatusBar = document.getElementById("server-watcher-status");
-            const serverWatcherLog = document.getElementById("server-watcher-log");
-            const serverWatcherModes = document.querySelectorAll("input[name='server-watcher-mode']");
 
             // Request notification permission on page load
             requestNotificationPermission();
@@ -2866,120 +2774,6 @@
 
             startWatcherBtn.onclick = startWatcher;
             stopWatcherBtn.onclick = stopWatcher;
-
-            function getSelectedServerWatcherMode() {
-                const selected = Array.from(serverWatcherModes).find((input) => input.checked);
-                return selected ? selected.value : "headless";
-            }
-
-            function renderServerWatcherStatus(status) {
-                if (!status || !serverWatcherStatusBar || !serverWatcherLog) return;
-                const running = Boolean(status.running);
-                const mode = status.mode || getSelectedServerWatcherMode();
-                const startedAt = status.started_at ? new Date(status.started_at) : null;
-                const startedLabel = startedAt ? startedAt.toLocaleString() : null;
-                const startedSuffix = startedLabel ? `, started ${startedLabel}` : "";
-                const baseText = running
-                    ? `Server watcher running (${mode}${startedSuffix}).`
-                    : "Server watcher not running.";
-
-                serverWatcherStatusBar.textContent = baseText;
-                startServerWatcherBtn.disabled = running;
-                stopServerWatcherBtn.disabled = !running;
-
-                if (status.logs && Array.isArray(status.logs) && status.logs.length > 0) {
-                    const recent = status.logs.slice(-12).join("\n");
-                    serverWatcherLog.textContent = recent;
-                } else {
-                    serverWatcherLog.textContent = "No watcher logs yet.";
-                }
-            }
-
-            async function refreshServerWatcherStatus() {
-                if (!serverWatcherStatusBar || !serverWatcherLog) return;
-                try {
-                    const res = await loggedFetch("/api/hedge-watcher/status", {}, 'watcher-status');
-                    const data = await res.json();
-                    if (!res.ok) {
-                        throw new Error(data.detail || "Unable to fetch watcher status");
-                    }
-                    renderServerWatcherStatus(data);
-                } catch (error) {
-                    appendClientLog(`watcher-status <= ERROR ${error.message}`);
-                    serverWatcherStatusBar.textContent = `Server watcher status unavailable: ${error.message}`;
-                    serverWatcherLog.textContent = "";
-                    startServerWatcherBtn.disabled = false;
-                    stopServerWatcherBtn.disabled = true;
-                }
-            }
-
-            async function startServerWatcher() {
-                const sportKeys = Array.from(document.querySelectorAll(".sport-checkbox:checked")).map(cb => cb.value);
-                const markets = Array.from(document.querySelectorAll(".market-checkbox:checked")).map(cb => cb.value);
-                const intervalVal = Math.max(Number(watcherIntervalInput.value) || 60, 30);
-                const maxResults = Number(document.getElementById("best-max-results-input").value) || 10;
-                const smsThreshold = Number(document.getElementById("sms-threshold-input").value) || 0;
-                const targetBook = bestTargetBook.value;
-                const compareBook = bestCompareBook.value;
-
-                if (!validateBestBookSelection()) {
-                    return;
-                }
-                if (sportKeys.length === 0 || markets.length === 0) {
-                    serverWatcherStatusBar.textContent = "Select at least one sport and market first.";
-                    return;
-                }
-
-                const payload = {
-                    mode: getSelectedServerWatcherMode(),
-                    target_book: targetBook,
-                    compare_book: compareBook,
-                    sport_keys: sportKeys,
-                    markets: markets,
-                    interval_seconds: intervalVal,
-                    max_results: maxResults,
-                    min_margin_percent: smsThreshold,
-                    use_dummy_data: document.getElementById("dummy-data-checkbox").checked
-                };
-
-                serverWatcherStatusBar.textContent = "Starting server watcher...";
-                startServerWatcherBtn.disabled = true;
-
-                try {
-                    const res = await loggedFetch("/api/hedge-watcher/start", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload)
-                    }, 'watcher-start');
-                    const data = await res.json();
-                    if (!res.ok) {
-                        throw new Error(data.detail || "Failed to start server watcher");
-                    }
-                    renderServerWatcherStatus(data);
-                } catch (error) {
-                    appendClientLog(`watcher-start <= ERROR ${error.message}`);
-                    serverWatcherStatusBar.textContent = `Failed to start watcher: ${error.message}`;
-                    startServerWatcherBtn.disabled = false;
-                }
-            }
-
-            async function stopServerWatcher() {
-                serverWatcherStatusBar.textContent = "Stopping server watcher...";
-                try {
-                    const res = await loggedFetch("/api/hedge-watcher/stop", { method: "POST" }, 'watcher-stop');
-                    const data = await res.json();
-                    if (!res.ok) {
-                        throw new Error(data.detail || "Failed to stop watcher");
-                    }
-                    renderServerWatcherStatus(data);
-                } catch (error) {
-                    appendClientLog(`watcher-stop <= ERROR ${error.message}`);
-                    serverWatcherStatusBar.textContent = `Failed to stop watcher: ${error.message}`;
-                }
-            }
-
-            startServerWatcherBtn.onclick = startServerWatcher;
-            stopServerWatcherBtn.onclick = stopServerWatcher;
 
             // Test SMS functionality
             const testSmsBtn = document.getElementById("test-sms-btn");

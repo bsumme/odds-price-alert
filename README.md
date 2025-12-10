@@ -189,21 +189,6 @@ python tests/test_odds_api.py --sport basketball_nba --markets totals --raw
 python tests/test_odds_api.py --sport basketball_nba --markets totals --use-dummy-data
 ```
 
-## Background hedge watcher (headless)
-
-The repository now includes a lightweight CLI to watch for hedge opportunities without the web server. It reuses the "best value" logic and runs until you stop the process.
-
-```bash
-# Poll DraftKings vs Novig every 10 minutes using dummy data (minimal resource usage)
-python hedge_watcher.py --use-dummy-data --interval 600 --min-margin 0
-
-# Run in the background and log to a file
-nohup python hedge_watcher.py --use-dummy-data --interval 600 --min-margin 0 \
-  --max-results 10 > hedge_watcher.log 2>&1 &
-```
-
-Stop it by sending a signal (Ctrl+C in the foreground or `pkill -f hedge_watcher.py` in another terminal). Configure sports and markets with repeated flags like `--sport basketball_nba --sport americanfootball_nfl --market h2h --market spreads`.
-
 ## API Endpoints
 
 ### `POST /api/odds`
