@@ -561,9 +561,14 @@
         }
 
         function renderSgpResults(data) {
+
+            const warningsHtml = (data && data.warnings && data.warnings.length)
+                ? `<div class="small-text" style="color: #fbbf24; margin-top: 0.35rem;">${data.warnings.join(' ')}</div>`
+                : '';
+
             if (!data || (!data.best_sgp && !data.uncorrelated_sgp)) {
                 setSummary((data && data.warnings && data.warnings.join(' ')) || 'No same-game parlay recommendation available for this sport right now.');
-                setResults('');
+                setResults(warningsHtml);
                 return;
             }
 
@@ -576,9 +581,7 @@
             }
             html += '</ul>';
 
-            if (data.warnings && data.warnings.length) {
-                html += `<div class="small-text" style="color: #fbbf24; margin-top: 0.35rem;">${data.warnings.join(' ')}</div>`;
-            }
+            html += warningsHtml;
 
             setResults(html);
 
