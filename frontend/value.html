@@ -505,6 +505,28 @@
             }
         }
 
+        function formatStartTime(isoString) {
+            if (!isoString) return "";
+
+            const trimmed = String(isoString).trim();
+            if (!trimmed) return "";
+
+            const date = new Date(trimmed);
+            if (Number.isNaN(date.getTime())) {
+                return trimmed;
+            }
+
+            const options = {
+                timeZone: "America/New_York",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+            };
+            return date.toLocaleString("en-US", options) + " ET";
+        }
+
         // Legacy function for backwards compatibility
         function formatAmericanOdds(odds) {
             return formatOdds(odds);
@@ -645,12 +667,13 @@
                 tr.appendChild(sportCell);
 
                 const recommendedCell = document.createElement("td");
+                const matchupText = play.matchup ? `<span class="small-text">${play.matchup}</span><br>` : "";
                 let outcomeText = play.outcome_name;
                 if (play.point !== null && play.point !== undefined) {
                     outcomeText += " @ " + play.point;
                 }
                 const formattedBookOdds = formatOddsWithColor(play.book_price);
-                recommendedCell.innerHTML = `<strong>${outcomeText}</strong><br>${formattedBookOdds}<br><span class="small-text">@ ${targetBookLabel}</span>`;
+                recommendedCell.innerHTML = `${matchupText}<strong>${outcomeText}</strong><br>${formattedBookOdds}<br><span class="small-text">@ ${targetBookLabel}</span>`;
                 tr.appendChild(recommendedCell);
 
                 const hedgeCell = document.createElement("td");
@@ -673,7 +696,7 @@
                 tr.appendChild(arbCell);
 
                 const startCell = document.createElement("td");
-                startCell.textContent = play.start_time || "";
+                startCell.textContent = formatStartTime(play.start_time);
                 tr.appendChild(startCell);
 
                 body.appendChild(tr);
