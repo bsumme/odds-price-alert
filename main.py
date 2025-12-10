@@ -2,14 +2,9 @@ import json
 import logging
 import os
 import random
-import subprocess
-import sys
-import os
-import threading
-from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import ClassVar, List, Dict, Any, Set, Optional, Literal, TYPE_CHECKING
+from typing import ClassVar, List, Dict, Any, Set, Optional
 
 import requests
 from fastapi import FastAPI, HTTPException
@@ -17,7 +12,6 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 import traceback
-from pathlib import Path
 
 # Import shared utilities
 from services.odds_api import (
@@ -38,29 +32,11 @@ from services.odds_utils import (
 from utils.regions import compute_regions_for_books
 from utils.formatting import pretty_book_label, format_start_time_est
 
-if TYPE_CHECKING:  # pragma: no cover - used for static analysis only
-    from hedge_watcher import HedgeWatcherConfig
-
 # Use the uvicorn logger so messages show alongside existing INFO entries.
 logger = logging.getLogger("uvicorn.error")
 
 # Odds API subscription limit for calculating credit usage display
 API_REQUEST_LIMIT = 20_000
-
-# Hedge watcher defaults (kept here to avoid circular imports with hedge_watcher.py)
-HEDGE_DEFAULT_SPORTS = [
-    "basketball_nba",
-    "americanfootball_nfl",
-    "baseball_mlb",
-    "icehockey_nhl",
-    "mma_mixed_martial_arts",
-]
-HEDGE_DEFAULT_MARKETS = ["h2h", "spreads", "totals"]
-HEDGE_DEFAULT_TARGET_BOOK = "draftkings"
-HEDGE_DEFAULT_COMPARE_BOOK = "novig"
-HEDGE_DEFAULT_INTERVAL_SECONDS = 300
-HEDGE_DEFAULT_MAX_RESULTS = 15
-HEDGE_DEFAULT_MIN_MARGIN = 0.0
 
 # Featured SGP helper defaults
 FEATURED_SPORTS = [
@@ -1242,190 +1218,6 @@ def collect_value_plays(
             )
 
     return plays
-# -------------------------------------------------------------------
-# Hedge watcher background process management
-# -------------------------------------------------------------------
-
-
-class HedgeWatcherStartRequest(BaseModel):
-    """Request body for starting the server-side hedge watcher loop."""
-
-    mode: Literal["headless", "subprocess"] = "headless"
-    target_book: str = HEDGE_DEFAULT_TARGET_BOOK
-    compare_book: str = HEDGE_DEFAULT_COMPARE_BOOK
-    sport_keys: List[str] = Field(default_factory=lambda: list(HEDGE_DEFAULT_SPORTS))
-    markets: List[str] = Field(default_factory=lambda: list(HEDGE_DEFAULT_MARKETS))
-    interval_seconds: int = HEDGE_DEFAULT_INTERVAL_SECONDS
-    max_results: int = HEDGE_DEFAULT_MAX_RESULTS
-    min_margin_percent: float = HEDGE_DEFAULT_MIN_MARGIN
-    use_dummy_data: bool = False
-
-    @model_validator(mode="after")
-    def validate_fields(self) -> "HedgeWatcherStartRequest":
-        if self.interval_seconds < 5:
-            raise ValueError("interval_seconds must be at least 5 seconds")
-        if self.max_results <= 0:
-            raise ValueError("max_results must be positive")
-        if self.target_book == self.compare_book:
-            raise ValueError("Target book and comparison book cannot be the same")
-        if not self.sport_keys:
-            raise ValueError("At least one sport must be selected")
-        if not self.markets:
-            raise ValueError("At least one market must be selected")
-        return self
-
-
-class HedgeWatcherStatusResponse(BaseModel):
-    running: bool
-    mode: Optional[str] = None
-    config: Optional[HedgeWatcherStartRequest] = None
-    started_at: Optional[str] = None
-    logs: List[str] = Field(default_factory=list)
-
-
-class HedgeWatcherManager:
-    """Manage a background hedge watcher thread or detached subprocess."""
-
-    def __init__(self) -> None:
-        self._thread: Optional[threading.Thread] = None
-        self._stop_event: Optional[threading.Event] = None
-        self._process: Optional[subprocess.Popen] = None
-        self._mode: Optional[str] = None
-        self._config: Optional["HedgeWatcherConfig"] = None
-        self._logs: deque[str] = deque(maxlen=50)
-        self._started_at: Optional[datetime] = None
-
-    def _log(self, message: str) -> None:
-        timestamped = f"[{datetime.now(timezone.utc).isoformat()}] {message}"
-        self._logs.append(timestamped)
-        logger.info(message)
-
-    def _reset(self) -> None:
-        self._thread = None
-        self._stop_event = None
-        self._process = None
-        self._mode = None
-        self._config = None
-        self._started_at = None
-
-    def is_running(self) -> bool:
-        if self._mode == "headless":
-            return bool(self._thread and self._thread.is_alive())
-        if self._mode == "subprocess":
-            return bool(self._process and self._process.poll() is None)
-        return False
-
-    def start(self, request: HedgeWatcherStartRequest) -> None:
-        if self.is_running():
-            raise RuntimeError("Hedge watcher is already running")
-
-        use_dummy_data = _require_dummy_data_allowed(request.use_dummy_data)
-
-        self._logs.clear()
-        from hedge_watcher import HedgeWatcher, HedgeWatcherConfig
-        config = HedgeWatcherConfig(
-            target_book=request.target_book,
-            compare_book=request.compare_book,
-            sport_keys=request.sport_keys,
-            markets=request.markets,
-            interval_seconds=request.interval_seconds,
-            max_results=request.max_results,
-            min_margin_percent=request.min_margin_percent,
-            use_dummy_data=use_dummy_data,
-        )
-
-        self._config = config
-        self._mode = request.mode
-        self._started_at = datetime.now(timezone.utc)
-
-        if request.mode == "headless":
-            stop_event = threading.Event()
-            thread = threading.Thread(
-                target=HedgeWatcher(config).run_with_stop_event,
-                args=(stop_event, self._log),
-                daemon=True,
-            )
-            self._stop_event = stop_event
-            self._thread = thread
-            thread.start()
-        else:
-            script_path = Path(__file__).with_name("hedge_watcher.py")
-            args = [
-                sys.executable,
-                str(script_path),
-                "--target-book",
-                config.target_book,
-                "--compare-book",
-                config.compare_book,
-                "--interval",
-                str(config.interval_seconds),
-                "--max-results",
-                str(config.max_results),
-                "--min-margin",
-                str(config.min_margin_percent),
-            ]
-
-            for sport_key in config.sport_keys:
-                args.extend(["--sport", sport_key])
-            for market in config.markets:
-                args.extend(["--market", market])
-            if config.use_dummy_data:
-                args.append("--use-dummy-data")
-
-            self._process = subprocess.Popen(
-                args,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            self._logs.append(
-                f"[{self._started_at.isoformat()}] Launched hedge_watcher.py as detached subprocess (PID {self._process.pid})."
-            )
-
-    def stop(self) -> None:
-        if not self.is_running():
-            self._reset()
-            return
-
-        if self._mode == "headless" and self._stop_event:
-            self._stop_event.set()
-            if self._thread:
-                self._thread.join(timeout=5)
-        elif self._mode == "subprocess" and self._process:
-            self._process.terminate()
-            try:
-                self._process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._process.kill()
-        self._logs.append(f"[{datetime.now(timezone.utc).isoformat()}] Hedge watcher stopped.")
-        self._reset()
-
-    def status(self) -> HedgeWatcherStatusResponse:
-        running = self.is_running()
-        started_at_iso = self._started_at.isoformat() if self._started_at else None
-        config_payload: Optional[HedgeWatcherStartRequest] = None
-        if self._config and self._mode:
-            config_payload = HedgeWatcherStartRequest(
-                mode=self._mode,
-                target_book=self._config.target_book,
-                compare_book=self._config.compare_book,
-                sport_keys=self._config.sport_keys,
-                markets=self._config.markets,
-                interval_seconds=self._config.interval_seconds,
-                max_results=self._config.max_results,
-                min_margin_percent=self._config.min_margin_percent,
-                use_dummy_data=self._config.use_dummy_data,
-            )
-
-        return HedgeWatcherStatusResponse(
-            running=running,
-            mode=self._mode,
-            config=config_payload,
-            started_at=started_at_iso,
-            logs=list(self._logs),
-        )
-
-
-hedge_watcher_manager = HedgeWatcherManager()
 # -------------------------------------------------------------------
 # FastAPI app
 # -------------------------------------------------------------------
@@ -3379,35 +3171,6 @@ def get_line_tracker_snapshot(payload: LineTrackerRequest) -> LineTrackerSnapsho
 
     # Return structured response to the frontend.
     return LineTrackerSnapshot(**snapshot_dict)
-
-
-@app.post("/api/hedge-watcher/start", response_model=HedgeWatcherStatusResponse)
-def start_server_hedge_watcher(payload: HedgeWatcherStartRequest) -> HedgeWatcherStatusResponse:
-    """Start the Python hedge watcher loop as a background task or subprocess."""
-
-    try:
-        hedge_watcher_manager.start(payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-
-    return hedge_watcher_manager.status()
-
-
-@app.post("/api/hedge-watcher/stop", response_model=HedgeWatcherStatusResponse)
-def stop_server_hedge_watcher() -> HedgeWatcherStatusResponse:
-    """Stop any running hedge watcher instance."""
-
-    hedge_watcher_manager.stop()
-    return hedge_watcher_manager.status()
-
-
-@app.get("/api/hedge-watcher/status", response_model=HedgeWatcherStatusResponse)
-def hedge_watcher_status() -> HedgeWatcherStatusResponse:
-    """Return the current hedge watcher status and recent logs."""
-
-    return hedge_watcher_manager.status()
 
 
 @app.get("/api/test-arbitrage-alert")
