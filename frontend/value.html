@@ -380,7 +380,23 @@
     <script>
         let valuePollTimer = null;
         let lastValueData = null;
-        let recommendedOddsSortDirection = "desc";
+        const RECOMMENDED_ODDS_SORT_KEY = "recommendedOddsSortDirection";
+
+        function loadRecommendedOddsSortDirection() {
+            const savedDirection = localStorage.getItem(RECOMMENDED_ODDS_SORT_KEY);
+            if (savedDirection === "asc" || savedDirection === "desc") {
+                return savedDirection;
+            }
+            return "desc";
+        }
+
+        function saveRecommendedOddsSortDirection(direction) {
+            if (direction === "asc" || direction === "desc") {
+                localStorage.setItem(RECOMMENDED_ODDS_SORT_KEY, direction);
+            }
+        }
+
+        let recommendedOddsSortDirection = loadRecommendedOddsSortDirection();
 
         const NBA_TEAM_PLAYERS = {
             "Atlanta Hawks": ["Trae Young", "Dejounte Murray", "Bogdan Bogdanovic", "Clint Capela"],
@@ -899,6 +915,7 @@
             const sortBtn = document.getElementById("odds-sort-btn");
             sortBtn.addEventListener("click", () => {
                 recommendedOddsSortDirection = recommendedOddsSortDirection === "desc" ? "asc" : "desc";
+                saveRecommendedOddsSortDirection(recommendedOddsSortDirection);
                 updateOddsSortButtonLabel();
                 if (lastValueData) {
                     renderValuePlays(lastValueData);
