@@ -350,6 +350,11 @@
         <section class="card">
             <h2>Value Plays</h2>
             <div class="small-text" id="summary-bar"></div>
+            <div style="display: flex; justify-content: flex-end; margin: 0.5rem 0 0.75rem 0;">
+                <button class="btn btn-secondary" id="odds-sort-btn" style="margin: 0;">
+                    Sort Recommended Odds: High → Low
+                </button>
+            </div>
             <div class="scroll-container">
                 <table>
                     <thead>
@@ -375,6 +380,7 @@
     <script>
         let valuePollTimer = null;
         let lastValueData = null;
+        let recommendedOddsSortDirection = "desc";
 
         const NBA_TEAM_PLAYERS = {
             "Atlanta Hawks": ["Trae Young", "Dejounte Murray", "Bogdan Bogdanovic", "Clint Capela"],
@@ -415,6 +421,35 @@
 
         function setSummary(msg) {
             document.getElementById("summary-bar").textContent = msg;
+        }
+
+        function normalizeOddsValue(odds, fallback) {
+            const numOdds = typeof odds === "string" ? parseFloat(odds) : odds;
+            if (Number.isFinite(numOdds)) {
+                return numOdds;
+            }
+            return fallback;
+        }
+
+        function sortPlaysByRecommendedOdds(plays, direction = "desc") {
+            const list = Array.isArray(plays) ? [...plays] : [];
+            const fallback = direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+            list.sort((a, b) => {
+                const aOdds = normalizeOddsValue(a?.book_price, fallback);
+                const bOdds = normalizeOddsValue(b?.book_price, fallback);
+                return direction === "asc" ? aOdds - bOdds : bOdds - aOdds;
+            });
+
+            return list;
+        }
+
+        function updateOddsSortButtonLabel() {
+            const btn = document.getElementById("odds-sort-btn");
+            if (!btn) return;
+            btn.textContent = recommendedOddsSortDirection === "desc"
+                ? "Sort Recommended Odds: High → Low"
+                : "Sort Recommended Odds: Low → High";
         }
 
         function clearResults() {
@@ -600,7 +635,9 @@
             const targetBookLabel = document.querySelector("#book-select option:checked")?.textContent || data.target_book || "Target";
             const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
 
-            data.plays.forEach(play => {
+            const sortedPlays = sortPlaysByRecommendedOdds(data.plays, recommendedOddsSortDirection);
+
+            sortedPlays.forEach(play => {
                 const tr = document.createElement("tr");
 
                 const sportCell = document.createElement("td");
@@ -833,6 +870,16 @@
                         setOddsFormat(e.target.value);
                     }
                 });
+            });
+
+            updateOddsSortButtonLabel();
+            const sortBtn = document.getElementById("odds-sort-btn");
+            sortBtn.addEventListener("click", () => {
+                recommendedOddsSortDirection = recommendedOddsSortDirection === "desc" ? "asc" : "desc";
+                updateOddsSortButtonLabel();
+                if (lastValueData) {
+                    renderValuePlays(lastValueData);
+                }
             });
 
             // Load saved form selections
