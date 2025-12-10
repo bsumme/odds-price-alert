@@ -98,7 +98,10 @@ def main() -> None:
     else:
         print_pretty(events, args.limit)
 
-    print("\n✅ Done. Raw response also logged under logs/real_odds_api_responses.jsonl when using real API calls.")
+    print(
+        "\n✅ Done. Set TRACE_LEVEL=trace or TRACE_LEVEL=debug to persist raw responses "
+        "under logs/real_odds_api_responses.jsonl when using real API calls."
+    )
 
 
 if __name__ == "__main__":
