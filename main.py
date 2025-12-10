@@ -2139,17 +2139,19 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
     for play in props_response.plays:
         plays_by_event.setdefault(play.event_id, []).append(play)
 
-    if payload.event_id and payload.event_id not in plays_by_event:
-        warnings.append("No player props found for the selected game.")
-        return SGPBuilderResponse(
-            sport_key=payload.sport_key,
-            target_book=payload.target_book,
-            compare_book=payload.compare_book,
-            warnings=warnings,
-        )
+        if payload.event_id and payload.event_id not in plays_by_event:
+            warnings.append("No player props found for the selected game.")
+            return SGPBuilderResponse(
+                sport_key=payload.sport_key,
+                target_book=payload.target_book,
+                compare_book=payload.compare_book,
+                warnings=warnings,
+            )
 
     best_sgp: Optional[SGPSuggestion] = None
     uncorrelated_sgp: Optional[SGPSuggestion] = None
+    best_sgp_score: float = float("-inf")
+    uncorrelated_score: float = float("-inf")
 
     filtered_outside_range = 0
 
@@ -2164,12 +2166,14 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
 
         candidate_best = _build_sgp_suggestion(top_three, boost_percent)
         if _sgp_within_odds_range(candidate_best, min_total_odds, max_total_odds):
-            if best_sgp is None or _sgp_score(top_three) > _sgp_score(best_sgp.legs):
+            candidate_score = _sgp_score(top_three)
+            if candidate_score > best_sgp_score:
                 best_sgp = candidate_best
+                best_sgp_score = candidate_score
         else:
             filtered_outside_range += 1
 
-        if payload.avoid_correlation and uncorrelated_sgp is None:
+        if payload.avoid_correlation:
             unique_legs = _select_uncorrelated_legs(plays, max_legs=3, avoid_correlation=True)
             if len(unique_legs) >= 2:
                 candidate_uncorrelated = _build_sgp_suggestion(
@@ -2180,7 +2184,10 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
                 if _sgp_within_odds_range(
                     candidate_uncorrelated, min_total_odds, max_total_odds
                 ):
-                    uncorrelated_sgp = candidate_uncorrelated
+                    candidate_score = _sgp_score(unique_legs)
+                    if candidate_score > uncorrelated_score:
+                        uncorrelated_sgp = candidate_uncorrelated
+                        uncorrelated_score = candidate_score
                 else:
                     filtered_outside_range += 1
 
