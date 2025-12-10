@@ -32,9 +32,12 @@ from services.odds_utils import (
 )
 from utils.regions import compute_regions_for_books
 from utils.formatting import pretty_book_label, format_start_time_est
+from utils.logging_control import apply_trace_level, should_log_trace_entries
 
 # Use the uvicorn logger so messages show alongside existing INFO entries.
 logger = logging.getLogger("uvicorn.error")
+TRACE_LEVEL = apply_trace_level(logger)
+TRACE_LOGGING_ENABLED = should_log_trace_entries(TRACE_LEVEL)
 
 # Odds API subscription limit for calculating credit usage display
 API_REQUEST_LIMIT = 20_000
@@ -2357,7 +2360,9 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     )
 
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
-    credit_tracker = ApiCreditTracker() if not use_dummy_data else None
+    credit_tracker = (
+        ApiCreditTracker() if TRACE_LOGGING_ENABLED and not use_dummy_data else None
+    )
 
     # Validate sport key against local schema
     schema = _load_sports_schema()
@@ -2611,7 +2616,9 @@ def get_all_sport_player_prop_arbitrage(
             )
 
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
-    credit_tracker = ApiCreditTracker() if not use_dummy_data else None
+    credit_tracker = (
+        ApiCreditTracker() if TRACE_LOGGING_ENABLED and not use_dummy_data else None
+    )
 
     api_key = ""
     if not use_dummy_data:
