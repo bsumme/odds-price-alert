@@ -562,7 +562,7 @@
 
         function renderSgpResults(data) {
             if (!data || (!data.best_sgp && !data.uncorrelated_sgp)) {
-                setSummary((data && data.warnings && data.warnings.join(' ')) || 'No same-game parlay recommendation available for this game right now.');
+                setSummary((data && data.warnings && data.warnings.join(' ')) || 'No same-game parlay recommendation available for this sport right now.');
                 setResults('');
                 return;
             }
@@ -592,11 +592,11 @@
             const btn = document.getElementById("build-sgp-btn");
             const helper = document.getElementById("game-helper-text");
 
-            const disabled = !sport || !gameId;
+            const disabled = !sport;
             btn.disabled = disabled;
             helper.textContent = disabled
-                ? "Pick a sport and game to build an SGP from player props and main markets."
-                : "Ready to build for your selected matchup.";
+                ? "Pick a sport to build an SGP from player props and main markets."
+                : "Ready to build for your selected matchup or scan all games.";
         }
 
         async function loadGames() {
@@ -635,12 +635,12 @@
 
                 const data = await res.json();
                 currentGames = data.games || [];
-                select.innerHTML = '<option value="">Select a game</option>';
+                select.innerHTML = '<option value="">All games (best overall)</option>';
 
                 if (!currentGames.length) {
                     helper.textContent = "No upcoming games with player props found for this sport.";
                 } else {
-                    helper.textContent = "Select a game to search every available prop and main market for that matchup.";
+                    helper.textContent = "Pick a specific matchup or scan every game to find the best SGP across the sport.";
                     const fragment = document.createDocumentFragment();
                     currentGames.forEach(game => {
                         const option = document.createElement("option");
@@ -681,18 +681,15 @@
                 setSgpStatus("Select a sport first.");
                 return;
             }
-            if (!eventId) {
-                setSgpStatus("Pick a game to build a same-game parlay.");
-                return;
-            }
             if (targetBook === compareBook) {
                 setSgpStatus("Target book and comparison book must differ for SGP building.");
                 return;
             }
 
             const selectedGame = currentGames.find(g => g.event_id === eventId);
-            const gameLabel = selectedGame ? formatGameLabel(selectedGame) : "selected game";
-            setSgpStatus(`Building SGP from player props and main markets for ${gameLabel}...`);
+            const sportLabel = document.querySelector('#sport-select option:checked')?.textContent || sport;
+            const scopeLabel = selectedGame ? formatGameLabel(selectedGame) : `${sportLabel} (all games)`;
+            setSgpStatus(`Building SGP from player props and main markets for ${scopeLabel}...`);
 
             try {
                 const res = await fetch("/api/sgp-builder", {
@@ -718,7 +715,7 @@
 
                 const data = await res.json();
                 renderSgpResults(data);
-                setSgpStatus(`Updated SGP recommendations for ${gameLabel}.`);
+                setSgpStatus(`Updated SGP recommendations for ${scopeLabel}.`);
             } catch (err) {
                 console.error(err);
                 setSgpStatus(`SGP builder failed: ${err.message}`);
