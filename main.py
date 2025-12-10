@@ -975,8 +975,6 @@ def collect_value_plays(
         opposite side at the comparison book.
     """
     plays: List[ValuePlayOutcome] = []
-    compare_book_key = (compare_book or "").strip().lower()
-    allow_hedge_pricing = compare_book_key != "novig"
 
     # Filter out live events at the event level
     now_utc = datetime.now(timezone.utc)
@@ -1119,33 +1117,39 @@ def collect_value_plays(
             if matching_compare is None:
                 continue
 
-            compare_price = matching_compare["price"]
-            ev_pct = estimate_ev_percent(book_odds=adjusted_price, sharp_odds=compare_price)
-
             # Find the *other* comparison book side (hedge side) with matching/close point
             other_compare = None
-            if allow_hedge_pricing:
-                if is_player_prop and description:
-                    # For player props, find opposite side (Over -> Under or vice versa) with same player and point
-                    opposite_name = "Under" if name == "Over" else "Over"
-                    for comp_outcome in compare_outcomes:
-                        comp_name = comp_outcome.get("name")
-                        comp_desc = comp_outcome.get("description")
-                        comp_point = comp_outcome.get("point", None)
-                        if (comp_name == opposite_name and
-                            comp_desc and description and
-                            comp_desc.lower() == description.lower() and
-                            points_match(point, comp_point, allow_half_point_flex)):
-                            other_compare = comp_outcome
-                            break
-                else:
-                    other_compare = find_best_comparison_outcome(
-                        outcomes=compare_outcomes,
-                        name=name,
-                        point=point,
-                        allow_half_point_flex=allow_half_point_flex,
-                        opposite=True,
-                    )
+            if is_player_prop and description:
+                # For player props, find opposite side (Over -> Under or vice versa) with same player and point
+                opposite_name = "Under" if name == "Over" else "Over"
+                for comp_outcome in compare_outcomes:
+                    comp_name = comp_outcome.get("name")
+                    comp_desc = comp_outcome.get("description")
+                    comp_point = comp_outcome.get("point", None)
+                    if (comp_name == opposite_name and
+                        comp_desc and description and
+                        comp_desc.lower() == description.lower() and
+                        points_match(point, comp_point, allow_half_point_flex)):
+                        other_compare = comp_outcome
+                        break
+            else:
+                other_compare = find_best_comparison_outcome(
+                    outcomes=compare_outcomes,
+                    name=name,
+                    point=point,
+                    allow_half_point_flex=allow_half_point_flex,
+                    opposite=True,
+                )
+
+            # Require an opposite-side price so we only surface hedgeable bets
+            if other_compare is None or other_compare.get("price") is None:
+                continue
+
+            compare_price = matching_compare.get("price")
+            if compare_price is None:
+                continue
+
+            ev_pct = estimate_ev_percent(book_odds=adjusted_price, sharp_odds=compare_price)
 
             novig_reverse_name: Optional[str] = None
             novig_reverse_price: Optional[int] = None
