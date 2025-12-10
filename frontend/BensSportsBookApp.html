@@ -853,6 +853,7 @@
         let smsAlertedPlayIds = new Set(); // Track plays that have triggered an SMS
         const RECOMMENDED_ODDS_SORT_KEY = "recommendedOddsSortDirection";
         let recommendedOddsSortDirection = loadRecommendedOddsSortDirection();
+        let arbitrageSortMode = "arb-margin";
 
         // Client-side network/log helper
         function appendClientLog(msg) {
@@ -901,12 +902,45 @@
             return list;
         }
 
+        function sortPlaysByArbitrageMargin(plays, direction = "desc") {
+            const list = Array.isArray(plays) ? [...plays] : [];
+            const fallback = direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+            list.sort((a, b) => {
+                const aMargin = normalizeOddsValue(a?.arb_margin_percent, fallback);
+                const bMargin = normalizeOddsValue(b?.arb_margin_percent, fallback);
+                return direction === "asc" ? aMargin - bMargin : bMargin - aMargin;
+            });
+
+            return list;
+        }
+
+        function getSortedArbitragePlays(plays) {
+            if (arbitrageSortMode === "odds") {
+                return sortPlaysByRecommendedOdds(plays, recommendedOddsSortDirection);
+            }
+            return sortPlaysByArbitrageMargin(plays, "desc");
+        }
+
+        function getArbitrageSortLabel() {
+            if (arbitrageSortMode === "odds") {
+                return recommendedOddsSortDirection === "desc"
+                    ? "Recommended Odds (High → Low)"
+                    : "Recommended Odds (Low → High)";
+            }
+            return "Arbitrage Margin";
+        }
+
         function updateOddsSortButtonLabel() {
             const btn = document.getElementById("best-odds-sort-btn");
             if (!btn) return;
-            btn.textContent = recommendedOddsSortDirection === "desc"
-                ? "Sort Recommended Odds: High → Low"
-                : "Sort Recommended Odds: Low → High";
+            if (arbitrageSortMode === "odds") {
+                btn.textContent = recommendedOddsSortDirection === "desc"
+                    ? "Odds Sort: High → Low"
+                    : "Odds Sort: Low → High";
+            } else {
+                btn.textContent = "Odds Sort Off (Arb Margin)";
+            }
         }
 
         function getSgpOddsRangeFilters() {
@@ -1921,7 +1955,7 @@
                 }
             }
 
-            const sortedPlays = sortPlaysByRecommendedOdds(plays, recommendedOddsSortDirection);
+            const sortedPlays = getSortedArbitragePlays(plays);
 
             const sportLabels = {
                 "basketball_nba": "NBA",
@@ -2408,10 +2442,11 @@
                     ).length;
                 }
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked").textContent;
+                const sortLabel = getArbitrageSortLabel();
                 if (isWatcherRunning) {
-                    setBestSummary(`Hedge Watcher: Showing ${playsCount} hedge opportunities (arbitrage margin ≥ 0%) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
+                    setBestSummary(`Hedge Watcher: Showing ${playsCount} hedge opportunities (arbitrage margin ≥ 0%) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by ${sortLabel} (vs ${compareBookLabel}).`);
                 } else {
-                    setBestSummary(`Found ${playsCount} arbitrage opportunities across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
+                    setBestSummary(`Found ${playsCount} arbitrage opportunities across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by ${sortLabel} (vs ${compareBookLabel}).`);
                 }
                 setBestStatus(isWatcherRunning ? "Watcher: Updated." : "Done.");
             } catch (e) {
@@ -2736,7 +2771,16 @@
             if (oddsSortBtn) {
                 updateOddsSortButtonLabel();
                 oddsSortBtn.addEventListener("click", () => {
-                    recommendedOddsSortDirection = recommendedOddsSortDirection === "desc" ? "asc" : "desc";
+                    if (arbitrageSortMode === "arb-margin") {
+                        arbitrageSortMode = "odds";
+                        recommendedOddsSortDirection = "desc";
+                    } else if (recommendedOddsSortDirection === "desc") {
+                        recommendedOddsSortDirection = "asc";
+                    } else {
+                        arbitrageSortMode = "arb-margin";
+                        recommendedOddsSortDirection = "desc";
+                    }
+
                     saveRecommendedOddsSortDirection(recommendedOddsSortDirection);
                     updateOddsSortButtonLabel();
 
