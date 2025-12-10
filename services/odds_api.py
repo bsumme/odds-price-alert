@@ -1,14 +1,20 @@
 """The Odds API client wrapper."""
 
+import asyncio
 import json
 import logging
 import os
 import re
-from datetime import datetime
-from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 import requests
 from fastapi import HTTPException
+
+try:  # pragma: no cover - exercised in tests via fallback
+    import aiohttp
+except ImportError:  # pragma: no cover - fallback when aiohttp is unavailable
+    aiohttp = None
 
 from utils.logging_control import (
     get_trace_level_from_env,
@@ -31,11 +37,12 @@ class ApiCreditTracker:
         self.header_usage: int = 0
         self.request_count: int = 0
 
-    def record_response(self, response: requests.Response) -> None:
+    def record_response(self, response: Any) -> None:
         """Update usage counters from an API response."""
 
         self.request_count += 1
-        raw_used = response.headers.get("x-requests-used")
+        headers = getattr(response, "headers", {}) or {}
+        raw_used = headers.get("x-requests-used")
         if raw_used is None:
             return
 
@@ -72,7 +79,7 @@ class ApiCreditTracker:
 
 
 def _record_credit_usage(
-    response: requests.Response, credit_tracker: Optional[ApiCreditTracker]
+    response: Any, credit_tracker: Optional[ApiCreditTracker]
 ) -> None:
     if credit_tracker is None:
         return
@@ -93,7 +100,7 @@ def _log_api_request(endpoint: str, url: str, params: Dict[str, Any]) -> None:
     logger.debug("Calling %s endpoint: url=%s params=%s", endpoint, url, params)
 
 
-def _log_api_response(endpoint: str, response: requests.Response) -> None:
+def _log_api_response(endpoint: str, response: Any) -> None:
     """Log API response details in debug mode."""
 
     if not should_log_api_calls(TRACE_LEVEL):
@@ -234,6 +241,104 @@ def fetch_sport_events(
     return response.json()
 
 
+def _parse_datetime(timestamp: Optional[str]) -> Optional[datetime]:
+    """Parse ISO timestamps that may include trailing Z into aware datetimes."""
+
+    if not timestamp:
+        return None
+
+    try:
+        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _filter_events_within_hours(
+    events: List[Dict[str, Any]], hours: int = 48
+) -> List[Dict[str, Any]]:
+    """Keep events that start within the next ``hours`` hours."""
+
+    if not events:
+        return []
+
+    now_utc = datetime.now(timezone.utc)
+    cutoff = now_utc + timedelta(hours=hours)
+    filtered: List[Dict[str, Any]] = []
+
+    for event in events:
+        commence_time = _parse_datetime(event.get("commence_time"))
+        if commence_time and now_utc <= commence_time <= cutoff:
+            filtered.append(event)
+
+    if len(filtered) != len(events):
+        logger.info(
+            "Filtered player props events to %d within %d hours (from %d)",
+            len(filtered),
+            hours,
+            len(events),
+        )
+
+    return filtered
+
+
+class _ResponseStub:
+    """Lightweight response wrapper so logging/credit tracking works with aiohttp."""
+
+    def __init__(self, status_code: int, text: str, headers: Dict[str, str]):
+        self.status_code = status_code
+        self.text = text
+        self.headers = headers
+
+
+class _AsyncResponseWrapper:
+    """Wrap a requests response with the minimal aiohttp-like surface we use."""
+
+    def __init__(self, response: requests.Response):
+        self._response = response
+        self.status = response.status_code
+        self.headers = response.headers
+
+    async def text(self) -> str:
+        return self._response.text
+
+
+class _AsyncRequestContext:
+    def __init__(self, url: str, params: Dict[str, Any], timeout: int):
+        self.url = url
+        self.params = params
+        self.timeout = timeout
+        self._response: Optional[requests.Response] = None
+
+    async def __aenter__(self) -> _AsyncResponseWrapper:
+        self._response = await asyncio.to_thread(
+            requests.get, self.url, params=self.params, timeout=self.timeout
+        )
+        return _AsyncResponseWrapper(self._response)
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+class _AsyncRequestsSession:
+    """Simple async wrapper around requests for environments without aiohttp."""
+
+    def __init__(self, timeout: int = 15):
+        self.timeout = timeout
+
+    async def __aenter__(self) -> "_AsyncRequestsSession":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+    def get(self, url: str, params: Dict[str, Any]) -> _AsyncRequestContext:
+        return _AsyncRequestContext(url, params, self.timeout)
+
+
 def _parse_invalid_markets(error_text: str) -> List[str]:
     """Extract the rejected market keys from a 422 error payload."""
 
@@ -316,6 +421,9 @@ def fetch_player_props(
             "Filtered events by team '%s': %d -> %d", team, before_team_filter, len(events)
         )
 
+    if not event_id:
+        events = _filter_events_within_hours(events)
+
     if not events:
         logger.info("No events found for sport=%s after filtering; returning empty list", sport_key)
         return []
@@ -385,83 +493,132 @@ def fetch_player_props(
 
         return fallback_events
 
-    collected_events: List[Dict[str, Any]] = []
-    active_markets: List[str] = list(requested_markets)
+    class _PlayerPropsFallbackRequired(Exception):
+        def __init__(self, markets_param: str) -> None:
+            super().__init__("Fallback required")
+            self.markets_param = markets_param
 
-    for event in events:
-        event_id = event.get("id")
-        if not event_id:
+    async def _fetch_event_player_props(
+        session: Any, event: Dict[str, Any]
+    ) -> Optional[Any]:
+        event_identifier = event.get("id")
+        if not event_identifier:
             logger.warning("Skipping event without id: %s", event)
-            continue
+            return None
 
-        event_url = f"{BASE_URL}/sports/{sport_key}/events/{event_id}/odds"
-        odds_params["markets"] = ",".join(active_markets)
+        event_url = f"{BASE_URL}/sports/{sport_key}/events/{event_identifier}/odds"
 
-        logger.info(
-            "Calling event odds for player props: url=%s event_id=%s regions=%s markets=%s bookmakers=%s",
-            event_url,
-            event_id,
-            regions,
-            odds_params["markets"],
-            bookmaker_keys,
-        )
-        _log_api_request("player_props_event_odds", event_url, odds_params)
-        response = requests.get(event_url, params=odds_params, timeout=15)
-        _log_api_response("player_props_event_odds", response)
-        _record_credit_usage(response, credit_tracker)
+        async def _call_with_markets(markets_to_use: List[str]) -> Any:
+            event_params = odds_params.copy()
+            event_params["markets"] = ",".join(markets_to_use)
 
-        if response.status_code == 422:
-            invalid_markets = _parse_invalid_markets(response.text)
-            if invalid_markets:
-                active_markets = [m for m in active_markets if m not in invalid_markets]
-                logger.warning(
-                    "Retrying player props for event %s without invalid markets: %s",
-                    event_id,
-                    ",".join(sorted(invalid_markets)),
+            logger.info(
+                "Calling event odds for player props: url=%s event_id=%s regions=%s markets=%s bookmakers=%s",
+                event_url,
+                event_identifier,
+                regions,
+                event_params["markets"],
+                bookmaker_keys,
+            )
+            _log_api_request("player_props_event_odds", event_url, event_params)
+            async with session.get(event_url, params=event_params) as resp:
+                body = await resp.text()
+                response_stub = _ResponseStub(resp.status, body, dict(resp.headers))
+                _log_api_response("player_props_event_odds", response_stub)
+                _record_credit_usage(response_stub, credit_tracker)
+
+                if resp.status == 422:
+                    invalid_markets = _parse_invalid_markets(body)
+                    if invalid_markets:
+                        remaining = [m for m in markets_to_use if m not in invalid_markets]
+                        logger.warning(
+                            "Retrying player props for event %s without invalid markets: %s",
+                            event_identifier,
+                            ",".join(sorted(invalid_markets)),
+                        )
+
+                        if not remaining:
+                            logger.error(
+                                "All requested player prop markets were rejected for event %s; skipping",
+                                event_identifier,
+                            )
+                            return None
+
+                        return await _call_with_markets(remaining)
+
+                    if "Invalid markets" in body:
+                        raise _PlayerPropsFallbackRequired(event_params["markets"])
+
+                logger.info(
+                    "Event odds API response for player props (event_id=%s): status=%s body=%s",
+                    event_identifier,
+                    resp.status,
+                    body,
                 )
 
-                if not active_markets:
+                if resp.status != 200:
                     logger.error(
-                        "All requested player prop markets were rejected for event %s; skipping",
-                        event_id,
+                        "Event odds API error for player props: status=%s body=%s",
+                        resp.status,
+                        body,
                     )
-                    continue
+                    raise HTTPException(
+                        status_code=502,
+                        detail=(
+                            "Error from The Odds API when fetching player props: "
+                            f"{resp.status}, {body}"
+                        ),
+                    )
 
-                odds_params["markets"] = ",".join(active_markets)
-                _log_api_request("player_props_event_odds", event_url, odds_params)
-                response = requests.get(event_url, params=odds_params, timeout=15)
-                _log_api_response("player_props_event_odds", response)
-                _record_credit_usage(response, credit_tracker)
+                try:
+                    return json.loads(body)
+                except json.JSONDecodeError:
+                    logger.error(
+                        "Failed to parse player props event response for event %s: %s",
+                        event_identifier,
+                        body,
+                    )
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Invalid JSON returned from The Odds API for player props",
+                    )
 
-            if response.status_code == 422 and "Invalid markets" in response.text:
-                return _fetch_player_props_via_odds_endpoint(odds_params["markets"])
+        return await _call_with_markets(list(requested_markets))
 
-        logger.info(
-            "Event odds API response for player props (event_id=%s): status=%s body=%s",
-            event_id,
-            response.status_code,
-            response.text,
-        )
-
-        if response.status_code != 200:
-            logger.error(
-                "Event odds API error for player props: status=%s body=%s",
-                response.status_code,
-                response.text,
-            )
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Error from The Odds API when fetching player props: "
-                    f"{response.status_code}, {response.text}"
-                ),
-            )
-
-        event_data = response.json()
-        if isinstance(event_data, list):
-            collected_events.extend(event_data)
+    async def _gather_events() -> List[Dict[str, Any]]:
+        timeout_seconds = 15
+        if aiohttp is not None:
+            timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+            session_factory = lambda: aiohttp.ClientSession(timeout=timeout)
         else:
-            collected_events.append(event_data)
+            session_factory = lambda: _AsyncRequestsSession(timeout=timeout_seconds)
+
+        async with session_factory() as session:
+            tasks = [_fetch_event_player_props(session, event) for event in events]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        collected: List[Dict[str, Any]] = []
+
+        for result in results:
+            if isinstance(result, _PlayerPropsFallbackRequired):
+                return _fetch_player_props_via_odds_endpoint(result.markets_param)
+
+            if isinstance(result, Exception):
+                if isinstance(result, HTTPException):
+                    raise result
+                raise HTTPException(status_code=502, detail=str(result))
+
+            if result is None:
+                continue
+
+            if isinstance(result, list):
+                collected.extend(result)
+            else:
+                collected.append(result)
+
+        return collected
+
+    collected_events = asyncio.run(_gather_events())
 
     logger.info(
         "Player props API returned %d events for sport=%s market=%s",

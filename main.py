@@ -378,6 +378,7 @@ class PlayerPropsResponse(BaseModel):
     markets: List[str]
     plays: List[ValuePlayOutcome]
     warnings: List[str] = Field(default_factory=list)
+    last_update: Optional[str] = None
 
 
 class ParlayBuilderRequest(BestValuePlaysRequest):
@@ -450,6 +451,7 @@ class PlayerPropGamesRequest(BaseModel):
 class PlayerPropGamesResponse(BaseModel):
     sport_key: str
     games: List[PlayerPropEvent]
+    last_update: Optional[str] = None
 
 
 class PlayerPropMarketsRequest(BaseModel):
@@ -777,6 +779,7 @@ def generate_dummy_player_props_data(
     default_range = (20.5, 35.5)
 
     now = datetime.now(timezone.utc)
+    last_update = now.isoformat().replace("+00:00", "Z")
     events: List[Dict[str, Any]] = []
     for team_name in teams_to_use:
         players = player_map[team_name][:3]
@@ -801,17 +804,20 @@ def generate_dummy_player_props_data(
                     "description": player,
                     "price": over_price,
                     "point": point_value,
+                    "last_update": last_update,
                 })
                 outcomes.append({
                     "name": "Under",
                     "description": player,
                     "price": under_price,
                     "point": point_value,
+                    "last_update": last_update,
                 })
 
             return {
                 "key": market_key,
                 "outcomes": outcomes,
+                "last_update": last_update,
             }
 
         bookmakers = []
@@ -827,6 +833,7 @@ def generate_dummy_player_props_data(
                     "key": book_key,
                     "title": book_key.title(),
                     "markets": novig_markets,
+                    "last_update": last_update,
                 })
                 break
 
@@ -846,6 +853,7 @@ def generate_dummy_player_props_data(
                 "key": book_key,
                 "title": book_key.title(),
                 "markets": market_payloads,
+                "last_update": last_update,
             })
 
         events.append({
@@ -855,6 +863,7 @@ def generate_dummy_player_props_data(
             "away_team": away_team,
             "commence_time": commence_time,
             "bookmakers": bookmakers,
+            "last_update": last_update,
         })
 
     return events
@@ -2045,23 +2054,73 @@ def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
 def _filter_upcoming_events_only(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Return events that have not started yet."""
 
+    def _parse_timestamp(raw_value: Optional[str]) -> Optional[datetime]:
+        if not raw_value:
+            return None
+
+        try:
+            parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+
+        return parsed
+
     upcoming: List[Dict[str, Any]] = []
     now_utc = datetime.now(timezone.utc)
 
     for event in events:
-        start_time = event.get("commence_time")
-        if not start_time:
-            continue
-
-        try:
-            event_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-        except Exception:
-            continue
-
-        if event_dt > now_utc:
+        event_dt = _parse_timestamp(event.get("commence_time"))
+        if event_dt and event_dt > now_utc:
             upcoming.append(event)
 
     return upcoming
+
+
+def _extract_latest_update_timestamp(events: List[Dict[str, Any]]) -> Optional[str]:
+    """Return the most recent ``last_update`` timestamp from event payloads."""
+
+    def _coerce(raw_value: Optional[str]) -> Optional[datetime]:
+        if not raw_value:
+            return None
+
+        try:
+            dt = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
+    latest: Optional[datetime] = None
+
+    for event in events:
+        for candidate in (
+            event.get("last_update"),
+            *(bookmaker.get("last_update") for bookmaker in event.get("bookmakers", [])),
+        ):
+            ts = _coerce(candidate)
+            if ts and (latest is None or ts > latest):
+                latest = ts
+
+        for bookmaker in event.get("bookmakers", []):
+            for market in bookmaker.get("markets", []):
+                ts = _coerce(market.get("last_update"))
+                if ts and (latest is None or ts > latest):
+                    latest = ts
+
+                for outcome in market.get("outcomes", []):
+                    ts = _coerce(outcome.get("last_update"))
+                    if ts and (latest is None or ts > latest):
+                        latest = ts
+
+    if latest is None:
+        return None
+
+    return latest.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _collect_main_markets(event: Dict[str, Any]) -> set[str]:
@@ -2260,6 +2319,8 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
 
     events = _filter_upcoming_events_only(events)
 
+    last_update = _extract_latest_update_timestamp(events)
+
     games: List[PlayerPropEvent] = []
     for event in events:
         event_id = event.get("id")
@@ -2278,7 +2339,9 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
 
     games.sort(key=lambda g: g.commence_time or "")
 
-    return PlayerPropGamesResponse(sport_key=payload.sport_key, games=games)
+    return PlayerPropGamesResponse(
+        sport_key=payload.sport_key, games=games, last_update=last_update
+    )
 
 
 @app.post("/api/player-props/markets", response_model=PlayerPropMarketsResponse)
@@ -2492,6 +2555,8 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             len(events),
         )
 
+    last_update = _extract_latest_update_timestamp(events)
+
     logger.info("Collected %d player props events before pricing", len(events))
 
     all_markets_seen, comparable_markets = collect_available_player_prop_markets(
@@ -2604,6 +2669,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         markets=markets_to_process,
         plays=top_plays,
         warnings=warnings,
+        last_update=last_update,
     )
 
 
