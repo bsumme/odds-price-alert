@@ -11,6 +11,8 @@
 #   -t : Run the app in trace level
 #   -f : Log script output to the specified file path
 #   default (no flag): Run in regular mode
+# Example with logging to a full path:
+#   .\rebuild_and_run.ps1 -d -f "C:\logs\rebuild_and_run.log"
 
 param(
     [switch]$d,
