@@ -6,10 +6,11 @@
 # 4. Install all required dependencies
 # 5. Start the FastAPI server
 #
-# Usage: .\rebuild_and_run.ps1 [-d|-t] [-f "<file_path>"]
+# Usage: .\rebuild_and_run.ps1 [-d|-t] [-f "<file_path>"] [-s "<json_log_path>"]
 #   -d : Run the app in debug trace level
 #   -t : Run the app in trace level
 #   -f : Log script output to the specified file path
+#   -s : Write SpotOddsAPI request/response logs to a JSON file
 #   default (no flag): Run in regular mode
 # Example with logging to a full path:
 #   .\rebuild_and_run.ps1 -d -f "C:\logs\rebuild_and_run.log"
@@ -17,7 +18,8 @@
 param(
     [switch]$d,
     [switch]$t,
-    [string]$f
+    [string]$f,
+    [string]$s
 )
 
 if ($d -and $t) {
@@ -58,6 +60,21 @@ if ($f) {
         Write-Host "[ERROR] Failed to start logging to $logPath. $_" -ForegroundColor Red
         exit 1
     }
+}
+
+$spotOddsLogPath = $null
+if ($s) {
+    $spotOddsLogPath = if ([System.IO.Path]::IsPathRooted($s)) { $s } else { Join-Path $scriptDir $s }
+    $spotOddsLogDir = Split-Path -Parent $spotOddsLogPath
+
+    if ($spotOddsLogDir -and -not (Test-Path $spotOddsLogDir)) {
+        New-Item -ItemType Directory -Path $spotOddsLogDir -Force | Out-Null
+    }
+
+    Write-Host "[INFO] SpotOddsAPI JSON logging to: $spotOddsLogPath" -ForegroundColor Yellow
+    $env:SPOT_ODDS_JSON_LOG = $spotOddsLogPath
+} else {
+    Remove-Item Env:SPOT_ODDS_JSON_LOG -ErrorAction SilentlyContinue
 }
 
 # Step 1: Deactivate and remove existing virtual environment

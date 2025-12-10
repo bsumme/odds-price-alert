@@ -20,6 +20,7 @@ BASE_URL = "https://api.the-odds-api.com/v4"
 
 logger = logging.getLogger("uvicorn.error")
 TRACE_LEVEL = get_trace_level_from_env()
+SPOT_ODDS_JSON_LOG = os.getenv("SPOT_ODDS_JSON_LOG")
 
 
 class ApiCreditTracker:
@@ -102,6 +103,73 @@ def _log_api_response(endpoint: str, response: requests.Response) -> None:
     logger.debug(
         "%s response status=%s body=%s", endpoint, response.status_code, response.text
     )
+
+
+def _append_spot_odds_json_log(entry: Dict[str, Any]) -> None:
+    """Persist SpotOddsAPI request/response pairs into a JSON log file."""
+
+    if not SPOT_ODDS_JSON_LOG:
+        return
+
+    try:
+        log_path = SPOT_ODDS_JSON_LOG
+        log_dir = os.path.dirname(log_path)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+
+        existing: list[Any] = []
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8") as f:
+                try:
+                    parsed = json.load(f)
+                    if isinstance(parsed, list):
+                        existing = parsed
+                except json.JSONDecodeError:
+                    existing = []
+
+        existing.append(entry)
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+    except Exception:
+        logger.debug("Failed to write SpotOddsAPI JSON log", exc_info=True)
+
+
+def _get_response_payload(response: requests.Response) -> Any:
+    """Return a JSON-friendly body from an HTTP response."""
+
+    try:
+        return response.json()
+    except Exception:
+        return response.text
+
+
+def _log_spot_odds_api_interaction(
+    *,
+    endpoint: str,
+    url: str,
+    params: Optional[Dict[str, Any]],
+    response: requests.Response,
+    response_payload: Any,
+) -> None:
+    """Record SpotOddsAPI requests and responses into a JSON log when configured."""
+
+    if not SPOT_ODDS_JSON_LOG:
+        return
+
+    safe_params = dict(params or {})
+    if "apiKey" in safe_params:
+        safe_params["apiKey"] = "***redacted***"
+
+    entry = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "endpoint": endpoint,
+        "request": {"url": url, "params": safe_params},
+        "response": {
+            "status_code": response.status_code,
+            "body": response_payload,
+        },
+    }
+    _append_spot_odds_json_log(entry)
 
 
 def get_api_key() -> str:
@@ -204,6 +272,14 @@ def fetch_odds(
         payload=data,
     )
 
+    _log_spot_odds_api_interaction(
+        endpoint="odds",
+        url=url,
+        params=params,
+        response=response,
+        response_payload=data,
+    )
+
     return data
 
 
@@ -231,7 +307,16 @@ def fetch_sport_events(
             ),
         )
 
-    return response.json()
+    data = response.json()
+    _log_spot_odds_api_interaction(
+        endpoint="events",
+        url=events_url,
+        params={"apiKey": api_key},
+        response=response,
+        response_payload=data,
+    )
+
+    return data
 
 
 def _parse_invalid_markets(error_text: str) -> List[str]:
@@ -298,6 +383,13 @@ def fetch_player_props(
         )
 
     events: List[Dict[str, Any]] = events_response.json()
+    _log_spot_odds_api_interaction(
+        endpoint="player_props_events",
+        url=events_url,
+        params={"apiKey": api_key},
+        response=events_response,
+        response_payload=events,
+    )
     if team:
         team_lower = team.lower()
 
@@ -409,6 +501,14 @@ def fetch_player_props(
         response = requests.get(event_url, params=odds_params, timeout=15)
         _log_api_response("player_props_event_odds", response)
         _record_credit_usage(response, credit_tracker)
+        response_payload = _get_response_payload(response)
+        _log_spot_odds_api_interaction(
+            endpoint="player_props_event_odds",
+            url=event_url,
+            params=dict(odds_params),
+            response=response,
+            response_payload=response_payload,
+        )
 
         if response.status_code == 422:
             invalid_markets = _parse_invalid_markets(response.text)
@@ -432,6 +532,14 @@ def fetch_player_props(
                 response = requests.get(event_url, params=odds_params, timeout=15)
                 _log_api_response("player_props_event_odds", response)
                 _record_credit_usage(response, credit_tracker)
+                response_payload = _get_response_payload(response)
+                _log_spot_odds_api_interaction(
+                    endpoint="player_props_event_odds",
+                    url=event_url,
+                    params=dict(odds_params),
+                    response=response,
+                    response_payload=response_payload,
+                )
 
             if response.status_code == 422 and "Invalid markets" in response.text:
                 return _fetch_player_props_via_odds_endpoint(odds_params["markets"])
