@@ -800,7 +800,7 @@
                 </div>
             </section>
 
-            <section class="card" id="builder-results-section">
+            <section class="card" id="builder-results-section" style="display: none;">
                 <h2>Parlay Builder</h2>
                 <div class="small-text" id="builder-status-bar" style="margin-bottom: 0.4rem;">Ready.</div>
                 <div id="parlay-builder-output" class="small-text" style="margin-bottom: 0.75rem;">Use the builder
@@ -811,6 +811,10 @@
                 </div>
             </section>
 
+        </div>
+
+        <div class="toggle-buttons" id="builder-toggle-container" style="display: none;">
+            <button class="toggle-btn" id="builder-results-toggle" aria-expanded="false">Show Parlay Builder Results</button>
         </div>
 
         <!-- Arb Watcher Panel -->
@@ -1117,6 +1121,54 @@
             const bar = document.getElementById('builder-status-bar');
             if (bar) {
                 bar.textContent = message;
+            }
+        }
+
+        function getBuilderToggleElements() {
+            return {
+                section: document.getElementById('builder-results-section'),
+                toggleContainer: document.getElementById('builder-toggle-container'),
+                toggleBtn: document.getElementById('builder-results-toggle')
+            };
+        }
+
+        function showBuilderResultsSection() {
+            const { section, toggleContainer, toggleBtn } = getBuilderToggleElements();
+            if (section) {
+                section.style.display = 'block';
+            }
+            if (toggleContainer) {
+                toggleContainer.style.display = 'flex';
+            }
+            if (toggleBtn) {
+                toggleBtn.textContent = 'Hide Parlay Builder Results';
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                toggleBtn.classList.add('active');
+            }
+        }
+
+        function hideBuilderResultsSection(hideToggle = false) {
+            const { section, toggleContainer, toggleBtn } = getBuilderToggleElements();
+            if (section) {
+                section.style.display = 'none';
+            }
+            if (toggleContainer) {
+                toggleContainer.style.display = hideToggle ? 'none' : 'flex';
+            }
+            if (toggleBtn) {
+                toggleBtn.textContent = 'Show Parlay Builder Results';
+                toggleBtn.setAttribute('aria-expanded', 'false');
+                toggleBtn.classList.remove('active');
+            }
+        }
+
+        function toggleBuilderResultsSection() {
+            const { section } = getBuilderToggleElements();
+            const isHidden = !section || section.style.display === 'none' || getComputedStyle(section).display === 'none';
+            if (isHidden) {
+                showBuilderResultsSection();
+            } else {
+                hideBuilderResultsSection();
             }
         }
 
@@ -2215,6 +2267,8 @@
             const useDummyData = document.getElementById("dummy-data-checkbox").checked;
             const boostPercent = getPromoBoostPercent();
 
+            showBuilderResultsSection();
+
             if (sportCheckboxes.length === 0) {
                 setBuilderStatus("Select at least one sport to build a parlay.");
                 return;
@@ -2711,6 +2765,12 @@
             document.getElementById("find-best-btn").onclick = fetchBestValuePlays;
             document.getElementById("clear-best-btn").onclick = clearBestResults;
             document.getElementById("build-parlay-btn").onclick = buildParlayRecommendation;
+
+            const builderToggleBtn = document.getElementById("builder-results-toggle");
+            if (builderToggleBtn) {
+                builderToggleBtn.addEventListener("click", toggleBuilderResultsSection);
+            }
+            hideBuilderResultsSection(true);
 
             // Parlay Calculator
             document.getElementById("add-parlay-leg-btn").onclick = addParlayLeg;
