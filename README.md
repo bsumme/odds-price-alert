@@ -171,16 +171,6 @@ odds-price-alert/
    TRACE_LEVEL=trace uvicorn main:app --reload
    ```
 
-   **PowerShell: run tests once for each level**
-
-   ```powershell
-   ('regular','trace','debug') | ForEach-Object {
-       Write-Host "Running pytest with TRACE_LEVEL=$_." -ForegroundColor Cyan
-       $env:TRACE_LEVEL = $_
-       python -m pytest
-   }
-   ```
-
 ## Formatting the captured Odds API logs in VS Code
 
 The real API payloads used for dummy data live in `logs/real_odds_api_responses.jsonl`. To make that newline-delimited
