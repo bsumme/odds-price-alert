@@ -40,7 +40,7 @@ def format_start_time_est(iso_str: str) -> str:
             formatted = formatted[:8] + " " + formatted[10:]
         
         return formatted
-    except Exception as e:
+    except Exception:
         # Return original string if it looks like ISO format, otherwise return dash
         if iso_str and (iso_str.startswith("20") or "T" in iso_str):
             return iso_str

@@ -5,6 +5,28 @@
 # 3. Create fresh virtual environment
 # 4. Install all required dependencies
 # 5. Start the FastAPI server
+#
+# Usage: .\rebuild_and_run.ps1 [-d|-t]
+#   -d : Run the app in debug trace level
+#   -t : Run the app in trace level
+#   default (no flag): Run in regular mode
+
+param(
+    [switch]$d,
+    [switch]$t
+)
+
+if ($d -and $t) {
+    Write-Host "[ERROR] Specify only one trace flag: -d for debug or -t for trace" -ForegroundColor Red
+    exit 1
+}
+
+$traceLevel = "regular"
+if ($d) {
+    $traceLevel = "debug"
+} elseif ($t) {
+    $traceLevel = "trace"
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Rebuilding and Starting Bet Watcher" -ForegroundColor Cyan
@@ -153,9 +175,13 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Starting FastAPI server..." -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
+Write-Host "TRACE_LEVEL set to $traceLevel" -ForegroundColor Cyan
 Write-Host "Server will be available at: http://127.0.0.1:8000/BensSportsBookApp.html" -ForegroundColor Green
 Write-Host "Press CTRL+C to stop the server" -ForegroundColor Yellow
 Write-Host ""
+
+# Apply trace level for the running process
+$env:TRACE_LEVEL = $traceLevel
 
 # Open browser after a short delay
 Start-Sleep -Seconds 2

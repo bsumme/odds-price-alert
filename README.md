@@ -159,6 +159,28 @@ odds-price-alert/
 4. **Access the application**:
    Open http://localhost:8000 in your browser
 
+5. **Optional: control API trace logging**:
+   The backend honors a `TRACE_LEVEL` environment variable when you start `uvicorn`:
+
+   - `regular` (default): suppress request/response tracing and credit tracking logs.
+   - `trace`: enable the existing info-level tracing (including persisted API responses).
+   - `debug`: log all API calls and responses at debug level.
+
+   ```bash
+   # Example: show info-level traces
+   TRACE_LEVEL=trace uvicorn main:app --reload
+   ```
+
+   **PowerShell: run tests once for each level**
+
+   ```powershell
+   ('regular','trace','debug') | ForEach-Object {
+       Write-Host "Running pytest with TRACE_LEVEL=$_." -ForegroundColor Cyan
+       $env:TRACE_LEVEL = $_
+       python -m pytest
+   }
+   ```
+
 ## Formatting the captured Odds API logs in VS Code
 
 The real API payloads used for dummy data live in `logs/real_odds_api_responses.jsonl`. To make that newline-delimited

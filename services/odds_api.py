@@ -10,9 +10,16 @@ from typing import List, Dict, Any, Optional
 import requests
 from fastapi import HTTPException
 
+from utils.logging_control import (
+    get_trace_level_from_env,
+    should_log_api_calls,
+    should_log_trace_entries,
+)
+
 BASE_URL = "https://api.the-odds-api.com/v4"
 
 logger = logging.getLogger("uvicorn.error")
+TRACE_LEVEL = get_trace_level_from_env()
 
 
 class ApiCreditTracker:
@@ -77,6 +84,26 @@ def _record_credit_usage(
         logger.debug("Failed to record credit usage", exc_info=True)
 
 
+def _log_api_request(endpoint: str, url: str, params: Dict[str, Any]) -> None:
+    """Log outgoing API request details in debug mode."""
+
+    if not should_log_api_calls(TRACE_LEVEL):
+        return
+
+    logger.debug("Calling %s endpoint: url=%s params=%s", endpoint, url, params)
+
+
+def _log_api_response(endpoint: str, response: requests.Response) -> None:
+    """Log API response details in debug mode."""
+
+    if not should_log_api_calls(TRACE_LEVEL):
+        return
+
+    logger.debug(
+        "%s response status=%s body=%s", endpoint, response.status_code, response.text
+    )
+
+
 def get_api_key() -> str:
     """Get The Odds API key from environment variable."""
     api_key = os.getenv("THE_ODDS_API_KEY")
@@ -101,6 +128,9 @@ def _log_real_api_response(
     compared to dummy data later. Failures here should never break
     the main request flow.
     """
+    if not should_log_trace_entries(TRACE_LEVEL):
+        return
+
     try:
         # Store under project_root/logs so it's easy to find.
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -153,7 +183,9 @@ def fetch_odds(
     }
 
     url = f"{BASE_URL}/sports/{sport_key}/odds"
+    _log_api_request("odds", url, params)
     response = requests.get(url, params=params, timeout=15)
+    _log_api_response("odds", response)
     _record_credit_usage(response, credit_tracker)
     if response.status_code != 200:
         raise HTTPException(
@@ -182,8 +214,10 @@ def fetch_sport_events(
 
     events_url = f"{BASE_URL}/sports/{sport_key}/events"
     logger.info("Fetching events list: url=%s", events_url)
+    _log_api_request("events", events_url, {"apiKey": api_key})
 
     response = requests.get(events_url, params={"apiKey": api_key}, timeout=15)
+    _log_api_response("events", response)
     _record_credit_usage(response, credit_tracker)
     if response.status_code != 200:
         logger.error(
@@ -245,7 +279,9 @@ def fetch_player_props(
 
     events_url = f"{BASE_URL}/sports/{sport_key}/events"
     logger.info("Fetching events for player props: url=%s", events_url)
+    _log_api_request("player_props_events", events_url, {"apiKey": api_key})
     events_response = requests.get(events_url, params={"apiKey": api_key}, timeout=15)
+    _log_api_response("player_props_events", events_response)
     _record_credit_usage(events_response, credit_tracker)
     if events_response.status_code != 200:
         logger.error(
@@ -369,7 +405,9 @@ def fetch_player_props(
             odds_params["markets"],
             bookmaker_keys,
         )
+        _log_api_request("player_props_event_odds", event_url, odds_params)
         response = requests.get(event_url, params=odds_params, timeout=15)
+        _log_api_response("player_props_event_odds", response)
         _record_credit_usage(response, credit_tracker)
 
         if response.status_code == 422:
@@ -390,7 +428,9 @@ def fetch_player_props(
                     continue
 
                 odds_params["markets"] = ",".join(active_markets)
+                _log_api_request("player_props_event_odds", event_url, odds_params)
                 response = requests.get(event_url, params=odds_params, timeout=15)
+                _log_api_response("player_props_event_odds", response)
                 _record_credit_usage(response, credit_tracker)
 
             if response.status_code == 422 and "Invalid markets" in response.text:
