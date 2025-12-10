@@ -421,6 +421,7 @@
 
             <div style="margin-top: 0.75rem;">
                 <button class="btn btn-primary" id="find-btn">Search</button>
+                <button class="btn btn-primary" id="all-sports-arb-btn">All Sports Arb vs Novig</button>
                 <button class="btn btn-secondary" id="clear-btn">Clear</button>
             </div>
 
@@ -490,6 +491,14 @@
         };
 
         const ALL_PLAYER_PROPS_VALUE = "all_player_props";
+        const BOOK_LABELS = {
+            draftkings: "DraftKings",
+            fanduel: "FanDuel",
+            fliff: "Fliff",
+            novig: "Novig",
+        };
+
+        let sportTitleByKey = {};
 
         const marketOptions = {
             basketball_nba: [
@@ -970,6 +979,16 @@
             return `<span class="odds-chip ${className}">${formatted}</span>`;
         }
 
+        function getBookLabel(bookKey) {
+            if (!bookKey) return "";
+            return BOOK_LABELS[bookKey] || bookKey;
+        }
+
+        function getSportLabel(sportKey) {
+            if (!sportKey) return "";
+            return sportTitleByKey[sportKey] || sportKey;
+        }
+
         function calculateHedgeStakeAmounts(targetOdds, hedgeOdds, baseStake = DEFAULT_HEDGE_STAKE) {
             const targetDecimal = americanToDecimal(targetOdds);
             const hedgeDecimal = americanToDecimal(hedgeOdds);
@@ -1009,10 +1028,13 @@
                 return;
             }
 
-            const targetBookLabel = document.querySelector("#target-book-select option:checked")?.textContent || data.target_book || "Target";
-            const compareBookLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
+            const selectedTargetLabel = document.querySelector("#target-book-select option:checked")?.textContent || data.target_book || "Target";
+            const selectedCompareLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
 
             data.plays.forEach(play => {
+                const targetBookLabel = getBookLabel(play.target_book) || selectedTargetLabel;
+                const compareBookLabel = getBookLabel(play.compare_book) || selectedCompareLabel;
+                const sportLabel = play.sport_key ? getSportLabel(play.sport_key) : "";
                 const hedgeStakeAmounts = calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
                 const targetStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.targetStake) : null;
                 const hedgeStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null;
@@ -1021,7 +1043,8 @@
                 const playerCell = document.createElement("td");
                 const marketLabel = getMarketLabel(play.market || "");
                 const lineText = play.point !== null && play.point !== undefined ? ` @ ${play.point}` : "";
-                playerCell.innerHTML = `<strong>${play.outcome_name || ""}</strong><br><span class="small-text">${marketLabel}${lineText}</span>`;
+                const sportLine = sportLabel ? `<div class="small-text">${sportLabel}</div>` : "";
+                playerCell.innerHTML = `<strong>${play.outcome_name || ""}</strong>${sportLine}<span class="small-text">${marketLabel}${lineText}</span>`;
                 tr.appendChild(playerCell);
 
                 const targetCell = document.createElement("td");
@@ -1146,6 +1169,46 @@
             }
         }
 
+        async function fetchAllSportsArbitrage() {
+            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+            const button = document.getElementById("all-sports-arb-btn");
+
+            setStatus("Scanning all sports for player prop arbitrage vs Novig...");
+            button.disabled = true;
+            try {
+                const res = await fetch("/api/player-props/arbitrage-all", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        use_dummy_data: useDummyData,
+                        max_results: 150,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || ("HTTP " + res.status));
+                }
+
+                const data = await res.json();
+                showWarnings(data.warnings);
+                lastData = data;
+                renderResults(data);
+
+                const playsCount = (data.plays || []).length;
+                const targets = (data.target_books || []).map(getBookLabel).join(", ") || "DraftKings, FanDuel, Fliff";
+                const compareLabel = getBookLabel(data.compare_book) || "Novig";
+                setSummary(`Found ${playsCount} player prop arbitrage plays across all sports. Targets: ${targets}; Hedge: ${compareLabel}.`);
+                setStatus("Done.");
+            } catch (err) {
+                console.error(err);
+                setStatus("Error: " + err.message);
+                alert(err.message);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
         window.addEventListener("DOMContentLoaded", () => {
             // Ensure the odds format radios are always clickable
             document.querySelectorAll('input[name="odds-format"]').forEach(r => {
@@ -1191,6 +1254,7 @@
 
             // Buttons
             document.getElementById("find-btn").onclick = fetchPlayerProps;
+            document.getElementById("all-sports-arb-btn").onclick = fetchAllSportsArbitrage;
             document.getElementById("clear-btn").onclick = clearResults;
 
             // Parlay Calculator
@@ -1235,6 +1299,7 @@
                 const sel = document.getElementById('sport-select');
                 if (!sel) return;
                 sel.innerHTML = '';
+                sportTitleByKey = {};
                 const defaultOpt = document.createElement('option');
                 defaultOpt.value = '';
                 defaultOpt.textContent = 'All Sports';
@@ -1242,6 +1307,7 @@
                 for (const s of list) {
                     if (!s || !s.key) continue;
                     if (!showAll && !s.active) continue;
+                    sportTitleByKey[s.key] = s.title || s.key;
                     const opt = document.createElement('option');
                     opt.value = s.key;
                     opt.textContent = s.title || s.key;

@@ -358,6 +358,29 @@ class PlayerPropsRequest(BaseModel):
         return expanded
 
 
+class PlayerPropArbitrageRequest(BaseModel):
+    """Search every supported player-prop sport for arbitrage vs a comparison book."""
+
+    sport_keys: Optional[List[str]] = None
+    target_books: Optional[List[str]] = None
+    compare_book: str = "novig"
+    max_results: Optional[int] = 100
+    use_dummy_data: bool = False
+
+
+class PlayerPropArbOutcome(ValuePlayOutcome):
+    sport_key: str
+    target_book: str
+
+
+class PlayerPropArbitrageResponse(BaseModel):
+    compare_book: str
+    target_books: List[str]
+    plays: List[PlayerPropArbOutcome]
+    used_dummy_data: bool = False
+    warnings: List[str] = []
+
+
 class PlayerPropsResponse(BaseModel):
     target_book: str
     compare_book: str
@@ -2731,6 +2754,161 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         compare_book=compare_book,
         markets=markets_to_process,
         plays=top_plays,
+        warnings=warnings,
+    )
+
+
+@app.post("/api/player-props/arbitrage-all", response_model=PlayerPropArbitrageResponse)
+def get_all_sport_player_prop_arbitrage(
+    payload: PlayerPropArbitrageRequest,
+) -> PlayerPropArbitrageResponse:
+    """Scan all supported player-prop sports for arbitrage vs the comparison book."""
+
+    compare_book = payload.compare_book
+    target_books = [book for book in (payload.target_books or ["draftkings", "fanduel", "fliff"]) if book]
+    if not target_books:
+        raise HTTPException(status_code=400, detail="At least one target book is required.")
+
+    sport_keys = payload.sport_keys or list(PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.keys())
+    if not sport_keys:
+        raise HTTPException(status_code=400, detail="No sports provided for player prop arbitrage search.")
+
+    # Validate sport keys against schema
+    schema = _load_sports_schema()
+    available_keys = {item.get("key") for item in schema if isinstance(item, dict) and item.get("key")}
+    for key in sport_keys:
+        if key not in available_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown sport key: {key}. See /api/sports for available keys.",
+            )
+
+    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+
+    api_key = ""
+    if not use_dummy_data:
+        try:
+            api_key = get_api_key()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+
+    bookmaker_keys = sorted(set(target_books + [compare_book]))
+    regions = compute_regions_for_books(bookmaker_keys)
+
+    warnings: List[str] = []
+    all_plays: List[PlayerPropArbOutcome] = []
+
+    def _filter_and_format_player_prop_plays(
+        raw_plays: List[ValuePlayOutcome], market_key: str
+    ) -> List[ValuePlayOutcome]:
+        now_utc = datetime.now(timezone.utc)
+        filtered: List[ValuePlayOutcome] = []
+
+        for play in raw_plays:
+            if not play.start_time:
+                continue
+
+            try:
+                dt = datetime.fromisoformat(play.start_time.replace("Z", "+00:00"))
+            except Exception:
+                continue
+
+            if dt <= now_utc:
+                continue
+
+            if play.start_time:
+                play.start_time = format_start_time_est(play.start_time)
+            if not play.market:
+                play.market = market_key
+            filtered.append(play)
+
+        return filtered
+
+    for sport_key in sport_keys:
+        discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
+            sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
+        )
+
+        try:
+            if use_dummy_data:
+                events = generate_dummy_player_props_data(
+                    sport_key=sport_key,
+                    markets=discovery_markets,
+                    team=None,
+                    player_name=None,
+                    bookmaker_keys=bookmaker_keys,
+                )
+            else:
+                events = fetch_player_props(
+                    api_key=api_key,
+                    sport_key=sport_key,
+                    regions=regions,
+                    markets=",".join(discovery_markets),
+                    bookmaker_keys=bookmaker_keys,
+                    team=None,
+                    event_id=None,
+                    use_dummy_data=False,
+                )
+        except HTTPException as exc:
+            warnings.append(f"Player props API error for {sport_key}: {exc.detail}")
+            continue
+
+        _validate_data_source(events, allow_dummy=use_dummy_data)
+        events = _filter_upcoming_events_only(events)
+
+        if not events:
+            warnings.append(f"No upcoming player props found for {sport_key}.")
+            continue
+
+        for target_book in target_books:
+            if target_book == compare_book:
+                continue
+
+            all_markets_seen, comparable_markets = collect_available_player_prop_markets(
+                events, target_book, compare_book
+            )
+
+            markets_to_process = [m for m in discovery_markets if m in comparable_markets]
+            if not markets_to_process:
+                markets_to_process = [m for m in discovery_markets if m in all_markets_seen]
+            if not markets_to_process:
+                warnings.append(
+                    f"No overlapping player prop markets for {sport_key} between {target_book} and {compare_book}."
+                )
+                continue
+
+            for market_key in markets_to_process:
+                raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
+                filtered = _filter_and_format_player_prop_plays(raw_plays, market_key)
+
+                for play in filtered:
+                    if play.arb_margin_percent is None:
+                        continue
+
+                    all_plays.append(
+                        PlayerPropArbOutcome(
+                            **play.dict(),
+                            sport_key=sport_key,
+                            target_book=target_book,
+                        )
+                    )
+
+    def _arb_sort_key(play: PlayerPropArbOutcome) -> float:
+        if play.arb_margin_percent is not None:
+            return play.arb_margin_percent
+        return -1_000_000.0 + play.ev_percent
+
+    all_plays = sorted(all_plays, key=_arb_sort_key, reverse=True)
+
+    max_results = payload.max_results or 100
+    if max_results > 0:
+        all_plays = all_plays[:max_results]
+
+    return PlayerPropArbitrageResponse(
+        compare_book=compare_book,
+        target_books=target_books,
+        plays=all_plays,
+        used_dummy_data=use_dummy_data,
         warnings=warnings,
     )
 
