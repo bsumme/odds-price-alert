@@ -6,14 +6,18 @@
 # 4. Install all required dependencies
 # 5. Start the FastAPI server
 #
-# Usage: .\rebuild_and_run.ps1 [-d|-t]
+# Usage: .\rebuild_and_run.ps1 [-d|-t] [-f "<file_path>"]
 #   -d : Run the app in debug trace level
 #   -t : Run the app in trace level
+#   -f : Log script output to the specified file path
 #   default (no flag): Run in regular mode
+# Example with logging to a full path:
+#   .\rebuild_and_run.ps1 -d -f "C:\logs\rebuild_and_run.log"
 
 param(
     [switch]$d,
-    [switch]$t
+    [switch]$t,
+    [string]$f
 )
 
 if ($d -and $t) {
@@ -36,6 +40,25 @@ Write-Host ""
 # Get the script directory
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
+
+$transcriptStarted = $false
+if ($f) {
+    $logPath = if ([System.IO.Path]::IsPathRooted($f)) { $f } else { Join-Path $scriptDir $f }
+    $logDir = Split-Path -Parent $logPath
+
+    if ($logDir -and -not (Test-Path $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+
+    Write-Host "[INFO] Logging output to: $logPath" -ForegroundColor Yellow
+    try {
+        Start-Transcript -Path $logPath -Append | Out-Null
+        $transcriptStarted = $true
+    } catch {
+        Write-Host "[ERROR] Failed to start logging to $logPath. $_" -ForegroundColor Red
+        exit 1
+    }
+}
 
 # Step 1: Deactivate and remove existing virtual environment
 Write-Host "[1/6] Checking for existing virtual environment..." -ForegroundColor Yellow
@@ -189,4 +212,8 @@ Start-Process "http://127.0.0.1:8000/BensSportsBookApp.html"
 
 # Start uvicorn server
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
+
+if ($transcriptStarted) {
+    Stop-Transcript | Out-Null
+}
 
