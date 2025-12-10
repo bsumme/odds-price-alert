@@ -250,16 +250,11 @@ class PlayerPropsRequest(BaseModel):
             "player_blocks",
             "player_saves",
         ],
-        "mma_mixed_martial_arts": [
-            # Common MMA/UFC player prop markets (API market key names may vary by provider)
-            "player_total_strikes",
-            "player_significant_strikes",
-            "player_takedowns",
-            "player_submissions",
-            "player_knockdowns",
-            "player_total_rounds",
-        ],
     }
+
+    SUPPORTED_PLAYER_PROP_SPORTS: ClassVar[Set[str]] = set(
+        PLAYER_PROP_MARKETS_BY_SPORT.keys()
+    )
 
     ALL_PLAYER_PROP_MARKETS: ClassVar[List[str]] = sorted(
         {m for markets in PLAYER_PROP_MARKETS_BY_SPORT.values() for m in markets}
@@ -336,6 +331,22 @@ class PlayerPropsRequest(BaseModel):
             raise ValueError("At least one valid market must be provided")
 
         return expanded
+
+
+def ensure_player_props_supported(sport_key: str) -> None:
+    """Raise an HTTP error when player props are not available for a sport."""
+
+    if sport_key not in PlayerPropsRequest.SUPPORTED_PLAYER_PROP_SPORTS:
+        supported = ", ".join(sorted(PlayerPropsRequest.SUPPORTED_PLAYER_PROP_SPORTS))
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Player props are not available for sport '{sport_key}'. "
+                f"Supported sports: {supported}. The Odds API only provides "
+                "fight winner odds for MMA and does not expose traditional player props "
+                "for this sport."
+            ),
+        )
 
 
 class PlayerPropArbitrageRequest(BaseModel):
@@ -2216,6 +2227,8 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
     if payload.sport_key not in available_keys:
         raise HTTPException(status_code=400, detail=f"Unknown sport key: {payload.sport_key}. See /api/sports for available keys.")
 
+    ensure_player_props_supported(payload.sport_key)
+
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
 
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
@@ -2279,6 +2292,8 @@ def list_player_prop_markets(
     available_keys = {item.get('key') for item in schema if isinstance(item, dict) and item.get('key')}
     if payload.sport_key not in available_keys:
         raise HTTPException(status_code=400, detail=f"Unknown sport key: {payload.sport_key}. See /api/sports for available keys.")
+
+    ensure_player_props_supported(payload.sport_key)
 
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
 
@@ -2369,6 +2384,8 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     available_keys = {item.get('key') for item in schema if isinstance(item, dict) and item.get('key')}
     if payload.sport_key not in available_keys:
         raise HTTPException(status_code=400, detail=f"Unknown sport key: {payload.sport_key}. See /api/sports for available keys.")
+
+    ensure_player_props_supported(payload.sport_key)
 
     if payload.player_name:
         logger.info(

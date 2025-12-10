@@ -57,6 +57,22 @@ def test_player_props_filters_by_event_id(monkeypatch):
     assert "event_id=desired-event" in exc.value.detail
 
 
+def test_player_props_rejects_mma_requests():
+    payload = main.PlayerPropsRequest(
+        sport_key="mma_mixed_martial_arts",
+        markets=["player_points"],
+        target_book="fanduel",
+        compare_book="novig",
+        use_dummy_data=False,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        main.get_player_props(payload)
+
+    assert exc.value.status_code == 400
+    assert "fight winner odds" in exc.value.detail
+
+
 def test_list_player_prop_games_with_dummy_data():
     payload = main.PlayerPropGamesRequest(sport_key="basketball_nba", use_dummy_data=True)
 
