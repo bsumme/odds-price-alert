@@ -397,28 +397,6 @@
                 <span>Use Dummy Data</span>
             </label>
 
-            <!-- Parlay Calculator -->
-            <div
-                style="margin-top: 1rem; padding: 0.75rem; background: #1a2332; border: 1px solid #2d3d4f; border-radius: 4px;">
-                <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: #e2e8f0;">Parlay Calculator</h3>
-                <div id="parlay-legs-container" style="margin-bottom: 0.5rem;">
-                    <div class="parlay-leg" style="margin-bottom: 0.3rem;">
-                        <input type="number" class="parlay-odds-input" placeholder="Odds (e.g., -110, +200)" step="any"
-                            style="width: 100%; padding: 0.3rem; font-size: 0.85rem; background: #0f172a; border: 1px solid #334155; border-radius: 3px; color: #e2e8f0;" />
-                    </div>
-                </div>
-                <button id="add-parlay-leg-btn"
-                    style="width: 100%; padding: 0.3rem; font-size: 0.85rem; background: #334155; color: #e2e8f0; border: 1px solid #475569; border-radius: 3px; cursor: pointer; margin-bottom: 0.3rem;">+
-                    Add Leg</button>
-                <button id="remove-parlay-leg-btn"
-                    style="width: 100%; padding: 0.3rem; font-size: 0.85rem; background: #334155; color: #e2e8f0; border: 1px solid #475569; border-radius: 3px; cursor: pointer; margin-bottom: 0.5rem;">-
-                    Remove Leg</button>
-                <div id="parlay-result"
-                    style="padding: 0.4rem; background: #0f172a; border: 1px solid #334155; border-radius: 3px; text-align: center; color: #10b981; font-size: 0.9rem; font-weight: bold;">
-                    Parlay Odds: —
-                </div>
-            </div>
-
             <div style="margin-top: 0.75rem;">
                 <button class="btn btn-primary" id="find-btn">Search</button>
                 <button class="btn btn-primary" id="all-sports-arb-btn">All Sports Arb vs Novig</button>
@@ -562,71 +540,6 @@
                 .split("_")
                 .map(part => part.charAt(0).toUpperCase() + part.slice(1))
                 .join(" ");
-        }
-
-        function convertOddsToDecimal(odds) {
-            if (typeof odds !== 'number') return null;
-            if (odds === 0) return null;
-            if (odds > 0) {
-                return 1 + odds / 100;
-            } else {
-                return 1 + 100 / Math.abs(odds);
-            }
-        }
-
-        function convertDecimalToAmericanOdds(decimal) {
-            if (decimal <= 1) return null;
-            if (decimal === 1.5) return 0;
-            if (decimal > 2) {
-                return Math.round((decimal - 1) * 100);
-            } else {
-                return Math.round(-100 / (decimal - 1));
-            }
-        }
-
-        function updateParlayCalculator() {
-            const inputs = document.querySelectorAll('.parlay-odds-input');
-            let totalDecimalOdds = 1;
-            let validLegs = 0;
-
-            for (const input of inputs) {
-                const value = parseFloat(input.value);
-                if (!isNaN(value) && value !== 0) {
-                    const decimal = convertOddsToDecimal(value);
-                    if (decimal && decimal > 0) {
-                        totalDecimalOdds *= decimal;
-                        validLegs++;
-                    }
-                }
-            }
-
-            const resultDiv = document.getElementById('parlay-result');
-            if (validLegs < 2) {
-                resultDiv.textContent = 'Parlay Odds: — (need at least 2 legs)';
-            } else {
-                const americanOdds = convertDecimalToAmericanOdds(totalDecimalOdds);
-                resultDiv.textContent = `Parlay Odds: ${americanOdds > 0 ? '+' : ''}${americanOdds} (${totalDecimalOdds.toFixed(2)}x)`;
-            }
-        }
-
-        function addParlayLeg() {
-            const container = document.getElementById('parlay-legs-container');
-            const newLeg = document.createElement('div');
-            newLeg.className = 'parlay-leg';
-            newLeg.style.marginBottom = '0.3rem';
-            newLeg.innerHTML = '<input type="number" class="parlay-odds-input" placeholder="Odds (e.g., -110, +200)" step="any" style="width: 100%; padding: 0.3rem; font-size: 0.85rem; background: #0f172a; border: 1px solid #334155; border-radius: 3px; color: #e2e8f0;" />';
-            container.appendChild(newLeg);
-            newLeg.querySelector('.parlay-odds-input').addEventListener('input', updateParlayCalculator);
-            updateParlayCalculator();
-        }
-
-        function removeParlayLeg() {
-            const container = document.getElementById('parlay-legs-container');
-            const legs = container.querySelectorAll('.parlay-leg');
-            if (legs.length > 1) {
-                legs[legs.length - 1].remove();
-                updateParlayCalculator();
-            }
         }
 
         function updateTeamDropdown() {
@@ -1353,13 +1266,6 @@
             document.getElementById("find-btn").onclick = fetchPlayerProps;
             document.getElementById("all-sports-arb-btn").onclick = fetchAllSportsArbitrage;
             document.getElementById("clear-btn").onclick = clearResults;
-
-            // Parlay Calculator
-            document.getElementById("add-parlay-leg-btn").onclick = addParlayLeg;
-            document.getElementById("remove-parlay-leg-btn").onclick = removeParlayLeg;
-            document.querySelectorAll('.parlay-odds-input').forEach(input => {
-                input.addEventListener('input', updateParlayCalculator);
-            });
 
             // Book validation
             const targetBook = document.getElementById("target-book-select");
