@@ -15,6 +15,68 @@ BASE_URL = "https://api.the-odds-api.com/v4"
 logger = logging.getLogger("uvicorn.error")
 
 
+class ApiCreditTracker:
+    """Track SpotOddsAPI/The Odds API credit usage from response headers."""
+
+    def __init__(self) -> None:
+        self.first_header_used: Optional[int] = None
+        self.last_header_used: Optional[int] = None
+        self.header_usage: int = 0
+        self.request_count: int = 0
+
+    def record_response(self, response: requests.Response) -> None:
+        """Update usage counters from an API response."""
+
+        self.request_count += 1
+        raw_used = response.headers.get("x-requests-used")
+        if raw_used is None:
+            return
+
+        try:
+            used_val = int(raw_used)
+        except (TypeError, ValueError):
+            return
+
+        if self.first_header_used is None:
+            self.first_header_used = used_val
+            self.last_header_used = used_val
+            return
+
+        if self.last_header_used is None:
+            self.last_header_used = used_val
+            return
+
+        if used_val >= self.last_header_used:
+            self.header_usage += used_val - self.last_header_used
+        self.last_header_used = used_val
+
+    @property
+    def total_credits_used(self) -> int:
+        """Return the best-effort credit usage total for this tracker."""
+
+        header_total = 0
+        if self.first_header_used is not None and self.last_header_used is not None:
+            header_total = max(
+                self.header_usage, self.last_header_used - self.first_header_used
+            )
+
+        # Fall back to counting requests if headers are unavailable
+        return header_total or self.request_count
+
+
+def _record_credit_usage(
+    response: requests.Response, credit_tracker: Optional[ApiCreditTracker]
+) -> None:
+    if credit_tracker is None:
+        return
+
+    try:
+        credit_tracker.record_response(response)
+    except Exception:
+        # Never let credit tracking interfere with the primary workflow
+        logger.debug("Failed to record credit usage", exc_info=True)
+
+
 def get_api_key() -> str:
     """Get The Odds API key from environment variable."""
     api_key = os.getenv("THE_ODDS_API_KEY")
@@ -73,6 +135,7 @@ def fetch_odds(
     bookmaker_keys: List[str],
     use_dummy_data: bool = False,
     dummy_data_generator=None,
+    credit_tracker: Optional[ApiCreditTracker] = None,
 ) -> List[Dict[str, Any]]:
     """
     Core call to /v4/sports/{sport_key}/odds.
@@ -91,6 +154,7 @@ def fetch_odds(
 
     url = f"{BASE_URL}/sports/{sport_key}/odds"
     response = requests.get(url, params=params, timeout=15)
+    _record_credit_usage(response, credit_tracker)
     if response.status_code != 200:
         raise HTTPException(
             status_code=502,
@@ -111,13 +175,16 @@ def fetch_odds(
     return data
 
 
-def fetch_sport_events(api_key: str, sport_key: str) -> List[Dict[str, Any]]:
+def fetch_sport_events(
+    api_key: str, sport_key: str, credit_tracker: Optional[ApiCreditTracker] = None
+) -> List[Dict[str, Any]]:
     """Fetch the list of events for a sport using The Odds API."""
 
     events_url = f"{BASE_URL}/sports/{sport_key}/events"
     logger.info("Fetching events list: url=%s", events_url)
 
     response = requests.get(events_url, params={"apiKey": api_key}, timeout=15)
+    _record_credit_usage(response, credit_tracker)
     if response.status_code != 200:
         logger.error(
             "Events API error: status=%s body=%s", response.status_code, response.text
@@ -163,6 +230,7 @@ def fetch_player_props(
     event_id: Optional[str] = None,
     use_dummy_data: bool = False,
     dummy_data_generator=None,
+    credit_tracker: Optional[ApiCreditTracker] = None,
 ) -> List[Dict[str, Any]]:
     """
     Retrieve player prop markets by first fetching events, then requesting event odds.
@@ -178,6 +246,7 @@ def fetch_player_props(
     events_url = f"{BASE_URL}/sports/{sport_key}/events"
     logger.info("Fetching events for player props: url=%s", events_url)
     events_response = requests.get(events_url, params={"apiKey": api_key}, timeout=15)
+    _record_credit_usage(events_response, credit_tracker)
     if events_response.status_code != 200:
         logger.error(
             "Player props events API error: status=%s body=%s",
@@ -252,6 +321,7 @@ def fetch_player_props(
                 markets=markets_param,
                 bookmaker_keys=bookmaker_keys,
                 use_dummy_data=False,
+                credit_tracker=credit_tracker,
             )
         except HTTPException as exc:
             logger.error(
@@ -300,6 +370,7 @@ def fetch_player_props(
             bookmaker_keys,
         )
         response = requests.get(event_url, params=odds_params, timeout=15)
+        _record_credit_usage(response, credit_tracker)
 
         if response.status_code == 422:
             invalid_markets = _parse_invalid_markets(response.text)
@@ -320,6 +391,7 @@ def fetch_player_props(
 
                 odds_params["markets"] = ",".join(active_markets)
                 response = requests.get(event_url, params=odds_params, timeout=15)
+                _record_credit_usage(response, credit_tracker)
 
             if response.status_code == 422 and "Invalid markets" in response.text:
                 return _fetch_player_props_via_odds_endpoint(odds_params["markets"])

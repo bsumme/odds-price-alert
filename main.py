@@ -20,6 +20,7 @@ from services.odds_api import (
     fetch_player_props,
     fetch_sport_events,
     BASE_URL,
+    ApiCreditTracker,
 )
 from services.odds_utils import (
     american_to_decimal,
@@ -855,6 +856,7 @@ def fetch_odds_with_dummy(
     team: Optional[str] = None,
     player_name: Optional[str] = None,
     event_id: Optional[str] = None,
+    credit_tracker: Optional["ApiCreditTracker"] = None,
 ) -> List[Dict[str, Any]]:
     """
     Wrapper around fetch_odds that handles dummy data generation.
@@ -885,9 +887,18 @@ def fetch_odds_with_dummy(
             team=team,
             event_id=event_id,
             use_dummy_data=False,
+            credit_tracker=credit_tracker,
         )
 
-    return fetch_odds(api_key, sport_key, regions, markets, bookmaker_keys, use_dummy_data=False)
+    return fetch_odds(
+        api_key,
+        sport_key,
+        regions,
+        markets,
+        bookmaker_keys,
+        use_dummy_data=False,
+        credit_tracker=credit_tracker,
+    )
 
 
 def find_best_comparison_outcome(
@@ -2346,6 +2357,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     )
 
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+    credit_tracker = ApiCreditTracker() if not use_dummy_data else None
 
     # Validate sport key against local schema
     schema = _load_sports_schema()
@@ -2418,6 +2430,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
                 team=payload.team,
                 event_id=payload.event_id,
                 use_dummy_data=False,
+                credit_tracker=credit_tracker,
             )
         except HTTPException as exc:
             logger.error("Player props fetch failed for sport=%s: %s", payload.sport_key, exc.detail)
@@ -2555,6 +2568,14 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         len(top_plays),
     )
 
+    if credit_tracker:
+        logger.info(
+            "SpotOddsAPI credits used for /api/player-props: %d (sport=%s markets=%s)",
+            credit_tracker.total_credits_used,
+            payload.sport_key,
+            market_param,
+        )
+
     return PlayerPropsResponse(
         target_book=target_book,
         compare_book=compare_book,
@@ -2590,6 +2611,7 @@ def get_all_sport_player_prop_arbitrage(
             )
 
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+    credit_tracker = ApiCreditTracker() if not use_dummy_data else None
 
     api_key = ""
     if not use_dummy_data:
@@ -2654,6 +2676,7 @@ def get_all_sport_player_prop_arbitrage(
                     team=None,
                     event_id=None,
                     use_dummy_data=False,
+                    credit_tracker=credit_tracker,
                 )
         except HTTPException as exc:
             warnings.append(f"Player props API error for {sport_key}: {exc.detail}")
@@ -2709,6 +2732,15 @@ def get_all_sport_player_prop_arbitrage(
     max_results = payload.max_results or 100
     if max_results > 0:
         all_plays = all_plays[:max_results]
+
+    if credit_tracker:
+        logger.info(
+            "SpotOddsAPI credits used for /api/player-props/arbitrage-all: %d (sports=%s targets=%s compare=%s)",
+            credit_tracker.total_credits_used,
+            ",".join(sport_keys),
+            ",".join(target_books),
+            compare_book,
+        )
 
     return PlayerPropArbitrageResponse(
         compare_book=compare_book,
