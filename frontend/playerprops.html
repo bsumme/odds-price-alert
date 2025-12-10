@@ -433,8 +433,9 @@
             <h2>Player Prop Value Plays</h2>
             <div class="small-text" id="summary-bar"></div>
             <div style="display: flex; justify-content: flex-end; margin: 0.5rem 0 0.75rem 0;">
-                <button class="btn btn-secondary" id="odds-sort-btn" style="margin: 0;">
-                    Sort Recommended Odds: High → Low
+                <button class="btn btn-secondary" id="odds-sort-btn"
+                    style="margin: 0; padding: 0.35rem 0.65rem; font-size: 0.85rem;">
+                    Odds Sort Off
                 </button>
             </div>
             <div class="scroll-container">
@@ -1040,12 +1041,13 @@
         }
 
         let lastData = null;
+        let playerPropsSortMode = "ev";
         let playerPropsSortDirection = "desc";
 
-        function normalizePropOddsValue(odds, fallback) {
-            const numOdds = typeof odds === "string" ? parseFloat(odds) : odds;
-            if (Number.isFinite(numOdds)) {
-                return numOdds;
+        function normalizeNumericValue(value, fallback) {
+            const num = typeof value === "string" ? parseFloat(value) : value;
+            if (Number.isFinite(num)) {
+                return num;
             }
             return fallback;
         }
@@ -1055,20 +1057,44 @@
             const fallback = direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
 
             list.sort((a, b) => {
-                const aOdds = normalizePropOddsValue(a?.book_price, fallback);
-                const bOdds = normalizePropOddsValue(b?.book_price, fallback);
+                const aOdds = normalizeNumericValue(a?.book_price, fallback);
+                const bOdds = normalizeNumericValue(b?.book_price, fallback);
                 return direction === "asc" ? aOdds - bOdds : bOdds - aOdds;
             });
 
             return list;
         }
 
+        function sortPlayerPropPlaysByEv(plays, direction = "desc") {
+            const list = Array.isArray(plays) ? [...plays] : [];
+            const fallback = direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+            list.sort((a, b) => {
+                const aEv = normalizeNumericValue(a?.ev_percent, fallback);
+                const bEv = normalizeNumericValue(b?.ev_percent, fallback);
+                return direction === "asc" ? aEv - bEv : bEv - aEv;
+            });
+
+            return list;
+        }
+
+        function getSortedPlayerPropPlays(plays) {
+            if (playerPropsSortMode === "odds") {
+                return sortPlayerPropPlaysByOdds(plays, playerPropsSortDirection);
+            }
+            return sortPlayerPropPlaysByEv(plays, "desc");
+        }
+
         function updatePropOddsSortButton() {
             const btn = document.getElementById("odds-sort-btn");
             if (!btn) return;
-            btn.textContent = playerPropsSortDirection === "desc"
-                ? "Sort Recommended Odds: High → Low"
-                : "Sort Recommended Odds: Low → High";
+            const oddsSortOn = playerPropsSortMode === "odds";
+            btn.textContent = oddsSortOn
+                ? (playerPropsSortDirection === "desc" ? "Odds Sort: High → Low" : "Odds Sort: Low → High")
+                : "Odds Sort Off";
+            btn.classList.toggle("active", oddsSortOn);
+            btn.setAttribute("aria-pressed", oddsSortOn ? "true" : "false");
+            btn.style.opacity = oddsSortOn ? "1" : "0.8";
         }
 
         function renderResults(data) {
@@ -1083,7 +1109,7 @@
             const selectedTargetLabel = document.querySelector("#target-book-select option:checked")?.textContent || data.target_book || "Target";
             const selectedCompareLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
 
-            const sortedPlays = sortPlayerPropPlaysByOdds(data.plays, playerPropsSortDirection);
+            const sortedPlays = getSortedPlayerPropPlays(data.plays);
 
             sortedPlays.forEach(play => {
                 const targetBookLabel = getBookLabel(play.target_book) || selectedTargetLabel;
@@ -1286,7 +1312,12 @@
             updatePropOddsSortButton();
             const sortBtn = document.getElementById("odds-sort-btn");
             sortBtn.addEventListener("click", () => {
-                playerPropsSortDirection = playerPropsSortDirection === "desc" ? "asc" : "desc";
+                if (playerPropsSortMode === "odds") {
+                    playerPropsSortMode = "ev";
+                } else {
+                    playerPropsSortMode = "odds";
+                    playerPropsSortDirection = "desc";
+                }
                 updatePropOddsSortButton();
                 if (lastData) {
                     renderResults(lastData);
