@@ -171,6 +171,39 @@ odds-price-alert/
    TRACE_LEVEL=trace uvicorn main:app --reload
    ```
 
+## Containerized deployment
+
+Builds in the included `Dockerfile` support either a single-container deployment (FastAPI + static assets) or a two-container setup that separates the API and static frontend.
+
+### Single container (API + static files)
+
+```bash
+docker build -t odds-price-alert .
+
+# Provide your Odds API key and publish port 8000
+docker run -p 8000:8000 -e THE_ODDS_API_KEY=your_api_key odds-price-alert
+```
+
+This runs `uvicorn` and serves the `frontend/` HTML directly from the FastAPI app at http://localhost:8000.
+
+### Two-container setup (API + nginx frontend)
+
+```bash
+# Build the API image
+docker build -t odds-price-alert-api --target api .
+
+# Build the nginx-based static site image
+docker build -t odds-price-alert-frontend --target frontend .
+
+# Run the API
+docker run -d --name odds-api -p 8000:8000 -e THE_ODDS_API_KEY=your_api_key odds-price-alert-api
+
+# Run the static frontend (adjust port if desired)
+docker run -d --name odds-frontend -p 8080:80 odds-price-alert-frontend
+```
+
+You can also wire the two containers together with Docker Compose or a reverse proxy (e.g., nginx/Traefik) that routes `/api` traffic to the FastAPI container and everything else to the static frontend.
+
 ## Formatting the captured Odds API logs in VS Code
 
 The real API payloads used for dummy data live in `logs/real_odds_api_responses.jsonl`. To make that newline-delimited
