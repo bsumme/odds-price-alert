@@ -2,7 +2,9 @@
 
 import logging
 import os
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
 
 class TraceLevel(str, Enum):
@@ -33,6 +35,18 @@ def apply_trace_level(logger: logging.Logger) -> TraceLevel:
         TraceLevel.REGULAR: logging.WARNING,
     }
     logger.setLevel(level_mapping[trace_level])
+
+    log_path = None
+    if trace_level in (TraceLevel.DEBUG, TraceLevel.TRACE):
+        log_path = _configure_file_logging(logger, trace_level)
+
+    if log_path:
+        logger.info(
+            "TRACE_LEVEL set to %s and logging to %s",
+            trace_level.value,
+            log_path,
+        )
+
     return trace_level
 
 
@@ -48,3 +62,29 @@ def should_log_api_calls(trace_level: TraceLevel | None = None) -> bool:
 
     trace_level = trace_level or get_trace_level_from_env()
     return trace_level == TraceLevel.DEBUG
+
+
+def _configure_file_logging(logger: logging.Logger, trace_level: TraceLevel) -> Path:
+    """Attach a timestamped file handler when verbose logging is enabled."""
+
+    log_dir = Path(__file__).resolve().parent.parent / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"trace_{timestamp}.log"
+
+    existing_handler = getattr(logger, "_trace_file_handler", None)
+    if existing_handler:
+        logger.removeHandler(existing_handler)
+
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(logging.DEBUG if trace_level == TraceLevel.DEBUG else logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+
+    logger.addHandler(file_handler)
+    logger._trace_file_handler = file_handler  # type: ignore[attr-defined]
+    logger._trace_log_path = log_path  # type: ignore[attr-defined]
+
+    return log_path
