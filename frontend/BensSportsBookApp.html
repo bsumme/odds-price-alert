@@ -760,6 +760,11 @@
             <section class="card" id="best-results-section" style="display: none;">
                 <h2>Arbitrage Opportunities</h2>
                 <div class="small-text" id="best-summary-bar" style="margin-bottom: 0.4rem;"></div>
+                <div style="display: flex; justify-content: flex-end; margin: 0.4rem 0 0.5rem 0;">
+                    <button class="btn btn-secondary" id="best-odds-sort-btn" style="margin: 0;">
+                        Sort Recommended Odds: High → Low
+                    </button>
+                </div>
                 <div class="scroll-container">
                     <table>
                         <thead>
@@ -846,6 +851,8 @@
         let lastBestValueData = null;
         let alertedPlayIds = new Set(); // Track plays we've already alerted on
         let smsAlertedPlayIds = new Set(); // Track plays that have triggered an SMS
+        const RECOMMENDED_ODDS_SORT_KEY = "recommendedOddsSortDirection";
+        let recommendedOddsSortDirection = loadRecommendedOddsSortDirection();
 
         // Client-side network/log helper
         function appendClientLog(msg) {
@@ -857,6 +864,49 @@
                 // ignore
             }
             console.log('[client-log]', msg);
+        }
+
+        function loadRecommendedOddsSortDirection() {
+            const savedDirection = localStorage.getItem(RECOMMENDED_ODDS_SORT_KEY);
+            if (savedDirection === "asc" || savedDirection === "desc") {
+                return savedDirection;
+            }
+            return "desc";
+        }
+
+        function saveRecommendedOddsSortDirection(direction) {
+            if (direction === "asc" || direction === "desc") {
+                localStorage.setItem(RECOMMENDED_ODDS_SORT_KEY, direction);
+            }
+        }
+
+        function normalizeOddsValue(odds, fallback) {
+            const numOdds = typeof odds === "string" ? parseFloat(odds) : odds;
+            if (Number.isFinite(numOdds)) {
+                return numOdds;
+            }
+            return fallback;
+        }
+
+        function sortPlaysByRecommendedOdds(plays, direction = "desc") {
+            const list = Array.isArray(plays) ? [...plays] : [];
+            const fallback = direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+            list.sort((a, b) => {
+                const aOdds = normalizeOddsValue(a?.book_price, fallback);
+                const bOdds = normalizeOddsValue(b?.book_price, fallback);
+                return direction === "asc" ? aOdds - bOdds : bOdds - aOdds;
+            });
+
+            return list;
+        }
+
+        function updateOddsSortButtonLabel() {
+            const btn = document.getElementById("best-odds-sort-btn");
+            if (!btn) return;
+            btn.textContent = recommendedOddsSortDirection === "desc"
+                ? "Sort Recommended Odds: High → Low"
+                : "Sort Recommended Odds: Low → High";
         }
 
         function getSgpOddsRangeFilters() {
@@ -1871,6 +1921,8 @@
                 }
             }
 
+            const sortedPlays = sortPlaysByRecommendedOdds(plays, recommendedOddsSortDirection);
+
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
@@ -1885,7 +1937,7 @@
                 "totals": "Totals"
             };
 
-            plays.forEach(play => {
+            sortedPlays.forEach(play => {
                 const tr = document.createElement("tr");
 
                 const sportCell = document.createElement("td");
@@ -2679,6 +2731,20 @@
 
             startWatcherBtn.onclick = startWatcher;
             stopWatcherBtn.onclick = stopWatcher;
+
+            const oddsSortBtn = document.getElementById("best-odds-sort-btn");
+            if (oddsSortBtn) {
+                updateOddsSortButtonLabel();
+                oddsSortBtn.addEventListener("click", () => {
+                    recommendedOddsSortDirection = recommendedOddsSortDirection === "desc" ? "asc" : "desc";
+                    saveRecommendedOddsSortDirection(recommendedOddsSortDirection);
+                    updateOddsSortButtonLabel();
+
+                    if (lastBestValueData) {
+                        renderBestValuePlays(lastBestValueData, watcherTimer !== null);
+                    }
+                });
+            }
 
             // Test SMS functionality
             const testSmsBtn = document.getElementById("test-sms-btn");
