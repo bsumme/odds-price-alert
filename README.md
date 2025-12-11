@@ -196,15 +196,12 @@ export THE_ODDS_API_KEY=your_api_key_here
 # Optional overrides:
 #   IMAGE_NAME=odds-price-alert \
 #   CONTAINER_NAME=odds-price-alert \
-#   APP_PORT=8000 \
-#   AUTO_FREE_APP_PORT=false   # set to true to auto-stop containers that already publish APP_PORT
+#   APP_PORT=8000
 
 ./deploy_on_ec2.sh
 ```
 
-The script stops any existing container with the chosen name, removes old images for the project, rebuilds the Docker image, and starts it with `--restart unless-stopped` so the app stays up across reboots. If port `APP_PORT` is already bound by another process or container, the script will exit with a clear message—either stop the conflicting process or set a different `APP_PORT` before rerunning. For running containers, you can also set `AUTO_FREE_APP_PORT=true` to automatically stop and remove any container that already publishes `APP_PORT` before continuing.
-
-If the port is held by a non-Docker process, the script will show diagnostic commands such as `sudo ss -ltnp 'sport = :<PORT>'` (and `sudo lsof -iTCP:<PORT> -sTCP:LISTEN` if available) so you can identify and stop the blocker. Access the running site at `http://<your-public-ip>:APP_PORT` once the port is free.
+The script stops any existing container with the chosen name, removes old images for the project, rebuilds the Docker image, and starts it with `--restart unless-stopped` so the app stays up across reboots. Access the running site at `http://<your-public-ip>:APP_PORT`.
 
 ### Two-container setup (API + nginx frontend)
 
