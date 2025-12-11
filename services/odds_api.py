@@ -589,9 +589,12 @@ def fetch_player_props(
         timeout_seconds = 15
         if aiohttp is not None:
             timeout = aiohttp.ClientTimeout(total=timeout_seconds)
-            session_factory = lambda: aiohttp.ClientSession(timeout=timeout)
+
+            def session_factory():
+                return aiohttp.ClientSession(timeout=timeout)
         else:
-            session_factory = lambda: _AsyncRequestsSession(timeout=timeout_seconds)
+            def session_factory():
+                return _AsyncRequestsSession(timeout=timeout_seconds)
 
         async with session_factory() as session:
             tasks = [_fetch_event_player_props(session, event) for event in events]
