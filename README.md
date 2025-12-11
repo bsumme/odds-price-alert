@@ -203,6 +203,16 @@ export THE_ODDS_API_KEY=your_api_key_here
 
 The script stops any existing container with the chosen name, removes old images for the project, rebuilds the Docker image, and starts it with `--restart unless-stopped` so the app stays up across reboots. Access the running site at `http://<your-public-ip>:APP_PORT`.
 
+### SSM session bootstrapper
+
+When opening an SSM Session Manager shell as `root`, you can run everything under the `ubuntu` user and redeploy the app in one step with the provided helper script:
+
+```bash
+bash ssm_startup.sh
+```
+
+The script switches to the `ubuntu` user, rebuilds the `odds-price-alert` Docker image, cleans up any existing containers, and executes `deploy_on_ec2.sh` from `/home/ubuntu/odds-price-alert`.
+
 ### Two-container setup (API + nginx frontend)
 
 ```bash
