@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import random
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import ClassVar, List, Dict, Any, Set, Optional
@@ -966,6 +968,15 @@ def find_best_comparison_outcome(
     return best
 
 
+def normalize_player_name(value: str) -> str:
+    """Normalize player names so books with punctuation or accents still match."""
+
+    # Strip accents (e.g., "Gourde" vs "Gourdé") and non-alphanumeric characters
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_only = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]", "", ascii_only.lower())
+
+
 def collect_value_plays(
     events: List[Dict[str, Any]],
     market_key: str,
@@ -1106,17 +1117,28 @@ def collect_value_plays(
             # For player props, match by name, description (player), and point
             matching_compare = None
             if is_player_prop and description:
-                # Find matching outcome with same name, description, and point
+                normalized_desc = normalize_player_name(description)
+                # Find matching outcome with same name, normalized description, and point
                 for comp_outcome in compare_outcomes:
                     comp_name = comp_outcome.get("name")
                     comp_desc = comp_outcome.get("description")
                     comp_point = comp_outcome.get("point", None)
-                    if (comp_name == name and 
-                        comp_desc and description and 
-                        comp_desc.lower() == description.lower() and
-                        points_match(point, comp_point, allow_half_point_flex)):
+                    if (
+                        comp_name == name
+                        and comp_desc
+                        and normalized_desc == normalize_player_name(comp_desc)
+                        and points_match(point, comp_point, allow_half_point_flex)
+                    ):
                         matching_compare = comp_outcome
                         break
+                # Fall back to point-based matching if names were slightly off
+                if matching_compare is None:
+                    matching_compare = find_best_comparison_outcome(
+                        outcomes=compare_outcomes,
+                        name=name,
+                        point=point,
+                        allow_half_point_flex=allow_half_point_flex,
+                    )
             else:
                 matching_compare = find_best_comparison_outcome(
                     outcomes=compare_outcomes,
@@ -1132,14 +1154,17 @@ def collect_value_plays(
             if is_player_prop and description:
                 # For player props, find opposite side (Over -> Under or vice versa) with same player and point
                 opposite_name = "Under" if name == "Over" else "Over"
+                normalized_desc = normalize_player_name(description)
                 for comp_outcome in compare_outcomes:
                     comp_name = comp_outcome.get("name")
                     comp_desc = comp_outcome.get("description")
                     comp_point = comp_outcome.get("point", None)
-                    if (comp_name == opposite_name and
-                        comp_desc and description and
-                        comp_desc.lower() == description.lower() and
-                        points_match(point, comp_point, allow_half_point_flex)):
+                    if (
+                        comp_name == opposite_name
+                        and comp_desc
+                        and normalized_desc == normalize_player_name(comp_desc)
+                        and points_match(point, comp_point, allow_half_point_flex)
+                    ):
                         other_compare = comp_outcome
                         break
             else:
