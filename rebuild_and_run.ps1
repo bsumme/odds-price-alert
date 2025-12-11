@@ -198,8 +198,22 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Starting FastAPI server..." -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
+Write-Host "Detecting local IP address for mobile access..." -ForegroundColor Yellow
+$mobileIpAddress = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
+    $_.IPAddress -notlike "127.*" -and
+    $_.IPAddress -notlike "169.254.*"
+} | Select-Object -First 1).IPAddress
+
+if ($mobileIpAddress) {
+    Write-Host "  [OK] Mobile testing IP detected: $mobileIpAddress" -ForegroundColor Green
+} else {
+    Write-Host "  [WARNING] Could not find local IP, using 0.0.0.0" -ForegroundColor Yellow
+    $mobileIpAddress = "0.0.0.0"
+}
+
 Write-Host "TRACE_LEVEL set to $traceLevel" -ForegroundColor Cyan
 Write-Host "Server will be available at: http://127.0.0.1:8000/BensSportsBookApp.html" -ForegroundColor Green
+Write-Host "Mobile URL: http://$mobileIpAddress:8000/BensSportsBookApp.html" -ForegroundColor Cyan
 Write-Host "Press CTRL+C to stop the server" -ForegroundColor Yellow
 Write-Host ""
 
