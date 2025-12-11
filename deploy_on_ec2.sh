@@ -14,27 +14,6 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
-check_port_conflicts() {
-  log "Checking if host port ${APP_PORT} is free..."
-
-  # If any running container already publishes the port, abort early.
-  mapfile -t port_containers < <(docker ps --filter "publish=${APP_PORT}" --format '{{.Names}} ({{.Ports}})')
-  if [[ ${#port_containers[@]} -gt 0 ]]; then
-    echo "[ERROR] Port ${APP_PORT} is already in use by container(s): ${port_containers[*]}" >&2
-    echo "Stop the conflicting container(s) or rerun with APP_PORT=<free_port>." >&2
-    exit 1
-  fi
-
-  # Fallback: detect non-Docker listeners (useful if a host process already binds the port).
-  if command -v ss >/dev/null 2>&1; then
-    if ss -ltn "sport = :${APP_PORT}" | tail -n +2 | grep -q .; then
-      echo "[ERROR] Port ${APP_PORT} is already bound by a host process (non-Docker)." >&2
-      echo "Stop that process or rerun with APP_PORT=<free_port>." >&2
-      exit 1
-    fi
-  fi
-}
-
 if [[ -z "${THE_ODDS_API_KEY:-}" ]]; then
   echo "[ERROR] THE_ODDS_API_KEY is not set. Export your Odds API key before running." >&2
   exit 1
@@ -57,8 +36,6 @@ docker image prune -f >/dev/null
 
 log "Building a fresh image (${IMAGE_NAME})..."
 docker build --pull -t "${IMAGE_NAME}" .
-
-check_port_conflicts
 
 log "Starting container ${CONTAINER_NAME} on port ${APP_PORT}..."
 docker run -d \

@@ -201,7 +201,7 @@ export THE_ODDS_API_KEY=your_api_key_here
 ./deploy_on_ec2.sh
 ```
 
-The script stops any existing container with the chosen name, removes old images for the project, rebuilds the Docker image, and starts it with `--restart unless-stopped` so the app stays up across reboots. If port `APP_PORT` is already bound by another process or container, the script will exit with a clear message—either stop the conflicting process or set a different `APP_PORT` before rerunning. Access the running site at `http://<your-public-ip>:APP_PORT`.
+The script stops any existing container with the chosen name, removes old images for the project, rebuilds the Docker image, and starts it with `--restart unless-stopped` so the app stays up across reboots. Access the running site at `http://<your-public-ip>:APP_PORT`.
 
 ### Two-container setup (API + nginx frontend)
 
