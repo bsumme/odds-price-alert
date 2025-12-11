@@ -41,9 +41,16 @@
             border-bottom: 2px solid #334155;
             padding: 0.75rem 1rem;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            gap: 0.6rem;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .mobile-header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
         }
 
         .mobile-header h1 {
@@ -52,30 +59,32 @@
             font-weight: 600;
         }
 
-        .mobile-header-actions {
+        .mobile-toolbar {
             display: flex;
             gap: 0.5rem;
-            align-items: center;
+            width: 100%;
+            overflow-x: auto;
+            padding: 0.1rem 0;
         }
 
-        .header-btn {
-            background: transparent;
+        .mobile-toolbar a {
+            flex: 1;
+            text-align: center;
+            background: #0f172a;
             border: 1px solid #334155;
             color: #e5e7eb;
-            padding: 0.5rem 0.75rem;
+            padding: 0.6rem 0.75rem;
             border-radius: 0.4rem;
-            font-size: 0.875rem;
-            cursor: pointer;
+            font-size: 0.9rem;
             text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            min-height: 44px;
-            min-width: 44px;
-            justify-content: center;
+            white-space: nowrap;
         }
 
-        .header-btn:active {
-            background: #334155;
+        .mobile-toolbar a.active {
+            background: #166534;
+            border-color: #15803d;
+            color: #bbf7d0;
+            font-weight: 700;
         }
 
         /* Filter Toggle Button */
@@ -197,6 +206,12 @@
             min-height: 44px;
             transition: all 0.2s;
             width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 0.5rem;
             margin-bottom: 0.5rem;
         }
 
@@ -523,10 +538,14 @@
 <body>
     <!-- Mobile Header -->
     <header class="mobile-header">
-        <h1>Arbitrage Finder</h1>
-        <div class="mobile-header-actions">
-            <button class="header-btn" id="watcher-toggle-btn" title="Hedge Watcher">🔔</button>
+        <div class="mobile-header-top">
+            <h1>Arbitrage Finder</h1>
         </div>
+        <nav class="mobile-toolbar">
+            <a href="/ArbritrageBetFinder-mobile.html" class="active">Arbitrage Finder</a>
+            <a href="/sgp-builder.html">SGP Builder</a>
+            <a href="/playerprops.html">Player Props</a>
+        </nav>
     </header>
 
     <main>
@@ -543,6 +562,10 @@
                     <h2>Arbitrage Bet Finder</h2>
                     <div class="small-text" style="margin-bottom: 1rem;">
                         Discover arbitrage opportunities across multiple sports and markets
+                    </div>
+
+                    <div class="quick-actions">
+                        <button class="btn btn-secondary" id="watcher-toggle-btn">Open Hedge Watcher</button>
                     </div>
 
                     <div
