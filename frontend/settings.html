@@ -225,6 +225,55 @@
             border: 1px solid #ef4444;
         }
 
+        .hidden-features {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #0f172a;
+            border: 1px dashed #334155;
+            border-radius: 8px;
+        }
+
+        .hidden-features summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #cbd5e1;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .hidden-features summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .hidden-feature-links {
+            margin-top: 0.75rem;
+            display: grid;
+            gap: 0.35rem;
+        }
+
+        .hidden-feature-links a {
+            color: #10b981;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .hidden-feature-links a:hover {
+            text-decoration: underline;
+        }
+
+        .hidden-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.5rem;
+            background: #0b1324;
+            border: 1px solid #334155;
+            border-radius: 999px;
+            color: #e2e8f0;
+            font-size: 0.75rem;
+        }
+
         .fade-in {
             animation: fadeIn 0.3s ease-in;
         }
@@ -261,6 +310,7 @@
 </head>
 
 <body>
+    <script src="/nav-trim.js"></script>
     <header>
         <nav>
             <div class="nav-left">
@@ -268,9 +318,6 @@
             </div>
             <div class="top-right-buttons">
                 <a href="/BensSportsBookApp.html" class="nav-btn smooth-nav" data-href="/BensSportsBookApp.html">Arbitrage Finder</a>
-                <a href="/watcher.html" class="nav-btn smooth-nav" data-href="/watcher.html">Watcher</a>
-                <a href="/linetracker.html" class="nav-btn smooth-nav" data-href="/linetracker.html">Line Tracker</a>
-                <a href="/value.html" class="nav-btn smooth-nav" data-href="/value.html">Value Finder</a>
                 <a href="/sgp-builder.html" class="nav-btn smooth-nav" data-href="/sgp-builder.html">SGP Builder</a>
                 <a href="/playerprops.html" class="nav-btn smooth-nav" data-href="/playerprops.html">Player Props</a>
                 <a href="/settings.html" class="nav-btn active">Settings</a>
@@ -325,6 +372,25 @@
             </div>
 
             <div class="status-message" id="status-message"></div>
+        </section>
+
+        <section class="card">
+            <h2>Hidden Features</h2>
+            <p class="setting-description" style="margin-left: 0;">
+                These tools are still available, but we've tucked them away to keep the main toolbar streamlined.
+            </p>
+
+            <details class="hidden-features">
+                <summary>
+                    <span class="hidden-tag">✨ Hidden</span>
+                    Reveal legacy tools
+                </summary>
+                <div class="hidden-feature-links">
+                    <a href="/watcher.html">Bet Watcher</a>
+                    <a href="/linetracker.html">Line Tracker</a>
+                    <a href="/value.html">Value Finder</a>
+                </div>
+            </details>
         </section>
     </main>
 
