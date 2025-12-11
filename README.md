@@ -186,6 +186,23 @@ docker run -p 8000:8000 -e THE_ODDS_API_KEY=your_api_key odds-price-alert
 
 This runs `uvicorn` and serves the `frontend/` HTML directly from the FastAPI app at http://localhost:8000.
 
+### Quick EC2 rebuild script
+
+If you want a one-liner to rebuild and restart the combined image on an EC2 host (or any Docker-capable VM), use `deploy_on_ec2.sh`:
+
+```bash
+# From the repo root on your server
+export THE_ODDS_API_KEY=your_api_key_here
+# Optional overrides:
+#   IMAGE_NAME=odds-price-alert \
+#   CONTAINER_NAME=odds-price-alert \
+#   APP_PORT=8000
+
+./deploy_on_ec2.sh
+```
+
+The script stops any existing container with the chosen name, removes old images for the project, rebuilds the Docker image, and starts it with `--restart unless-stopped` so the app stays up across reboots. If port `APP_PORT` is already bound by another process or container, the script will exit with a clear message—either stop the conflicting process or set a different `APP_PORT` before rerunning. Access the running site at `http://<your-public-ip>:APP_PORT`.
+
 ### Two-container setup (API + nginx frontend)
 
 ```bash
