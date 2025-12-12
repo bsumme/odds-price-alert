@@ -9,13 +9,39 @@
         "/settings/",
     ];
 
+    const isDebugNavEnabled = () => {
+        try {
+            const params = new URLSearchParams(window.location.search || "");
+            const searchFlag = params.get("debug-nav");
+            const localStorageFlag = window.localStorage?.getItem("debug-nav");
+
+            return [searchFlag, localStorageFlag].some((value) => /^(1|true)$/i.test(value || ""));
+        } catch (error) {
+            return false;
+        }
+    };
+
+    const debugLog = (...args) => {
+        if (!isDebugNavEnabled()) return;
+        console.log("[nav-trim]", ...args);
+    };
+
     const isMobileDevice = () => {
         const userAgent = navigator.userAgent || navigator.vendor || window.opera || "";
         const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
         const isSmallScreen = window.innerWidth < 900;
         const hasTouchScreen = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+        const matchesMobilePattern = mobileRegex.test(userAgent.toLowerCase());
+        const isMobile = matchesMobilePattern || (isSmallScreen && hasTouchScreen);
 
-        return mobileRegex.test(userAgent.toLowerCase()) || (isSmallScreen && hasTouchScreen);
+        debugLog(
+            "isMobileDevice inputs",
+            { userAgent, isSmallScreen, hasTouchScreen, matchesMobilePattern },
+            "->",
+            isMobile
+        );
+
+        return isMobile;
     };
 
     const normalizePathname = (pathname = "") => {
@@ -31,12 +57,19 @@
     const enforceMobileMainPage = () => {
         if (!isMobileDevice()) return true;
 
-        const normalizedPath = normalizeMobilePath(window.location.pathname || "");
+        const rawPathname = window.location.pathname || "";
+        const normalizedPath = normalizeMobilePath(rawPathname);
         const onAllowedPage = normalizedPath === normalizePathname(mobileMainPage) || allowedMobilePaths.has(normalizedPath);
 
-        if (onAllowedPage) return true;
+        debugLog("pathname", rawPathname, "normalized", normalizedPath, "onAllowedPage", onAllowedPage);
+
+        if (onAllowedPage) {
+            debugLog("enforceMobileMainPage allowing navigation");
+            return true;
+        }
 
         const destination = `${mobileMainPage}${window.location.search || ""}${window.location.hash || ""}`;
+        debugLog("enforceMobileMainPage redirecting ->", destination);
         window.location.replace(destination);
         return false;
     };
