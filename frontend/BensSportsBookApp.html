@@ -625,6 +625,7 @@
 
 <body>
     <script src="/nav-trim.js"></script>
+    <script src="/table-renderers.js"></script>
     <button class="panel-toggle-btn" id="toggle-watcher-btn" title="Toggle Arb Watcher Panel">
         <span class="arrow">◀</span>
     </button>
@@ -1938,7 +1939,6 @@
 
             let plays = data.plays;
 
-            // Filter for hedge opportunities only (arb_margin_percent >= 0) when watcher is running
             if (hedgeOnly) {
                 plays = plays.filter(p =>
                     p.arb_margin_percent !== null &&
@@ -1952,8 +1952,6 @@
                     return;
                 }
             }
-
-            const sortedPlays = getSortedArbitragePlays(plays);
 
             const sportLabels = {
                 "basketball_nba": "NBA",
@@ -1969,129 +1967,25 @@
                 "totals": "Totals"
             };
 
-            sortedPlays.forEach(play => {
-                const tr = document.createElement("tr");
-
-                const sportCell = document.createElement("td");
-                sportCell.textContent = sportLabels[play.sport_key] || play.sport_key;
-                tr.appendChild(sportCell);
-
-                const recommendedCell = document.createElement("td");
-                recommendedCell.className = "bet-cell";
-                const hedgeCell = document.createElement("td");
-                hedgeCell.className = "bet-cell";
-                const targetBookLabel = document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target";
-                const compareBookLabel = document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
-                const betOddsClass = getOddsHighlightClass(play.book_price);
-                let teamName = parseTeamFromOutcome(play.outcome_name);
-                const marketLabel = marketLabels[play.market] || play.market;
-                const formattedOdds = formatOdds(play.book_price);
-                const hedgeStakeAmounts = calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
-                const targetStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.targetStake) : null;
-                const hedgeStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null;
-
-                // For totals markets, extract team from matchup since outcome is "Over" or "Under"
-                let logoTeamName = teamName;
-                if (play.market === "totals" && play.matchup) {
-                    const teams = parseTeamsFromMatchup(play.matchup);
-                    // Use the first team (away team) for the logo
-                    logoTeamName = teams.away || teams.home || null;
-                }
-
-                const targetRow = document.createElement("div");
-                targetRow.className = "bet-row";
-
-                if (logoTeamName) {
-                    const logo = document.createElement("img");
-                    logo.className = "team-logo";
-                    logo.src = getTeamLogoUrl(logoTeamName, play.sport_key || null);
-                    logo.alt = logoTeamName;
-                    logo.onerror = function () {
-                        this.style.display = "none";
-                    };
-                    targetRow.appendChild(logo);
-                }
-
-                const betText = document.createElement("div");
-                betText.className = "bet-text";
-                let betDescription = "";
-                if (play.market === "totals") {
-                    betDescription = `${play.outcome_name || "Total"}`;
-                    if (play.matchup) {
-                        betDescription += ` - ${play.matchup}`;
-                    }
-                } else {
-                    betDescription = `${teamName || ""} ${marketLabel === "Moneyline" ? "ML" : marketLabel === "Spreads" ? "Spread" : marketLabel}`;
-                    if (play.point !== null && play.point !== undefined) {
-                        betDescription += ` ${play.point > 0 ? "+" : ""}${play.point}`;
-                    }
-                }
-                betText.innerHTML = `<div><strong>${betDescription} <span class="odds-highlight ${betOddsClass}">${formattedOdds}</span></strong></div><div class="small-text">@ ${targetBookLabel}</div>`;
-                if (targetStakeText) {
-                    const stakeNote = document.createElement("div");
-                    stakeNote.className = "small-text hedge-stake";
-                    stakeNote.textContent = `Hedge Stake: ${targetStakeText}`;
-                    betText.appendChild(stakeNote);
-                }
-                targetRow.appendChild(betText);
-
-                recommendedCell.appendChild(targetRow);
-                tr.appendChild(recommendedCell);
-
-                if (play.novig_reverse_price !== null && play.novig_reverse_price !== undefined && play.novig_reverse_name) {
-                    const hedgeRow = document.createElement("div");
-                    hedgeRow.className = "bet-row";
-
-                    const formattedHedgeOdds = formatOdds(play.novig_reverse_price);
-                    const hedgeOddsClass = getOddsHighlightClass(play.novig_reverse_price);
-                    let oppositeTeamName = parseTeamFromOutcome(play.novig_reverse_name);
-                    const hedgeMarketLabel = marketLabels[play.market] || play.market;
-
-                    let hedgeDescription = "";
-                    if (play.market === "totals") {
-                        hedgeDescription = play.novig_reverse_name;
-                    } else if (play.market === "spreads") {
-                        hedgeDescription = `${oppositeTeamName || ""} ${hedgeMarketLabel === "Spreads" ? "Spread" : hedgeMarketLabel}`;
-                        if (play.point !== null && play.point !== undefined) {
-                            const oppositePoint = -play.point;
-                            hedgeDescription += ` ${oppositePoint > 0 ? "+" : ""}${oppositePoint}`;
-                        }
-                    } else {
-                        hedgeDescription = `${oppositeTeamName || ""} ML`;
-                    }
-
-                    const hedgeText = document.createElement("div");
-                    hedgeText.className = "bet-text";
-                    hedgeText.innerHTML = `<div><strong>${hedgeDescription} <span class="odds-highlight ${hedgeOddsClass}">${formattedHedgeOdds}</span></strong></div><div class="small-text">@ ${compareBookLabel}</div>`;
-                    if (hedgeStakeText) {
-                        const stakeNote = document.createElement("div");
-                        stakeNote.className = "small-text hedge-stake";
-                        stakeNote.textContent = `Hedge Stake: ${hedgeStakeText}`;
-                        hedgeText.appendChild(stakeNote);
-                    }
-
-                    hedgeRow.appendChild(hedgeText);
-                    hedgeCell.appendChild(hedgeRow);
-                } else {
-                    hedgeCell.innerHTML = '<span class="small-text">-</span>';
-                }
-                tr.appendChild(hedgeCell);
-
-                const hedgeEvCell = document.createElement("td");
-                if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
-                    const hedgeRounded = Math.round(play.arb_margin_percent * 100) / 100;
-                    const hedgeClass = hedgeRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
-                    hedgeEvCell.innerHTML = `<span class="${hedgeClass}">${hedgeRounded}%</span>`;
-                } else {
-                    hedgeEvCell.innerHTML = '<span class="small-text">-</span>';
-                }
-                tr.appendChild(hedgeEvCell);
-
-                const startCell = document.createElement("td");
-                startCell.textContent = formatStartTime(play.start_time);
-                tr.appendChild(startCell);
-
-                body.appendChild(tr);
+            const sortedPlays = getSortedArbitragePlays(plays);
+            TableRenderers.renderArbRows(body, sortedPlays, {
+                includeSportColumn: true,
+                sportLabels,
+                marketLabels,
+                targetBookLabel: document.querySelector("#best-target-book-select option:checked")?.textContent || data.target_book || "Target",
+                compareBookLabel: document.querySelector("#best-compare-book-select option:checked")?.textContent || data.compare_book || "Compare",
+                emptyMessage: hedgeOnly
+                    ? "No hedge opportunities found (arbitrage margin ≥ 0%)."
+                    : "No arbitrage opportunities found.",
+                showLogos: true,
+                oddsFormatter: formatOdds,
+                oddsHighlightClassGetter: getOddsHighlightClass,
+                startTimeFormatter: formatStartTime,
+                hedgeStakeCalculator: calculateHedgeStakeAmounts,
+                stakeFormatter: formatStakeAmount,
+                getTeamLogoUrl,
+                parseTeamFromOutcome,
+                parseTeamsFromMatchup,
             });
         }
 

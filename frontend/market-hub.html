@@ -279,6 +279,7 @@
 
 <body>
     <script src="/nav-trim.js"></script>
+    <script src="/table-renderers.js"></script>
     <header>
         <div>
             <h1>Arbitrage & Player Props</h1>
@@ -304,41 +305,42 @@
                 <div class="helper">Imported from the Arbitrage Finder for side-by-side comparisons.</div>
                 <label>Select Sports</label>
                 <div id="arb-sports" class="chip-list">
-                    <label><input type="checkbox" checked>Basketball</label>
-                    <label><input type="checkbox" checked>Football</label>
-                    <label><input type="checkbox" checked>Hockey</label>
-                    <label><input type="checkbox" checked>Soccer</label>
+                    <label><input type="checkbox" value="basketball_nba" checked>Basketball (NBA)</label>
+                    <label><input type="checkbox" value="americanfootball_nfl" checked>Football (NFL)</label>
+                    <label><input type="checkbox" value="icehockey_nhl" checked>Hockey (NHL)</label>
+                    <label><input type="checkbox" value="basketball_ncaab">Basketball (NCAAB)</label>
+                    <label><input type="checkbox" value="americanfootball_ncaaf">Football (NCAAF)</label>
                 </div>
 
                 <label style="margin-top: 0.8rem;">Select Markets</label>
-                <div class="pill-group">
-                    <label><input type="checkbox" checked>Moneyline</label>
-                    <label><input type="checkbox" checked>Spreads</label>
-                    <label><input type="checkbox" checked>Totals</label>
+                <div class="pill-group" id="arb-markets">
+                    <label><input type="checkbox" value="h2h" checked>Moneyline</label>
+                    <label><input type="checkbox" value="spreads" checked>Spreads</label>
+                    <label><input type="checkbox" value="totals" checked>Totals</label>
                 </div>
 
                 <label for="arb-target">Target book</label>
                 <select id="arb-target">
-                    <option>DraftKings</option>
-                    <option>FanDuel</option>
-                    <option>Fliff</option>
-                    <option>Novig</option>
+                    <option value="draftkings">DraftKings</option>
+                    <option value="fanduel">FanDuel</option>
+                    <option value="fliff">Fliff</option>
+                    <option value="novig">Novig</option>
                 </select>
 
                 <label for="arb-compare" style="margin-top: 0.4rem;">Compare against</label>
                 <select id="arb-compare">
-                    <option>Novig</option>
-                    <option>DraftKings</option>
-                    <option>FanDuel</option>
-                    <option>Fliff</option>
+                    <option value="novig">Novig</option>
+                    <option value="draftkings">DraftKings</option>
+                    <option value="fanduel">FanDuel</option>
+                    <option value="fliff">Fliff</option>
                 </select>
 
                 <label for="arb-promo" style="margin-top: 0.6rem;">Promo boost % (20-100, default 30)</label>
                 <input id="arb-promo" type="number" min="20" max="100" step="5" value="30" />
 
                 <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
-                    <button class="btn btn-primary">Find Arbitrage</button>
-                    <button class="btn btn-secondary">Reset Filters</button>
+                    <button class="btn btn-primary" id="arb-search-btn">Find Arbitrage</button>
+                    <button class="btn btn-secondary" id="arb-reset-btn">Reset Filters</button>
                 </div>
             </section>
 
@@ -348,10 +350,10 @@
                 <label for="props-sport">Sport</label>
                 <select id="props-sport">
                     <option value="">Select a sport</option>
-                    <option value="nba">NBA</option>
-                    <option value="nfl">NFL</option>
-                    <option value="mlb">MLB</option>
-                    <option value="nhl">NHL</option>
+                    <option value="basketball_nba">NBA</option>
+                    <option value="americanfootball_nfl">NFL</option>
+                    <option value="baseball_mlb">MLB</option>
+                    <option value="icehockey_nhl">NHL</option>
                 </select>
 
                 <label for="props-game">Upcoming Games</label>
@@ -372,11 +374,11 @@
 
                 <label>Markets</label>
                 <div class="pill-group" id="props-markets">
-                    <label><input type="checkbox" checked>All player props</label>
-                    <label><input type="checkbox" checked>Points</label>
-                    <label><input type="checkbox" checked>Rebounds</label>
-                    <label><input type="checkbox" checked>Assists</label>
-                    <label><input type="checkbox" checked>Threes</label>
+                    <label><input type="checkbox" value="all_player_props" checked>All player props</label>
+                    <label><input type="checkbox" value="player_points" checked>Points</label>
+                    <label><input type="checkbox" value="player_rebounds" checked>Rebounds</label>
+                    <label><input type="checkbox" value="player_assists" checked>Assists</label>
+                    <label><input type="checkbox" value="player_threes" checked>Threes</label>
                 </div>
 
                 <label for="props-target">Target book</label>
@@ -396,52 +398,36 @@
                 </select>
 
                 <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
-                    <button class="btn btn-primary">Find Player Props</button>
-                    <button class="btn btn-secondary">Reset Filters</button>
+                    <button class="btn btn-primary" id="props-search-btn">Find Player Props</button>
+                    <button class="btn btn-secondary" id="props-reset-btn">Reset Filters</button>
                 </div>
             </section>
         </section>
 
         <section class="card table-card">
-            <header style="display: flex; justify-content: space-between; align-items: center;">
+            <header style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;">
                 <div>
                     <h2 id="table-title" style="margin: 0;">Arbitrage Results</h2>
                     <div class="helper" id="table-subtitle">Results from arbitrage search will display here.</div>
+                    <div class="helper" id="table-status" style="margin-top: 0.25rem;">Ready.</div>
                 </div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <span style="font-size: 0.9rem; color: #94a3b8;">Toggle to switch datasets</span>
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #22c55e;"></div>
+                    <button class="btn btn-secondary" id="sort-toggle-btn" style="margin: 0; padding: 0.45rem 0.75rem;">Sort Arb Margin: High → Low</button>
                 </div>
             </header>
             <table>
-                <thead id="arb-head">
+                <thead id="results-head">
                     <tr>
-                        <th>Matchup</th>
-                        <th>Market</th>
-                        <th>Best +EV</th>
-                        <th>Target Book</th>
-                        <th>Compare Book</th>
+                        <th>Selection</th>
+                        <th>Recommended Bet</th>
+                        <th>Opposing Bet</th>
+                        <th>Edge</th>
+                        <th>Start / Game</th>
                     </tr>
                 </thead>
-                <thead id="props-head" style="display: none;">
+                <tbody id="results-body">
                     <tr>
-                        <th>Player</th>
-                        <th>Market</th>
-                        <th>Target Odds</th>
-                        <th>Best Opposing</th>
-                        <th>Game</th>
-                    </tr>
-                </thead>
-                <tbody id="arb-body">
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: #94a3b8;">Run a search to view arbitrage
-                            opportunities.</td>
-                    </tr>
-                </tbody>
-                <tbody id="props-body" style="display: none;">
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: #94a3b8;">Switch to player props to see
-                            prop results.</td>
+                        <td colspan="5" style="text-align: center; color: #94a3b8;">Run a search to view results.</td>
                     </tr>
                 </tbody>
             </table>
@@ -464,14 +450,192 @@
         const propsToggle = document.getElementById("props-toggle");
         const arbFilters = document.getElementById("arbitrage-filters");
         const propsFilters = document.getElementById("playerprops-filters");
-        const arbHead = document.getElementById("arb-head");
-        const propsHead = document.getElementById("props-head");
-        const arbBody = document.getElementById("arb-body");
-        const propsBody = document.getElementById("props-body");
         const tableTitle = document.getElementById("table-title");
         const tableSubtitle = document.getElementById("table-subtitle");
+        const tableStatus = document.getElementById("table-status");
+        const sortToggleBtn = document.getElementById("sort-toggle-btn");
+        const resultsBody = document.getElementById("results-body");
+        const arbSearchBtn = document.getElementById("arb-search-btn");
+        const propsSearchBtn = document.getElementById("props-search-btn");
+
+        const sportLabels = {
+            "basketball_nba": "NBA",
+            "americanfootball_nfl": "NFL",
+            "icehockey_nhl": "NHL",
+            "basketball_ncaab": "NCAAB",
+            "americanfootball_ncaaf": "NCAAF",
+            "baseball_mlb": "MLB",
+        };
+
+        const marketLabels = {
+            "h2h": "Moneyline",
+            "spreads": "Spreads",
+            "totals": "Totals",
+            "all_player_props": "All player props",
+            "player_points": "Points",
+            "player_rebounds": "Rebounds",
+            "player_assists": "Assists",
+            "player_threes": "Threes"
+        };
+
+        const bookLabels = {
+            draftkings: "DraftKings",
+            fanduel: "FanDuel",
+            fliff: "Fliff",
+            novig: "Novig"
+        };
+
+        let currentMode = "arb";
+        let arbData = null;
+        let propsData = null;
+        let arbSortDirection = "desc";
+        let propsSortMode = "arb-margin";
+        let propsSortDirection = "desc";
+        const modeStatus = { arb: "Ready.", props: "Ready." };
+
+        function setModeStatus(mode, message) {
+            modeStatus[mode] = message;
+            if (currentMode === mode) {
+                tableStatus.textContent = message;
+            }
+        }
+
+        function normalizeNumericValue(value, fallback) {
+            const num = typeof value === "string" ? parseFloat(value) : value;
+            if (Number.isFinite(num)) {
+                return num;
+            }
+            return fallback;
+        }
+
+        function sortArbPlaysByMargin(plays, direction = "desc") {
+            const list = Array.isArray(plays) ? [...plays] : [];
+            const fallback = direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+            list.sort((a, b) => {
+                const aMargin = normalizeNumericValue(a?.arb_margin_percent, fallback);
+                const bMargin = normalizeNumericValue(b?.arb_margin_percent, fallback);
+                return direction === "asc" ? aMargin - bMargin : bMargin - aMargin;
+            });
+
+            return list;
+        }
+
+        function sortPlaysByOdds(plays, direction = "desc") {
+            const list = Array.isArray(plays) ? [...plays] : [];
+            const fallback = direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+            list.sort((a, b) => {
+                const aOdds = normalizeNumericValue(a?.book_price, fallback);
+                const bOdds = normalizeNumericValue(b?.book_price, fallback);
+                return direction === "asc" ? aOdds - bOdds : bOdds - aOdds;
+            });
+
+            return list;
+        }
+
+        function sortPlaysByArbMargin(plays, direction = "desc") {
+            const list = Array.isArray(plays) ? [...plays] : [];
+            const fallback = direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+            list.sort((a, b) => {
+                const aMargin = normalizeNumericValue(a?.arb_margin_percent, fallback);
+                const bMargin = normalizeNumericValue(b?.arb_margin_percent, fallback);
+                return direction === "asc" ? aMargin - bMargin : bMargin - aMargin;
+            });
+
+            return list;
+        }
+
+        function updateSortButton() {
+            if (currentMode === "arb") {
+                sortToggleBtn.textContent = arbSortDirection === "desc"
+                    ? "Sort Arb Margin: High → Low"
+                    : "Sort Arb Margin: Low → High";
+                return;
+            }
+
+            if (propsSortMode === "arb-margin") {
+                sortToggleBtn.textContent = propsSortDirection === "desc"
+                    ? "Sort Arb Margin: High → Low"
+                    : "Sort Arb Margin: Low → High";
+            } else {
+                sortToggleBtn.textContent = propsSortDirection === "desc"
+                    ? "Sort Recommended Odds: High → Low"
+                    : "Sort Recommended Odds: Low → High";
+            }
+        }
+
+        function renderArbTable() {
+            const sorted = sortArbPlaysByMargin(arbData?.plays || [], arbSortDirection);
+            const targetBookLabel = document.querySelector("#arb-target option:checked")?.textContent || arbData?.target_book || "Target";
+            const compareBookLabel = document.querySelector("#arb-compare option:checked")?.textContent || arbData?.compare_book || "Compare";
+
+            TableRenderers.renderArbRows(resultsBody, sorted, {
+                includeSportColumn: false,
+                sportLabels,
+                marketLabels,
+                targetBookLabel,
+                compareBookLabel,
+                oddsFormatter: TableRenderers.helpers.formatOdds,
+                oddsHighlightClassGetter: TableRenderers.helpers.getOddsHighlightClass,
+                startTimeFormatter: TableRenderers.helpers.formatStartTime,
+                hedgeStakeCalculator: TableRenderers.helpers.calculateHedgeStakeAmounts,
+                stakeFormatter: TableRenderers.helpers.formatStakeAmount,
+                emptyMessage: "No arbitrage opportunities found.",
+            });
+
+            tableTitle.textContent = "Arbitrage Results";
+            tableSubtitle.textContent = "Results from arbitrage search will display here.";
+        }
+
+        function renderPropsTable() {
+            const plays = Array.isArray(propsData?.plays) ? propsData.plays : [];
+            const sorted = propsSortMode === "odds"
+                ? sortPlaysByOdds(plays, propsSortDirection)
+                : sortPlaysByArbMargin(plays, propsSortDirection);
+
+            const targetBookLabel = document.querySelector("#props-target option:checked")?.textContent || propsData?.target_book || "Target";
+            const compareBookLabel = document.querySelector("#props-compare option:checked")?.textContent || propsData?.compare_book || "Compare";
+
+            const playsWithStake = sorted.map(play => {
+                const hedgeStakeAmounts = TableRenderers.helpers.calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
+                return {
+                    ...play,
+                    targetLabel: bookLabels[play.target_book] || targetBookLabel,
+                    compareLabel: bookLabels[play.compare_book] || compareBookLabel,
+                    targetStakeText: hedgeStakeAmounts ? TableRenderers.helpers.formatStakeAmount(hedgeStakeAmounts.targetStake) : null,
+                    hedgeStakeText: hedgeStakeAmounts ? TableRenderers.helpers.formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null,
+                };
+            });
+
+            TableRenderers.renderPropRows(resultsBody, playsWithStake, {
+                targetBookLabel,
+                compareBookLabel,
+                sportLabels,
+                marketLabelGetter: (key) => marketLabels[key] || key,
+                startTimeFormatter: TableRenderers.helpers.formatStartTime,
+                oddsFormatter: TableRenderers.helpers.formatOddsWithColor,
+                hedgeOddsFormatter: TableRenderers.helpers.formatOddsWithColor,
+                emptyMessage: "No player prop value plays found.",
+            });
+
+            tableTitle.textContent = "Player Props Results";
+            tableSubtitle.textContent = "Results from player props search will display here.";
+        }
+
+        function renderCurrentMode() {
+            if (currentMode === "arb") {
+                renderArbTable();
+            } else {
+                renderPropsTable();
+            }
+            tableStatus.textContent = modeStatus[currentMode] || "Ready.";
+            updateSortButton();
+        }
 
         function setMode(mode) {
+            currentMode = mode;
             const isArb = mode === "arb";
 
             arbToggle.classList.toggle("active", isArb);
@@ -482,19 +646,156 @@
             arbFilters.classList.toggle("active", isArb);
             propsFilters.classList.toggle("active", !isArb);
 
-            arbHead.style.display = isArb ? "table-header-group" : "none";
-            propsHead.style.display = isArb ? "none" : "table-header-group";
-            arbBody.style.display = isArb ? "table-row-group" : "none";
-            propsBody.style.display = isArb ? "none" : "table-row-group";
-
-            tableTitle.textContent = isArb ? "Arbitrage Results" : "Player Props Results";
-            tableSubtitle.textContent = isArb
-                ? "Results from arbitrage search will display here."
-                : "Results from player props search will display here.";
+            renderCurrentMode();
         }
+
+        function getSelectedArbSports() {
+            const boxes = Array.from(document.querySelectorAll('#arb-sports input[type="checkbox"]:checked'));
+            const sports = boxes.map(box => box.value).filter(Boolean);
+            return sports.length ? sports : ["basketball_nba", "americanfootball_nfl", "icehockey_nhl"];
+        }
+
+        function getSelectedArbMarkets() {
+            const boxes = Array.from(document.querySelectorAll('#arb-markets input[type="checkbox"]:checked'));
+            const markets = boxes.map(box => box.value).filter(Boolean);
+            return markets.length ? markets : ["h2h", "spreads", "totals"];
+        }
+
+        function getSelectedPropMarkets() {
+            const boxes = Array.from(document.querySelectorAll('#props-markets input[type="checkbox"]:checked'));
+            const markets = boxes.map(box => box.value).filter(Boolean);
+            if (!markets.length) {
+                markets.push("all_player_props");
+            }
+            return markets;
+        }
+
+        async function fetchArbData() {
+            const sportKeys = getSelectedArbSports();
+            const markets = getSelectedArbMarkets();
+            const targetBook = document.getElementById("arb-target").value;
+            const compareBook = document.getElementById("arb-compare").value;
+
+            if (!sportKeys.length) {
+                setModeStatus("arb", "Select at least one sport to search arbitrage.");
+                return;
+            }
+
+            if (!markets.length) {
+                setModeStatus("arb", "Select at least one market to search arbitrage.");
+                return;
+            }
+
+            if (targetBook === compareBook) {
+                setModeStatus("arb", "Choose two different books to compare.");
+                return;
+            }
+
+            setModeStatus("arb", "Loading arbitrage results...");
+
+            const payload = {
+                sport_keys: sportKeys,
+                markets,
+                target_book: targetBook,
+                compare_book: compareBook,
+                max_results: 50,
+            };
+
+            try {
+                const res = await fetch("/api/best-value-plays", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || ("HTTP " + res.status));
+                }
+                arbData = await res.json();
+                const count = Array.isArray(arbData?.plays) ? arbData.plays.length : 0;
+                setModeStatus("arb", `Loaded ${count} arbitrage results.`);
+            } catch (err) {
+                console.error(err);
+                setModeStatus("arb", `Error loading arbitrage: ${err.message}`);
+                arbData = { plays: [] };
+            }
+
+            if (currentMode === "arb") {
+                renderCurrentMode();
+            }
+        }
+
+        async function fetchPropData() {
+            setModeStatus("props", "Loading player props...");
+            const sportKey = document.getElementById("props-sport").value;
+            if (!sportKey) {
+                setModeStatus("props", "Select a sport to search player props.");
+                return;
+            }
+            const payload = {
+                sport_key: sportKey,
+                team: document.getElementById("props-team").value || null,
+                player_name: document.getElementById("props-player").value || null,
+                event_id: document.getElementById("props-game").value || null,
+                markets: getSelectedPropMarkets(),
+                target_book: document.getElementById("props-target").value,
+                compare_book: document.getElementById("props-compare").value
+            };
+
+            try {
+                const res = await fetch("/api/player-props", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || ("HTTP " + res.status));
+                }
+                propsData = await res.json();
+                const count = Array.isArray(propsData?.plays) ? propsData.plays.length : 0;
+                setModeStatus("props", `Loaded ${count} player prop results.`);
+            } catch (err) {
+                console.error(err);
+                setModeStatus("props", `Error loading player props: ${err.message}`);
+                propsData = { plays: [] };
+            }
+
+            if (currentMode === "props") {
+                renderCurrentMode();
+            }
+        }
+
+        sortToggleBtn.addEventListener("click", () => {
+            if (currentMode === "arb") {
+                arbSortDirection = arbSortDirection === "desc" ? "asc" : "desc";
+            } else if (propsSortMode === "arb-margin") {
+                propsSortMode = "odds";
+                propsSortDirection = "desc";
+            } else if (propsSortDirection === "desc") {
+                propsSortDirection = "asc";
+            } else {
+                propsSortMode = "arb-margin";
+                propsSortDirection = "desc";
+            }
+            renderCurrentMode();
+        });
 
         arbToggle.addEventListener("click", () => setMode("arb"));
         propsToggle.addEventListener("click", () => setMode("props"));
+
+        arbSearchBtn.addEventListener("click", () => {
+            setMode("arb");
+            fetchArbData();
+        });
+
+        propsSearchBtn.addEventListener("click", () => {
+            setMode("props");
+            fetchPropData();
+        });
+
+        setMode("arb");
+        updateSortButton();
     </script>
 </body>
 

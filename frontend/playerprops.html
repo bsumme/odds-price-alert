@@ -311,6 +311,7 @@
 
 <body>
     <script src="/nav-trim.js"></script>
+    <script src="/table-renderers.js"></script>
     <header>
         <div>
             <h1>Player Props Value Finder</h1>
@@ -1021,55 +1022,25 @@
             const selectedCompareLabel = document.querySelector("#compare-book-select option:checked")?.textContent || data.compare_book || "Compare";
 
             const sortedPlays = getSortedPlayerPropPlays(data.plays);
-
-            sortedPlays.forEach(play => {
-                const targetBookLabel = getBookLabel(play.target_book) || selectedTargetLabel;
-                const compareBookLabel = getBookLabel(play.compare_book) || selectedCompareLabel;
-                const sportLabel = play.sport_key ? getSportLabel(play.sport_key) : "";
+            const playsWithStake = sortedPlays.map(play => {
                 const hedgeStakeAmounts = calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
-                const targetStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.targetStake) : null;
-                const hedgeStakeText = hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null;
-                const tr = document.createElement("tr");
+                return {
+                    ...play,
+                    targetLabel: getBookLabel(play.target_book) || selectedTargetLabel,
+                    compareLabel: getBookLabel(play.compare_book) || selectedCompareLabel,
+                    targetStakeText: hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.targetStake) : null,
+                    hedgeStakeText: hedgeStakeAmounts ? formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null,
+                };
+            });
 
-                const playerCell = document.createElement("td");
-                const marketLabel = getMarketLabel(play.market || "");
-                const lineText = play.point !== null && play.point !== undefined ? ` @ ${play.point}` : "";
-                const sportLine = sportLabel ? `<div class="small-text">${sportLabel}</div>` : "";
-                playerCell.innerHTML = `<strong>${play.outcome_name || ""}</strong>${sportLine}<span class="small-text">${marketLabel}${lineText}</span>`;
-                tr.appendChild(playerCell);
-
-                const targetCell = document.createElement("td");
-                const formattedTargetOdds = formatOddsWithColor(play.book_price);
-                const matchupText = play.matchup ? `<span class="small-text">${play.matchup}</span><br>` : "";
-                const targetStakeLine = targetStakeText ? `<div class="small-text hedge-stake">Hedge Stake: ${targetStakeText}</div>` : "";
-                targetCell.innerHTML = `${matchupText}<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${targetBookLabel}</span>${targetStakeLine}`;
-                tr.appendChild(targetCell);
-
-                const hedgeCell = document.createElement("td");
-                if (play.novig_reverse_name && play.novig_reverse_price !== null && play.novig_reverse_price !== undefined) {
-                    const formattedHedgeOdds = formatOddsWithColor(play.novig_reverse_price);
-                    const hedgeStakeLine = hedgeStakeText ? `<div class="small-text hedge-stake">Hedge Stake: ${hedgeStakeText}</div>` : "";
-                    hedgeCell.innerHTML = `<strong>${play.novig_reverse_name}</strong><br>${formattedHedgeOdds}<br><span class="small-text">@ ${compareBookLabel}</span>${hedgeStakeLine}`;
-                } else {
-                    hedgeCell.innerHTML = '<span class="small-text">-</span>';
-                }
-                tr.appendChild(hedgeCell);
-
-                const arbCell = document.createElement("td");
-                if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
-                    const arbRounded = Math.round(play.arb_margin_percent * 100) / 100;
-                    const arbClass = arbRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
-                    arbCell.innerHTML = `<span class="${arbClass}">${arbRounded}%</span>`;
-                } else {
-                    arbCell.innerHTML = '<span class="small-text">-</span>';
-                }
-                tr.appendChild(arbCell);
-
-                const startCell = document.createElement("td");
-                startCell.textContent = formatStartTime(play.start_time);
-                tr.appendChild(startCell);
-
-                body.appendChild(tr);
+            TableRenderers.renderPropRows(body, playsWithStake, {
+                targetBookLabel: selectedTargetLabel,
+                compareBookLabel: selectedCompareLabel,
+                sportLabels: sportTitleByKey,
+                marketLabelGetter: getMarketLabel,
+                startTimeFormatter: formatStartTime,
+                oddsFormatter: formatOddsWithColor,
+                hedgeOddsFormatter: formatOddsWithColor,
             });
         }
 
