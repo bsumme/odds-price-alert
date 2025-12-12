@@ -657,10 +657,51 @@
             return markets;
         }
 
+        function getSelectedArbSports() {
+            const boxes = Array.from(document.querySelectorAll('#arb-sports input[type="checkbox"]:checked'));
+            return boxes.map(box => box.value).filter(Boolean);
+        }
+
+        function getSelectedArbMarkets() {
+            const boxes = Array.from(document.querySelectorAll('#arb-markets input[type="checkbox"]:checked'));
+            return boxes.map(box => box.value).filter(Boolean);
+        }
+
         async function fetchArbData() {
-            setModeStatus("arb", "Loading arbitrage results...");
+            const sportKeys = getSelectedArbSports();
+            const markets = getSelectedArbMarkets();
+            const targetBook = document.getElementById("arb-target").value;
+            const compareBook = document.getElementById("arb-compare").value;
+
+            if (!sportKeys.length) {
+                setModeStatus("arb", "Error: Please select at least one sport.");
+                return;
+            }
+
+            if (!markets.length) {
+                setModeStatus("arb", "Error: Please select at least one market.");
+                return;
+            }
+
+            if (targetBook === compareBook) {
+                setModeStatus("arb", "Error: Target book and comparison book cannot be the same.");
+                return;
+            }
+
+            setModeStatus("arb", "Searching for arbitrage opportunities across sports and markets...");
             try {
-                const res = await fetch("/api/arb");
+                const res = await fetch("/api/best-value-plays", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sport_keys: sportKeys,
+                        markets,
+                        target_book: targetBook,
+                        compare_book: compareBook,
+                        max_results: 50,
+                        use_dummy_data: false,
+                    }),
+                });
                 if (!res.ok) {
                     const text = await res.text();
                     throw new Error(text || ("HTTP " + res.status));
