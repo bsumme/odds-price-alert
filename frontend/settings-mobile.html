@@ -198,200 +198,25 @@
 <body>
     <header>
         <h1>⚙️ Mobile Settings</h1>
-        <p class="subtitle">Quick links and default sports for your mobile experience.</p>
+        <p class="subtitle">Quick links for your mobile experience.</p>
     </header>
 
     <main>
         <section class="card" aria-labelledby="feature-links-title">
             <h2 id="feature-links-title" class="section-title">Feature Links</h2>
             <div class="feature-links">
-                <a class="feature-link" href="/ArbritrageBetFinder-mobile.html">Arbitrage Finder</a>
                 <a class="feature-link" href="/sgp-builder.html">SGP Builder</a>
-                <a class="feature-link" href="/value.html">Value Finder</a>
-                <a class="feature-link" href="/watcher.html">Bet Watcher</a>
             </div>
-        </section>
-
-        <section class="card" aria-labelledby="default-sports-title">
-            <h2 id="default-sports-title" class="section-title">Default Sports</h2>
-            <p style="margin: 0; color: #cbd5e1;">Choose which sports should be selected by default when you open the
-                app.</p>
-            <div class="sports-grid" id="sports-checkboxes" role="group" aria-label="Default sports">
-            </div>
-            <div class="actions">
-                <button class="btn btn-primary" id="save-settings-btn">Save Defaults</button>
-                <button class="btn btn-secondary" id="reset-settings-btn">Reset</button>
-            </div>
-            <div class="status-message" id="status-message" role="status" aria-live="polite"></div>
         </section>
     </main>
 
     <script>
-        const SETTINGS_KEY = 'bensAppSettings';
-        const DEFAULT_SETTINGS = {
-            useDummyData: false,
-            enableLogging: false,
-            defaultSports: {
-                americanfootball_nfl: true,
-                americanfootball_ncaaf: true,
-                basketball_nba: true,
-                basketball_ncaab: true,
-                icehockey_nhl: true
-            }
-        };
-
-        function loadSettings() {
-            try {
-                const stored = localStorage.getItem(SETTINGS_KEY);
-                if (!stored) return { ...DEFAULT_SETTINGS };
-                const parsed = JSON.parse(stored);
-                return {
-                    ...DEFAULT_SETTINGS,
-                    ...parsed,
-                    defaultSports: {
-                        ...DEFAULT_SETTINGS.defaultSports,
-                        ...(parsed.defaultSports || {}),
-                    },
-                };
-            } catch (err) {
-                console.error('Failed to load settings:', err);
-                return { ...DEFAULT_SETTINGS };
-            }
-        }
-
-        function saveSettings(settings) {
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-        }
-
-        async function fetchSports() {
-            const res = await fetch('/api/sports');
-            if (!res.ok) throw new Error('Failed to fetch sports');
-            return res.json();
-        }
-
-        function showStatus(message, isSuccess) {
-            const statusEl = document.getElementById('status-message');
-            statusEl.textContent = message;
-            statusEl.className = `status-message ${isSuccess ? 'success' : 'error'}`;
-            statusEl.style.display = 'block';
-        }
-
-        async function persistServerSettings(settings) {
-            const res = await fetch('/api/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings),
-            });
-            if (!res.ok) {
-                throw new Error('Server settings update failed');
-            }
-        }
-
-        async function syncServerSettings() {
-            try {
-                const res = await fetch('/api/settings');
-                if (!res.ok) throw new Error('Failed to fetch server settings');
-                const serverSettings = await res.json();
-                const merged = {
-                    ...DEFAULT_SETTINGS,
-                    ...serverSettings,
-                    defaultSports: {
-                        ...DEFAULT_SETTINGS.defaultSports,
-                        ...(serverSettings.defaultSports || {}),
-                    },
-                };
-                saveSettings(merged);
-                return merged;
-            } catch (err) {
-                console.warn('Falling back to local settings after sync error:', err);
-                return loadSettings();
-            }
-        }
-
-        async function populateSports() {
-            const settings = loadSettings();
-            const container = document.getElementById('sports-checkboxes');
-            container.innerHTML = '';
-
-            let sports = [];
-            try {
-                sports = await fetchSports();
-            } catch (err) {
-                console.error('Error fetching sports:', err);
-                const fallbackSports = Object.keys(DEFAULT_SETTINGS.defaultSports).map((key) => ({
-                    key,
-                    title: key.replace(/_/g, ' ').toUpperCase(),
-                    active: DEFAULT_SETTINGS.defaultSports[key],
-                }));
-                sports = fallbackSports;
-                showStatus('Using fallback sports list', false);
-            }
-
-            for (const sport of sports) {
-                if (!sport || !sport.key) continue;
-                const isActive = settings.defaultSports[sport.key] ?? sport.active;
-                const div = document.createElement('div');
-                div.className = 'sport-checkbox';
-                div.innerHTML = `
-                    <input type="checkbox" id="sport-${sport.key}" data-sport-key="${sport.key}" ${isActive ? 'checked' : ''} />
-                    <label for="sport-${sport.key}">${sport.title || sport.key}</label>
-                `;
-                container.appendChild(div);
-            }
-        }
-
-        function collectDefaultSports() {
-            const defaults = {};
-            document.querySelectorAll('[data-sport-key]').forEach((checkbox) => {
-                defaults[checkbox.dataset.sportKey] = checkbox.checked;
-            });
-            return defaults;
-        }
-
-        async function handleSave() {
-            const current = loadSettings();
-            const updated = {
-                ...current,
-                defaultSports: collectDefaultSports(),
-            };
-
-            saveSettings(updated);
-
-            try {
-                await persistServerSettings(updated);
-                showStatus('Default sports saved', true);
-            } catch (err) {
-                console.error(err);
-                showStatus('Saved locally but failed to sync to server', false);
-            }
-        }
-
-        async function handleReset() {
-            const resetSettings = { ...DEFAULT_SETTINGS };
-            saveSettings(resetSettings);
-            populateSports();
-            try {
-                await persistServerSettings(resetSettings);
-                showStatus('Defaults restored', true);
-            } catch (err) {
-                console.error(err);
-                showStatus('Local defaults restored but server sync failed', false);
-            }
-        }
-
-        async function initializePage() {
-            await syncServerSettings();
-            await populateSports();
-            document.body.classList.add('ready');
-        }
-
-        document.getElementById('save-settings-btn').addEventListener('click', handleSave);
-        document.getElementById('reset-settings-btn').addEventListener('click', handleReset);
+        const markPageReady = () => document.body.classList.add('ready');
 
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializePage);
+            document.addEventListener('DOMContentLoaded', markPageReady);
         } else {
-            initializePage();
+            markPageReady();
         }
     </script>
 </body>
