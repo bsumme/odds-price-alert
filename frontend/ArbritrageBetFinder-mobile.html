@@ -1383,10 +1383,13 @@
 
         function getSelectedPropMarkets() {
             const boxes = Array.from(document.querySelectorAll('#props-markets input[type="checkbox"]:checked'));
-            const values = boxes.map((box) => box.value);
-            return values.includes("all_player_props") && values.length > 1
-                ? values.filter((v) => v !== "all_player_props")
-                : values;
+            const markets = boxes.map((box) => box.value).filter(Boolean);
+
+            if (!markets.length) {
+                markets.push("all_player_props");
+            }
+
+            return markets;
         }
 
         function resetMarkets() {
