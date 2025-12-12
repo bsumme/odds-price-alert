@@ -978,6 +978,8 @@
         let arbitrageSortMode = "arb-margin";
         let currentMode = "arb";
         let propsData = null;
+        // Placeholder to ensure stopWatcher is always defined in the current scope
+        let stopWatcher = () => {};
         const BOOK_LABELS = {
             draftkings: "DraftKings",
             fanduel: "FanDuel",
@@ -3041,7 +3043,7 @@
                 }, intervalMs);
             }
 
-            function stopWatcher() {
+            stopWatcher = function stopWatcher() {
                 if (watcherTimer) {
                     clearInterval(watcherTimer);
                     watcherTimer = null;
