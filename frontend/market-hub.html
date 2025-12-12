@@ -463,8 +463,7 @@
             "americanfootball_nfl": "NFL",
             "icehockey_nhl": "NHL",
             "basketball_ncaab": "NCAAB",
-            "americanfootball_ncaaf": "NCAAF",
-            "baseball_mlb": "MLB",
+            "americanfootball_ncaaf": "NCAAF"
         };
 
         const marketLabels = {
@@ -649,18 +648,6 @@
             renderCurrentMode();
         }
 
-        function getSelectedArbSports() {
-            const boxes = Array.from(document.querySelectorAll('#arb-sports input[type="checkbox"]:checked'));
-            const sports = boxes.map(box => box.value).filter(Boolean);
-            return sports.length ? sports : ["basketball_nba", "americanfootball_nfl", "icehockey_nhl"];
-        }
-
-        function getSelectedArbMarkets() {
-            const boxes = Array.from(document.querySelectorAll('#arb-markets input[type="checkbox"]:checked'));
-            const markets = boxes.map(box => box.value).filter(Boolean);
-            return markets.length ? markets : ["h2h", "spreads", "totals"];
-        }
-
         function getSelectedPropMarkets() {
             const boxes = Array.from(document.querySelectorAll('#props-markets input[type="checkbox"]:checked'));
             const markets = boxes.map(box => box.value).filter(Boolean);
@@ -672,22 +659,8 @@
 
         async function fetchArbData() {
             setModeStatus("arb", "Loading arbitrage results...");
-            const targetBook = document.getElementById("arb-target").value;
-            const compareBook = document.getElementById("arb-compare").value;
-            const payload = {
-                sport_keys: getSelectedArbSports(),
-                markets: getSelectedArbMarkets(),
-                target_book: targetBook,
-                compare_book: compareBook,
-                max_results: 50,
-            };
-
             try {
-                const res = await fetch("/api/best-value-plays", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
+                const res = await fetch("/api/arb");
                 if (!res.ok) {
                     const text = await res.text();
                     throw new Error(text || ("HTTP " + res.status));
@@ -708,13 +681,8 @@
 
         async function fetchPropData() {
             setModeStatus("props", "Loading player props...");
-            const sportKey = document.getElementById("props-sport").value;
-            if (!sportKey) {
-                setModeStatus("props", "Select a sport to search player props.");
-                return;
-            }
             const payload = {
-                sport_key: sportKey,
+                sport_key: document.getElementById("props-sport").value || null,
                 team: document.getElementById("props-team").value || null,
                 player_name: document.getElementById("props-player").value || null,
                 event_id: document.getElementById("props-game").value || null,
