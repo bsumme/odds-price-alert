@@ -715,15 +715,6 @@
                         <option value="fliff">Fliff</option>
                     </select>
 
-                    <label for="best-max-results-input">Max results</label>
-                    <input id="best-max-results-input" type="number" min="10" max="200" step="10" value="10" />
-
-                    <label class="checkbox-label"
-                        style="margin-top: 1rem; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
-                        <input type="checkbox" id="dummy-data-checkbox" />
-                        <span>Use Dummy Data</span>
-                    </label>
-
                     <div style="margin-top: 1rem;">
                         <button class="btn btn-primary" id="find-best-btn">Find Arbitrage Opportunities</button>
                         <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
@@ -1679,8 +1670,6 @@
             const gameSelect = document.getElementById("props-game");
             const teamSelect = document.getElementById("props-team");
             const playerSelect = document.getElementById("props-player");
-            const useDummyData = document.getElementById("dummy-data-checkbox")?.checked;
-
             if (!sport) {
                 setSelectOptions(gameSelect, [], "All Games");
                 setSelectOptions(teamSelect, [], "All Teams");
@@ -1693,7 +1682,7 @@
                 const res = await fetch("/api/player-props/games", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ sport_key: sport, use_dummy_data: useDummyData })
+                    body: JSON.stringify({ sport_key: sport, use_dummy_data: false })
                 });
 
                 if (!res.ok) {
@@ -1740,7 +1729,7 @@
                 markets: getSelectedPropMarkets(),
                 target_book: document.getElementById("props-target")?.value,
                 compare_book: document.getElementById("props-compare")?.value,
-                use_dummy_data: document.getElementById("dummy-data-checkbox")?.checked,
+                use_dummy_data: false,
             };
 
             try {
@@ -1777,7 +1766,7 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        use_dummy_data: document.getElementById("dummy-data-checkbox")?.checked,
+                        use_dummy_data: false,
                         max_results: 150,
                     }),
                 });
@@ -2063,8 +2052,7 @@
             const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
             const targetBook = document.getElementById("best-target-book-select").value;
             const compareBook = document.getElementById("best-compare-book-select").value;
-            const maxResults = Number(document.getElementById("best-max-results-input").value) || 50;
-            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
+            const maxResults = 50;
 
             if (sportCheckboxes.length === 0) {
                 setBestStatus("Error: Please select at least one sport.");
@@ -2094,9 +2082,6 @@
             } else {
                 setBestStatus("Searching for arbitrage opportunities across sports and markets...");
             }
-            if (useDummyData) {
-                setBestStatus((isWatcherRunning ? "Watcher: Checking for hedge opportunities..." : "Searching for arbitrage opportunities across sports and markets...") + " [DUMMY DATA MODE]");
-            }
 
             try {
                 const requestMaxResults = isWatcherRunning ? maxResults : maxResults * 2;
@@ -2110,7 +2095,7 @@
                         target_book: targetBook,
                         compare_book: compareBook,
                         max_results: requestMaxResults,
-                        use_dummy_data: useDummyData
+                        use_dummy_data: false
                     }),
                 });
                 if (!res.ok) {
@@ -2171,8 +2156,6 @@
                 markets: Array.from(document.querySelectorAll(".market-checkbox:checked")).map(cb => cb.value),
                 targetBook: document.getElementById("best-target-book-select").value,
                 compareBook: document.getElementById("best-compare-book-select").value,
-                maxResults: document.getElementById("best-max-results-input").value,
-                dummyData: document.getElementById("dummy-data-checkbox").checked,
                 watcherInterval: document.getElementById("watcher-interval-input").value,
                 smsThreshold: document.getElementById("sms-threshold-input").value
             };
@@ -2203,12 +2186,6 @@
                 }
                 if (selections.compareBook) {
                     document.getElementById("best-compare-book-select").value = selections.compareBook;
-                }
-                if (selections.maxResults) {
-                    document.getElementById("best-max-results-input").value = selections.maxResults;
-                }
-                if (selections.dummyData !== undefined) {
-                    document.getElementById("dummy-data-checkbox").checked = selections.dummyData;
                 }
                 if (selections.watcherInterval) {
                     document.getElementById("watcher-interval-input").value = selections.watcherInterval;
@@ -2323,20 +2300,8 @@
             });
             document.getElementById("best-target-book-select").addEventListener("change", saveFormSelections);
             document.getElementById("best-compare-book-select").addEventListener("change", saveFormSelections);
-            document.getElementById("best-max-results-input").addEventListener("change", saveFormSelections);
-            document.getElementById("dummy-data-checkbox").addEventListener("change", saveFormSelections);
             document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
             document.getElementById("sms-threshold-input").addEventListener("change", saveFormSelections);
-
-            const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
-            const savedDummyData = localStorage.getItem("useDummyData");
-            if (savedDummyData === "true") {
-                dummyDataCheckbox.checked = true;
-            }
-
-            dummyDataCheckbox.addEventListener("change", (e) => {
-                localStorage.setItem("useDummyData", e.target.checked ? "true" : "false");
-            });
 
             const smsPhoneInput = document.getElementById("sms-phone-input");
             const savedPhone = localStorage.getItem("smsPhoneNumber");
