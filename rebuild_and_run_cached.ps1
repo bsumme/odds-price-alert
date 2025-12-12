@@ -176,13 +176,21 @@ $pipInstallPlans += @{ Description = "online install"; Args = @("install", "--up
 $installed = $false
 foreach ($plan in $pipInstallPlans) {
     Write-Host "  Attempting $($plan.Description)..." -ForegroundColor Yellow
-    pip @($plan.Args)
+    $pipOutput = & pip @($plan.Args) 2>&1
+
     if ($LASTEXITCODE -eq 0) {
         $installed = $true
         Write-Host "  [OK] Dependencies installed via $($plan.Description)" -ForegroundColor Green
         break
     } else {
         Write-Host "  [WARNING] $($plan.Description) failed with exit code $LASTEXITCODE" -ForegroundColor Yellow
+
+        if ($plan.Description -eq "cached install") {
+            $missingWheelHint = $pipOutput | Where-Object { $_ -match "(Could not find a version that satisfies the requirement|No matching distribution found)" }
+            if ($missingWheelHint) {
+                Write-Host "  Cached wheels are missing one or more required packages. Falling back to online install..." -ForegroundColor Yellow
+            }
+        }
     }
 }
 
