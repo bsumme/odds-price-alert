@@ -1,12 +1,7 @@
 (() => {
     const mobileMainPage = "/BensSportsBookApp.html";
     const hiddenNavTargets = ["/watcher.html", "/linetracker.html", "/value.html"];
-    const mobileAllowedPages = [
-        mobileMainPage,
-        "/BensSportsBookApp",
-        "/sgp-builder.html",
-        "/sgp-builder",
-    ];
+    const mobileAllowedPages = [mobileMainPage, "/sgp-builder.html"];
 
     const isMobileDevice = () => {
         const userAgent = navigator.userAgent || navigator.vendor || window.opera || "";
@@ -26,9 +21,9 @@
     const enforceMobileMainPage = () => {
         if (!isMobileDevice()) return true;
 
-        const pathname = normalizePathname(window.location.pathname || "");
+        const pathname = window.location.pathname || "";
         const onMainPage =
-            pathname === "/" || mobileAllowedPages.some((allowed) => pathname === normalizePathname(allowed));
+            pathname === "/" || mobileAllowedPages.some((allowed) => pathname.endsWith(allowed));
 
         if (onMainPage) return true;
 
