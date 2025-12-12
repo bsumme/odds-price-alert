@@ -1,7 +1,7 @@
 (() => {
     const mobileMainPage = "/BensSportsBookApp.html";
     const hiddenNavTargets = ["/watcher.html", "/linetracker.html", "/value.html"];
-    const mobileAllowedPages = [mobileMainPage, "/sgp-builder.html"];
+    const mobileAllowedPages = [mobileMainPage, "/sgp-builder.html", "/settings.html"];
 
     const isMobileDevice = () => {
         const userAgent = navigator.userAgent || navigator.vendor || window.opera || "";
