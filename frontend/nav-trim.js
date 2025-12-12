@@ -1,7 +1,13 @@
 (() => {
     const mobileMainPage = "/BensSportsBookApp.html";
     const hiddenNavTargets = ["/watcher.html", "/linetracker.html", "/value.html"];
-    const mobileAllowedPages = [mobileMainPage, "/sgp-builder.html", "/settings.html"];
+    const mobileAllowedPages = [
+        mobileMainPage,
+        "/sgp-builder.html",
+        "/settings.html",
+        "/settings",
+        "/settings/",
+    ];
 
     const isMobileDevice = () => {
         const userAgent = navigator.userAgent || navigator.vendor || window.opera || "";
@@ -18,14 +24,17 @@
         return trimmed.toLowerCase().replace(/\.html$/, "");
     };
 
+    const normalizeMobilePath = (pathname = "") => normalizePathname(pathname === "/" ? mobileMainPage : pathname);
+
+    const allowedMobilePaths = new Set(mobileAllowedPages.map((page) => normalizePathname(page)));
+
     const enforceMobileMainPage = () => {
         if (!isMobileDevice()) return true;
 
-        const pathname = window.location.pathname || "";
-        const onMainPage =
-            pathname === "/" || mobileAllowedPages.some((allowed) => pathname.endsWith(allowed));
+        const normalizedPath = normalizeMobilePath(window.location.pathname || "");
+        const onAllowedPage = normalizedPath === normalizePathname(mobileMainPage) || allowedMobilePaths.has(normalizedPath);
 
-        if (onMainPage) return true;
+        if (onAllowedPage) return true;
 
         const destination = `${mobileMainPage}${window.location.search || ""}${window.location.hash || ""}`;
         window.location.replace(destination);

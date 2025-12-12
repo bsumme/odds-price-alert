@@ -17,7 +17,7 @@
             background: linear-gradient(135deg, #0f172a 0%, #1a2332 100%);
             color: #e2e8f0;
             min-height: 100vh;
-            padding: 1rem;
+            padding: 1.25rem;
         }
 
         header {
@@ -28,8 +28,9 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
             gap: 1rem;
+            flex-wrap: wrap;
         }
 
         .nav-left {
@@ -75,15 +76,15 @@
         main {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 2rem;
+            gap: 1.5rem;
             max-width: 900px;
-            margin: 0 auto;
+            margin: 0 auto 2rem;
         }
 
         .card {
             background: #1a2332;
             border: 1px solid #2d3d4f;
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 1.5rem;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
@@ -173,6 +174,7 @@
             gap: 1rem;
             margin-top: 2rem;
             justify-content: space-between;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -183,6 +185,19 @@
             font-size: 1rem;
             transition: all 0.2s;
             font-weight: 500;
+        }
+
+        .page-intro {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+            color: #cbd5e1;
+        }
+
+        .page-intro strong {
+            color: #10b981;
         }
 
         .btn-primary {
@@ -289,8 +304,13 @@
         }
 
         @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
             main {
                 grid-template-columns: 1fr;
+                gap: 1.25rem;
             }
 
             .sports-grid {
@@ -299,10 +319,26 @@
 
             nav {
                 flex-direction: column;
-                align-items: flex-start;
+                align-items: stretch;
             }
 
             .top-right-buttons {
+                width: 100%;
+                gap: 0.75rem;
+            }
+
+            .nav-btn {
+                width: 100%;
+                text-align: center;
+                padding: 0.65rem 1rem;
+            }
+
+            .button-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
                 width: 100%;
             }
         }
@@ -325,6 +361,11 @@
     </header>
 
     <main>
+        <section class="page-intro">
+            <p style="margin-bottom: 0.35rem;">Customize how Ben's Sports Book App behaves on your device.</p>
+            <p style="margin: 0;">Changes save locally and sync the <strong>Use Dummy Data</strong> toggle with the server for mobile users.</p>
+        </section>
+
         <section class="card">
             <h2>Application Settings</h2>
 
@@ -527,7 +568,7 @@
         });
 
         // Reset button handler
-        document.getElementById('reset-settings-btn').addEventListener('click', () => {
+        document.getElementById('reset-settings-btn').addEventListener('click', async () => {
             if (confirm('Are you sure you want to reset all settings to defaults?')) {
                 saveSettings(DEFAULT_SETTINGS);
                 try {
