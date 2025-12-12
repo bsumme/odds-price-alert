@@ -669,7 +669,7 @@
     <main>
         <div style="grid-column: 1 / -1; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem;">
             <div class="mode-toggle" style="margin: 0;">
-                <button id="arb-mode-btn" class="active" aria-pressed="true">Arbitrage</button>
+                <button id="arb-mode-btn" class="active" aria-pressed="true">Main Markets</button>
                 <button id="props-mode-btn" aria-pressed="false">Player Props</button>
             </div>
             <div class="small-text">Swap between arbitrage finder and player props search without leaving the main page.</div>
@@ -845,6 +845,7 @@
                     <div class="filter-actions">
                         <div style="margin-top: 0.25rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-primary" id="props-search-btn">Find Player Props</button>
+                            <button class="btn btn-secondary" id="props-all-sports-btn">Search All Sports</button>
                             <button class="btn btn-secondary" id="props-reset-btn">Reset</button>
                         </div>
                         <div class="status-bar" id="props-status-bar">Ready.</div>
@@ -977,6 +978,17 @@
         let arbitrageSortMode = "arb-margin";
         let currentMode = "arb";
         let propsData = null;
+        const BOOK_LABELS = {
+            draftkings: "DraftKings",
+            fanduel: "FanDuel",
+            fliff: "Fliff",
+            novig: "Novig",
+        };
+
+        function getBookLabel(key) {
+            if (!key) return "";
+            return BOOK_LABELS[key] || key;
+        }
 
         // Client-side network/log helper
         function appendClientLog(msg) {
@@ -2021,6 +2033,7 @@
             const gameSelect = document.getElementById("props-game");
             const teamSelect = document.getElementById("props-team");
             const playerSelect = document.getElementById("props-player");
+            const useDummyData = document.getElementById("dummy-data-checkbox")?.checked;
 
             if (!sport) {
                 setSelectOptions(gameSelect, [], "All Games");
@@ -2034,7 +2047,7 @@
                 const res = await fetch("/api/player-props/games", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ sport_key: sport })
+                    body: JSON.stringify({ sport_key: sport, use_dummy_data: useDummyData })
                 });
 
                 if (!res.ok) {
@@ -2067,14 +2080,21 @@
         async function fetchPlayerProps() {
             setPropsStatus("Loading player props...");
 
+            const sportKey = document.getElementById("props-sport").value;
+            if (!sportKey) {
+                setPropsStatus("Pick a sport before searching player props.");
+                return;
+            }
+
             const payload = {
-                sport_key: document.getElementById("props-sport").value || null,
+                sport_key: sportKey,
                 team: document.getElementById("props-team").value || null,
                 player_name: document.getElementById("props-player").value || null,
                 event_id: document.getElementById("props-game").value || null,
                 markets: getSelectedPropMarkets(),
                 target_book: document.getElementById("props-target").value,
-                compare_book: document.getElementById("props-compare").value
+                compare_book: document.getElementById("props-compare").value,
+                use_dummy_data: document.getElementById("dummy-data-checkbox")?.checked,
             };
 
             try {
@@ -2098,6 +2118,47 @@
                 setPropsStatus(`Error loading player props: ${err.message}`);
                 propsData = { plays: [] };
                 renderPlayerPropResults();
+            }
+        }
+
+        async function fetchAllSportsPlayerProps() {
+            const button = document.getElementById("props-all-sports-btn");
+            setPropsStatus("Scanning all sports for player prop arbitrage vs Novig...");
+            if (button) button.disabled = true;
+
+            try {
+                const res = await fetch("/api/player-props/arbitrage-all", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        use_dummy_data: document.getElementById("dummy-data-checkbox")?.checked,
+                        max_results: 150,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || `HTTP ${res.status}`);
+                }
+
+                propsData = await res.json();
+                const count = Array.isArray(propsData?.plays) ? propsData.plays.length : 0;
+                renderPlayerPropResults();
+
+                const targetSummary = (propsData?.target_books || [])
+                    .map(getBookLabel)
+                    .filter(Boolean)
+                    .join(", ") || "DraftKings, FanDuel, Fliff";
+                const compareSummary = getBookLabel(propsData?.compare_book) || "Novig";
+                setPropsSummary(`Found ${count} player prop arbitrage plays across all sports. Targets: ${targetSummary}; Hedge: ${compareSummary}.`);
+                setPropsStatus("Done.");
+            } catch (err) {
+                console.error(err);
+                setPropsStatus(`Error loading all-sports player props: ${err.message}`);
+                propsData = { plays: [] };
+                renderPlayerPropResults();
+            } finally {
+                if (button) button.disabled = false;
             }
         }
 
@@ -2126,8 +2187,8 @@
                 const hedgeStakeAmounts = TableRenderers.helpers.calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
                 return {
                     ...play,
-                    targetLabel: targetBookLabel,
-                    compareLabel: compareBookLabel,
+                    targetLabel: getBookLabel(play.target_book) || targetBookLabel,
+                    compareLabel: getBookLabel(play.compare_book) || compareBookLabel,
                     targetStakeText: hedgeStakeAmounts ? TableRenderers.helpers.formatStakeAmount(hedgeStakeAmounts.targetStake) : null,
                     hedgeStakeText: hedgeStakeAmounts ? TableRenderers.helpers.formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null,
                 };
@@ -3031,6 +3092,12 @@
                 fetchPlayerProps();
             });
 
+            document.getElementById("props-all-sports-btn").addEventListener("click", (e) => {
+                e.preventDefault();
+                setMode("props");
+                fetchAllSportsPlayerProps();
+            });
+
             document.getElementById("props-reset-btn").addEventListener("click", () => {
                 document.getElementById("props-sport").value = "";
                 setSelectOptions(document.getElementById("props-game"), [], "All Games");
@@ -3042,6 +3109,10 @@
                 setPropsStatus("Ready.");
                 setPropsSummary("Results from player props search will display here.");
             });
+
+            // Initialize player props filters on load (ensures games list populates when a sport is preselected)
+            resetMarkets();
+            loadPropsGames();
 
             setMode("arb");
 
