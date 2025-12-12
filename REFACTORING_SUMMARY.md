@@ -49,8 +49,8 @@ This document summarizes the modularization refactoring work completed to reduce
    - Created `fetch_odds_for_watcher()` wrapper for interface compatibility
 
 3. **`nba_price_alert.py`**
-   - Removed duplicate `get_api_key()`
-   - Updated `fetch_odds_for_sport()` to use shared `fetch_odds()`
+   - Removed entirely to avoid maintaining two near-identical CLI scripts. Bringing it
+     back would require deeper CLI consolidation work.
 
 ## Code Reduction
 

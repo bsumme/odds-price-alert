@@ -6,7 +6,8 @@ This document outlines suggested refactoring work to reduce redundancy, improve 
 ## Current Issues Identified
 
 ### 1. Code Duplication
-- **`get_api_key()`** duplicated in 3 files: `main.py`, `bet_watcher.py`, `nba_price_alert.py`
+- **`get_api_key()`** duplicated in 2 files: `main.py`, `bet_watcher.py` (the standalone
+  `nba_price_alert.py` script was removed to avoid duplicated CLI code)
 - **`compute_regions_for_books()`** duplicated in 2 files: `main.py`, `bet_watcher.py`
 - **`fetch_odds()`** / `fetch_odds_for_sport()` duplicated in 3 files with slight variations
 - Similar logic for extracting team prices, formatting odds, etc.
@@ -59,7 +60,7 @@ odds-price-alert/
 │   └── validation.py          # Input validation helpers
 └── scripts/                   # Standalone scripts (can import from shared modules)
     ├── bet_watcher.py
-    └── nba_price_alert.py
+    └── (removed) nba_price_alert.py
 ```
 
 ## Detailed Refactoring Steps
@@ -183,9 +184,9 @@ odds-price-alert/
 - Keep script-specific logic (CLI, interactive prompts)
 
 #### 5.2 Update `nba_price_alert.py`
-- Import shared utilities
-- Remove duplicate functions
-- Keep script-specific logic
+- Removed in favor of consolidating on `bet_watcher.py` for CLI use. Restoring it would
+  require untangling overlapping prompts and defaults shared with `bet_watcher.py`, which
+  is too invasive for a quick cleanup.
 
 ### Phase 6: Cleanup & Remove Unused Code (Low Priority)
 
