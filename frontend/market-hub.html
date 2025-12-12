@@ -305,33 +305,34 @@
                 <div class="helper">Imported from the Arbitrage Finder for side-by-side comparisons.</div>
                 <label>Select Sports</label>
                 <div id="arb-sports" class="chip-list">
-                    <label><input type="checkbox" checked>Basketball</label>
-                    <label><input type="checkbox" checked>Football</label>
-                    <label><input type="checkbox" checked>Hockey</label>
-                    <label><input type="checkbox" checked>Soccer</label>
+                    <label><input type="checkbox" value="basketball_nba" checked>Basketball (NBA)</label>
+                    <label><input type="checkbox" value="americanfootball_nfl" checked>Football (NFL)</label>
+                    <label><input type="checkbox" value="icehockey_nhl" checked>Hockey (NHL)</label>
+                    <label><input type="checkbox" value="basketball_ncaab">Basketball (NCAAB)</label>
+                    <label><input type="checkbox" value="americanfootball_ncaaf">Football (NCAAF)</label>
                 </div>
 
                 <label style="margin-top: 0.8rem;">Select Markets</label>
-                <div class="pill-group">
-                    <label><input type="checkbox" checked>Moneyline</label>
-                    <label><input type="checkbox" checked>Spreads</label>
-                    <label><input type="checkbox" checked>Totals</label>
+                <div class="pill-group" id="arb-markets">
+                    <label><input type="checkbox" value="h2h" checked>Moneyline</label>
+                    <label><input type="checkbox" value="spreads" checked>Spreads</label>
+                    <label><input type="checkbox" value="totals" checked>Totals</label>
                 </div>
 
                 <label for="arb-target">Target book</label>
                 <select id="arb-target">
-                    <option>DraftKings</option>
-                    <option>FanDuel</option>
-                    <option>Fliff</option>
-                    <option>Novig</option>
+                    <option value="draftkings">DraftKings</option>
+                    <option value="fanduel">FanDuel</option>
+                    <option value="fliff">Fliff</option>
+                    <option value="novig">Novig</option>
                 </select>
 
                 <label for="arb-compare" style="margin-top: 0.4rem;">Compare against</label>
                 <select id="arb-compare">
-                    <option>Novig</option>
-                    <option>DraftKings</option>
-                    <option>FanDuel</option>
-                    <option>Fliff</option>
+                    <option value="novig">Novig</option>
+                    <option value="draftkings">DraftKings</option>
+                    <option value="fanduel">FanDuel</option>
+                    <option value="fliff">Fliff</option>
                 </select>
 
                 <label for="arb-promo" style="margin-top: 0.6rem;">Promo boost % (20-100, default 30)</label>
@@ -349,10 +350,10 @@
                 <label for="props-sport">Sport</label>
                 <select id="props-sport">
                     <option value="">Select a sport</option>
-                    <option value="nba">NBA</option>
-                    <option value="nfl">NFL</option>
-                    <option value="mlb">MLB</option>
-                    <option value="nhl">NHL</option>
+                    <option value="basketball_nba">NBA</option>
+                    <option value="americanfootball_nfl">NFL</option>
+                    <option value="baseball_mlb">MLB</option>
+                    <option value="icehockey_nhl">NHL</option>
                 </select>
 
                 <label for="props-game">Upcoming Games</label>
