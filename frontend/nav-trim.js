@@ -1,5 +1,5 @@
 (() => {
-    const mobileMainPage = "/market-hub.html";
+    const mobileMainPage = "/BensSportsBookApp.html";
     const hiddenNavTargets = ["/watcher.html", "/linetracker.html", "/value.html"];
 
     const isMobileDevice = () => {
