@@ -141,6 +141,29 @@
             color: #bbf7d0;
         }
 
+        .mode-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .mode-toggle button {
+            flex: 1;
+            background: #0f172a;
+            color: #e5e7eb;
+            border: 1px solid #334155;
+            border-radius: 0.55rem;
+            padding: 0.65rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mode-toggle button.active {
+            background: #166534;
+            border-color: #15803d;
+            color: #bbf7d0;
+        }
+
 
         main {
             padding: 4.5rem 0.75rem 0.75rem 0.75rem;
@@ -644,8 +667,16 @@
     </header>
 
     <main>
+        <div style="grid-column: 1 / -1; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem;">
+            <div class="mode-toggle" style="margin: 0;">
+                <button id="arb-mode-btn" class="active" aria-pressed="true">Arbitrage</button>
+                <button id="props-mode-btn" aria-pressed="false">Player Props</button>
+            </div>
+            <div class="small-text">Swap between arbitrage finder and player props search without leaving the main page.</div>
+        </div>
+
         <!-- Filter Panel -->
-        <div class="filter-panel">
+        <div class="filter-panel" id="arb-filter-panel">
             <section class="card">
                 <div class="filter-card-content">
                     <h2>Arbitrage Bet Finder</h2>
@@ -754,8 +785,76 @@
             </section>
         </div>
 
+        <!-- Player Props Filter Panel -->
+        <div class="filter-panel" id="props-filter-panel" style="display: none;">
+            <section class="card">
+                <div class="filter-card-content">
+                    <h2>Player Props Search</h2>
+                    <div class="small-text" style="margin-bottom: 0.75rem;">Run focused player prop scans while keeping the same look and feel.</div>
+
+                    <label for="props-sport">Sport</label>
+                    <select id="props-sport">
+                        <option value="">Select a sport</option>
+                        <option value="basketball_nba">NBA</option>
+                        <option value="americanfootball_nfl">NFL</option>
+                        <option value="baseball_mlb">MLB</option>
+                        <option value="icehockey_nhl">NHL</option>
+                    </select>
+
+                    <label for="props-game">Upcoming Games</label>
+                    <select id="props-game">
+                        <option value="">All Games</option>
+                    </select>
+                    <div class="small-text">Select a matchup to scope searches to a single game.</div>
+
+                    <label for="props-team">Team</label>
+                    <select id="props-team">
+                        <option value="">All Teams</option>
+                    </select>
+
+                    <label for="props-player">Player</label>
+                    <select id="props-player">
+                        <option value="">All Players</option>
+                    </select>
+
+                    <label>Markets</label>
+                    <div class="pill-group" id="props-markets" style="margin-bottom: 0.5rem;">
+                        <label><input type="checkbox" value="all_player_props" checked>All player props</label>
+                        <label><input type="checkbox" value="player_points" checked>Points</label>
+                        <label><input type="checkbox" value="player_rebounds" checked>Rebounds</label>
+                        <label><input type="checkbox" value="player_assists" checked>Assists</label>
+                        <label><input type="checkbox" value="player_threes" checked>Threes</label>
+                    </div>
+
+                    <label for="props-target">Target book</label>
+                    <select id="props-target">
+                        <option value="draftkings">DraftKings</option>
+                        <option value="fanduel">FanDuel</option>
+                        <option value="fliff">Fliff</option>
+                        <option value="novig">Novig</option>
+                    </select>
+
+                    <label for="props-compare" style="margin-top: 0.4rem;">Compare against</label>
+                    <select id="props-compare">
+                        <option value="novig" selected>Novig</option>
+                        <option value="draftkings">DraftKings</option>
+                        <option value="fanduel">FanDuel</option>
+                        <option value="fliff">Fliff</option>
+                    </select>
+
+                    <div class="filter-actions">
+                        <div style="margin-top: 0.25rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-primary" id="props-search-btn">Find Player Props</button>
+                            <button class="btn btn-secondary" id="props-reset-btn">Reset</button>
+                        </div>
+                        <div class="status-bar" id="props-status-bar">Ready.</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
         <!-- Results Panel -->
-        <div class="results-panel">
+        <div class="results-panel" id="arb-results-panel">
             <section class="card" id="best-results-section" style="display: none;">
                 <h2>Arbitrage Opportunities</h2>
                 <div class="small-text" id="best-summary-bar" style="margin-bottom: 0.4rem;"></div>
@@ -792,6 +891,29 @@
                 </div>
             </section>
 
+        </div>
+
+        <div class="results-panel" id="props-results-panel" style="display: none;">
+            <section class="card">
+                <h2>Player Props Results</h2>
+                <div class="small-text" id="props-summary-bar" style="margin-bottom: 0.4rem;">Results from player props search will display here.</div>
+                <div class="scroll-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Selection</th>
+                                <th>Recommended Bet</th>
+                                <th>Opposing Bet</th>
+                                <th>Edge</th>
+                                <th>Start / Game</th>
+                            </tr>
+                        </thead>
+                        <tbody id="props-results-body">
+                            <tr><td colspan="5" class="small-text">No player props yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
         <div class="toggle-buttons" id="builder-toggle-container" style="display: none;">
@@ -853,6 +975,8 @@
         const RECOMMENDED_ODDS_SORT_KEY = "recommendedOddsSortDirection";
         let recommendedOddsSortDirection = loadRecommendedOddsSortDirection();
         let arbitrageSortMode = "arb-margin";
+        let currentMode = "arb";
+        let propsData = null;
 
         // Client-side network/log helper
         function appendClientLog(msg) {
@@ -1704,6 +1828,41 @@
             document.getElementById("summary-bar").textContent = msg;
         }
 
+        const arbModeBtn = document.getElementById("arb-mode-btn");
+        const propsModeBtn = document.getElementById("props-mode-btn");
+        const arbFilterPanel = document.getElementById("arb-filter-panel");
+        const propsFilterPanel = document.getElementById("props-filter-panel");
+        const arbResultsPanel = document.getElementById("arb-results-panel");
+        const propsResultsPanel = document.getElementById("props-results-panel");
+        const watcherPanel = document.getElementById("watcher-panel");
+        const builderToggleContainer = document.getElementById("builder-toggle-container");
+
+        function setMode(mode) {
+            currentMode = mode;
+            const isArb = mode === "arb";
+
+            arbModeBtn.classList.toggle("active", isArb);
+            arbModeBtn.setAttribute("aria-pressed", String(isArb));
+            propsModeBtn.classList.toggle("active", !isArb);
+            propsModeBtn.setAttribute("aria-pressed", String(!isArb));
+
+            arbFilterPanel.style.display = isArb ? "block" : "none";
+            arbResultsPanel.style.display = isArb ? "block" : "none";
+            watcherPanel.style.display = isArb ? "block" : "none";
+            builderToggleContainer.style.display = isArb ? "flex" : "none";
+
+            propsFilterPanel.style.display = isArb ? "none" : "block";
+            propsResultsPanel.style.display = isArb ? "none" : "block";
+
+            if (!isArb) {
+                stopWatcher();
+            }
+
+            if (!isArb) {
+                renderPlayerPropResults();
+            }
+        }
+
         function clearResults() {
             const body = document.getElementById("results-body");
             body.innerHTML = '<tr><td colspan="9" class="small-text">No results yet.</td></tr>';
@@ -1805,6 +1964,187 @@
 
                 body.appendChild(tr);
             });
+        }
+
+        function setPropsStatus(msg) {
+            const bar = document.getElementById("props-status-bar");
+            if (bar) bar.textContent = msg;
+        }
+
+        function setPropsSummary(msg) {
+            const bar = document.getElementById("props-summary-bar");
+            if (bar) bar.textContent = msg;
+        }
+
+        function getSelectedPropMarkets() {
+            const boxes = Array.from(document.querySelectorAll('#props-markets input[type="checkbox"]:checked'));
+            const markets = boxes.map(box => box.value).filter(Boolean);
+            if (!markets.length) {
+                markets.push("all_player_props");
+            }
+            return markets;
+        }
+
+        function resetMarkets() {
+            document.querySelectorAll('#props-markets input[type="checkbox"]').forEach((box, idx) => {
+                box.checked = idx === 0 || box.value === "player_points" || box.value === "player_rebounds" || box.value === "player_assists" || box.value === "player_threes";
+            });
+        }
+
+        function setSelectOptions(select, options, placeholder) {
+            if (!select) return;
+            select.innerHTML = "";
+            const frag = document.createDocumentFragment();
+            const placeholderOption = document.createElement("option");
+            placeholderOption.value = "";
+            placeholderOption.textContent = placeholder;
+            frag.appendChild(placeholderOption);
+
+            options.forEach(opt => {
+                const option = document.createElement("option");
+                option.value = opt.value;
+                option.textContent = opt.label;
+                frag.appendChild(option);
+            });
+
+            select.appendChild(frag);
+        }
+
+        function formatPropsGameLabel(game) {
+            const matchup = game.matchup || `${game.away_team || ""} @ ${game.home_team || ""}`.trim();
+            const startLabel = formatStartTime(game.start_time || game.commence_time);
+            return startLabel ? `${matchup} • ${startLabel}` : matchup || "Upcoming game";
+        }
+
+        async function loadPropsGames() {
+            const sport = document.getElementById("props-sport").value;
+            const gameSelect = document.getElementById("props-game");
+            const teamSelect = document.getElementById("props-team");
+            const playerSelect = document.getElementById("props-player");
+
+            if (!sport) {
+                setSelectOptions(gameSelect, [], "All Games");
+                setSelectOptions(teamSelect, [], "All Teams");
+                setSelectOptions(playerSelect, [], "All Players");
+                return;
+            }
+
+            setPropsStatus("Loading games and teams...");
+            try {
+                const res = await fetch("/api/player-props/games", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sport_key: sport })
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                const games = Array.isArray(data?.games) ? data.games : [];
+
+                const gameOptions = games.map(game => ({
+                    value: game.event_id,
+                    label: formatPropsGameLabel(game)
+                }));
+                setSelectOptions(gameSelect, gameOptions, "All Games");
+
+                const teams = new Set();
+                games.forEach(game => {
+                    if (game.home_team) teams.add(game.home_team);
+                    if (game.away_team) teams.add(game.away_team);
+                });
+                setSelectOptions(teamSelect, Array.from(teams).map(team => ({ value: team, label: team })), "All Teams");
+                setSelectOptions(playerSelect, [], "All Players");
+            } catch (err) {
+                console.error(err);
+                setPropsStatus(`Couldn't load games: ${err.message}`);
+            }
+        }
+
+        async function fetchPlayerProps() {
+            setPropsStatus("Loading player props...");
+
+            const payload = {
+                sport_key: document.getElementById("props-sport").value || null,
+                team: document.getElementById("props-team").value || null,
+                player_name: document.getElementById("props-player").value || null,
+                event_id: document.getElementById("props-game").value || null,
+                markets: getSelectedPropMarkets(),
+                target_book: document.getElementById("props-target").value,
+                compare_book: document.getElementById("props-compare").value
+            };
+
+            try {
+                const res = await fetch("/api/player-props", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || `HTTP ${res.status}`);
+                }
+
+                propsData = await res.json();
+                const count = Array.isArray(propsData?.plays) ? propsData.plays.length : 0;
+                setPropsStatus(`Loaded ${count} player prop results.`);
+                renderPlayerPropResults();
+            } catch (err) {
+                console.error(err);
+                setPropsStatus(`Error loading player props: ${err.message}`);
+                propsData = { plays: [] };
+                renderPlayerPropResults();
+            }
+        }
+
+        function renderPlayerPropResults() {
+            const body = document.getElementById("props-results-body");
+            body.innerHTML = "";
+
+            const plays = Array.isArray(propsData?.plays) ? propsData.plays : [];
+            if (!plays.length) {
+                body.innerHTML = '<tr><td colspan="5" class="small-text">No player prop value plays found.</td></tr>';
+                setPropsSummary("No player prop results yet.");
+                return;
+            }
+
+            const targetBookLabel = document.querySelector("#props-target option:checked")?.textContent || "Target book";
+            const compareBookLabel = document.querySelector("#props-compare option:checked")?.textContent || "Compare book";
+            const sportLabels = {
+                "basketball_nba": "NBA",
+                "americanfootball_nfl": "NFL",
+                "baseball_mlb": "MLB",
+                "icehockey_nhl": "NHL"
+            };
+
+            const sorted = sortPlaysByArbitrageMargin(plays, "desc");
+            const playsWithStake = sorted.map(play => {
+                const hedgeStakeAmounts = TableRenderers.helpers.calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
+                return {
+                    ...play,
+                    targetLabel: targetBookLabel,
+                    compareLabel: compareBookLabel,
+                    targetStakeText: hedgeStakeAmounts ? TableRenderers.helpers.formatStakeAmount(hedgeStakeAmounts.targetStake) : null,
+                    hedgeStakeText: hedgeStakeAmounts ? TableRenderers.helpers.formatStakeAmount(hedgeStakeAmounts.hedgeStake) : null,
+                };
+            });
+
+            TableRenderers.renderPropRows(body, playsWithStake, {
+                targetBookLabel,
+                compareBookLabel,
+                sportLabels,
+                marketLabelGetter: (key) => key,
+                startTimeFormatter: TableRenderers.helpers.formatStartTime,
+                oddsFormatter: TableRenderers.helpers.formatOddsWithColor,
+                hedgeOddsFormatter: TableRenderers.helpers.formatOddsWithColor,
+                emptyMessage: "No player prop value plays found.",
+            });
+
+            setPropsSummary(`Showing ${playsWithStake.length} player prop results.`);
         }
 
         function renderValueFromState() {
@@ -2681,6 +3021,29 @@
                     }
                 });
             }
+
+            arbModeBtn.addEventListener("click", () => setMode("arb"));
+            propsModeBtn.addEventListener("click", () => setMode("props"));
+            document.getElementById("props-sport").addEventListener("change", loadPropsGames);
+            document.getElementById("props-search-btn").addEventListener("click", (e) => {
+                e.preventDefault();
+                setMode("props");
+                fetchPlayerProps();
+            });
+
+            document.getElementById("props-reset-btn").addEventListener("click", () => {
+                document.getElementById("props-sport").value = "";
+                setSelectOptions(document.getElementById("props-game"), [], "All Games");
+                setSelectOptions(document.getElementById("props-team"), [], "All Teams");
+                setSelectOptions(document.getElementById("props-player"), [], "All Players");
+                resetMarkets();
+                propsData = { plays: [] };
+                renderPlayerPropResults();
+                setPropsStatus("Ready.");
+                setPropsSummary("Results from player props search will display here.");
+            });
+
+            setMode("arb");
 
             // Test SMS functionality
             const testSmsBtn = document.getElementById("test-sms-btn");
