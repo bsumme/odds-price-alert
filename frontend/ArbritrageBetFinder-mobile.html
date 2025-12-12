@@ -301,6 +301,33 @@
             border: 1px solid #334155;
         }
 
+        .parlay-bar {
+            font-size: 0.85rem;
+            color: #bbf7d0;
+            margin-bottom: 1rem;
+            padding: 0.85rem;
+            background: #0b1220;
+            border-radius: 0.5rem;
+            border: 1px dashed #22c55e;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+            line-height: 1.4;
+        }
+
+        .parlay-bar strong {
+            display: block;
+            margin-bottom: 0.35rem;
+        }
+
+        .parlay-leg {
+            display: block;
+            color: #e5e7eb;
+            margin: 0.25rem 0;
+        }
+
+        .parlay-leg .small-text {
+            color: #94a3b8;
+        }
+
         /* Card-based results */
         .results-container {
             display: flex;
@@ -773,8 +800,12 @@
         <div class="results-section" id="results-section" style="display: none;">
             <div class="results-header">
                 <h2>Arbitrage Opportunities</h2>
+                <div class="results-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-primary" id="arb-parlay-btn" type="button">Build Best Parlay</button>
+                </div>
             </div>
             <div class="summary-bar" id="best-summary-bar"></div>
+            <div class="parlay-bar" id="arb-parlay-bar" style="display: none;"></div>
             <div class="pull-refresh" id="pull-refresh">Pull down to refresh</div>
             <div class="scroll-container">
                 <table>
@@ -796,8 +827,12 @@
         <div class="results-section" id="props-results-section" style="display: none;">
             <div class="results-header">
                 <h2>Player Props</h2>
+                <div class="results-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-primary" id="props-parlay-btn" type="button">Build Best Parlay</button>
+                </div>
             </div>
             <div class="summary-bar" id="props-summary-bar">Results from player props search will display here.</div>
+            <div class="parlay-bar" id="props-parlay-bar" style="display: none;"></div>
             <div class="scroll-container">
                 <table>
                     <thead>
@@ -893,6 +928,23 @@
             fliff: "Fliff",
             novig: "Novig",
         };
+
+        const SPORT_LABELS = {
+            "basketball_nba": "NBA",
+            "americanfootball_nfl": "NFL",
+            "icehockey_nhl": "NHL",
+            "basketball_ncaab": "NCAAB",
+            "americanfootball_ncaaf": "NCAAF",
+            "baseball_mlb": "MLB",
+        };
+
+        const MARKET_LABELS = {
+            h2h: "Moneyline",
+            spreads: "Spreads",
+            totals: "Totals",
+        };
+
+        const MAX_PARLAY_LEGS = 3;
 
         function getBookLabel(key) {
             if (!key) return "";
@@ -1449,6 +1501,101 @@
             if (bar) bar.textContent = msg;
         }
 
+        function resetParlayBar(containerId) {
+            const bar = document.getElementById(containerId);
+            if (!bar) return;
+            bar.style.display = "none";
+            bar.innerHTML = "";
+        }
+
+        function selectTopParlayLegs(plays, maxLegs = MAX_PARLAY_LEGS) {
+            const valid = Array.isArray(plays)
+                ? plays.filter((play) => typeof play?.arb_margin_percent === "number")
+                : [];
+
+            if (!valid.length) {
+                return { legs: [], combinedMargin: 0 };
+            }
+
+            const positive = valid.filter((play) => play.arb_margin_percent > 0);
+            const pool = positive.length ? positive : valid;
+            const sorted = sortPlaysByArbitrageMargin(pool, "desc");
+            const legs = sorted.slice(0, maxLegs);
+            const combinedMargin = legs.reduce((sum, leg) =>
+                sum + (typeof leg.arb_margin_percent === "number" ? leg.arb_margin_percent : 0), 0);
+
+            return { legs, combinedMargin };
+        }
+
+        function renderParlaySummary(containerId, legs, combinedMargin, formatter, emptyMessage) {
+            const bar = document.getElementById(containerId);
+            if (!bar) return;
+
+            if (!legs.length) {
+                if (emptyMessage) {
+                    bar.style.display = "block";
+                    bar.innerHTML = `<strong>Best Parlay</strong><span class="parlay-leg">${emptyMessage}</span>`;
+                } else {
+                    resetParlayBar(containerId);
+                }
+                return;
+            }
+
+            const safeCombined = Number.isFinite(combinedMargin) ? combinedMargin : 0;
+            const legMarkup = legs.map(formatter).join("");
+            bar.style.display = "block";
+            bar.innerHTML = `<strong>Best Parlay (${legs.length} legs, combined EV ${safeCombined.toFixed(2)}%)</strong>${legMarkup}`;
+        }
+
+        function formatArbParlayLeg(leg) {
+            const sportLabel = SPORT_LABELS[leg?.sport_key] || leg?.sport_key || "Sport";
+            const marketLabel = MARKET_LABELS[leg?.market] || leg?.market || "Market";
+            const lineText = leg && leg.point !== null && leg.point !== undefined
+                ? ` ${leg.point > 0 ? "+" : ""}${leg.point}`
+                : "";
+            const matchupLine = leg?.matchup ? `<div class="small-text">${leg.matchup}</div>` : "";
+            const marginText = typeof leg?.arb_margin_percent === "number"
+                ? `${leg.arb_margin_percent.toFixed(2)}% EV`
+                : "EV N/A";
+            const oddsText = formatOdds(leg?.book_price) || "Odds N/A";
+            const selection = leg?.outcome_name || "Selection";
+
+            return `<span class="parlay-leg"><strong>${sportLabel}</strong>: ${selection} <span class="small-text">${marketLabel}${lineText}</span> @ ${oddsText} <span class="small-text">(${marginText})</span>${matchupLine}</span>`;
+        }
+
+        function formatPropsParlayLeg(leg) {
+            const sportLabel = SPORT_LABELS[leg?.sport_key] || leg?.sport_key || "Props";
+            const marketLabel = (leg?.market || "Prop").replace(/_/g, " ");
+            const pointText = leg && leg.point !== null && leg.point !== undefined ? ` @ ${leg.point}` : "";
+            const marginText = typeof leg?.arb_margin_percent === "number"
+                ? `${leg.arb_margin_percent.toFixed(2)}% EV`
+                : "EV N/A";
+            const oddsText = formatOdds(leg?.book_price) || "Odds N/A";
+            const matchupLine = leg?.matchup ? `<div class="small-text">${leg.matchup}</div>` : "";
+            const opponent = leg?.novig_reverse_name ? ` vs ${leg.novig_reverse_name}` : "";
+            const selection = leg?.outcome_name || "Player Prop";
+
+            return `<span class="parlay-leg"><strong>${sportLabel}</strong>: ${selection}${pointText} <span class="small-text">${marketLabel}${opponent}</span> @ ${oddsText} <span class="small-text">(${marginText})</span>${matchupLine}</span>`;
+        }
+
+        function buildArbParlay() {
+            const plays = Array.isArray(lastBestValueData?.plays) ? lastBestValueData.plays : [];
+            const { legs, combinedMargin } = selectTopParlayLegs(plays);
+            const emptyMessage = plays.length
+                ? "No arbitrage plays with expected value are available yet."
+                : "Run a main markets search to build a parlay.";
+            renderParlaySummary("arb-parlay-bar", legs, combinedMargin, formatArbParlayLeg, emptyMessage);
+        }
+
+        function buildPropsParlay() {
+            const plays = Array.isArray(propsData?.plays) ? propsData.plays : [];
+            const { legs, combinedMargin } = selectTopParlayLegs(plays);
+            const emptyMessage = plays.length
+                ? "No player props with expected value are available yet."
+                : "Search player props to build a parlay.";
+            renderParlaySummary("props-parlay-bar", legs, combinedMargin, formatPropsParlayLeg, emptyMessage);
+        }
+
         function setMode(mode) {
             currentMode = mode;
             const isArb = mode === "arb";
@@ -1664,11 +1811,13 @@
             const body = document.getElementById("props-results-body");
             section.style.display = currentMode === "props" ? "block" : "none";
             body.innerHTML = "";
+            resetParlayBar("props-parlay-bar");
 
             const plays = Array.isArray(propsData?.plays) ? propsData.plays : [];
             if (!plays.length) {
                 body.innerHTML = '<tr><td colspan="5" class="small-text">No player prop value plays found.</td></tr>';
                 setPropsSummary("No player prop results yet.");
+                renderParlaySummary("props-parlay-bar", [], 0, formatPropsParlayLeg, "Search player props to build a parlay.");
                 return;
             }
 
@@ -1713,6 +1862,7 @@
             document.getElementById("results-section").style.display = "none";
             document.getElementById("empty-state").style.display = "block";
             setBestSummary("");
+            resetParlayBar("arb-parlay-bar");
         }
 
         function renderBestValuePlays(data, hedgeOnly = false) {
@@ -1720,6 +1870,7 @@
             body.innerHTML = "";
             const section = document.getElementById("results-section");
             const emptyState = document.getElementById("empty-state");
+            resetParlayBar("arb-parlay-bar");
 
             section.style.display = "block";
             emptyState.style.display = "none";
@@ -2198,6 +2349,7 @@
 
             document.getElementById("find-best-btn").onclick = () => fetchBestValuePlays();
             document.getElementById("clear-best-btn").onclick = clearBestResults;
+            document.getElementById("arb-parlay-btn").addEventListener("click", buildArbParlay);
 
             const bestTargetBook = document.getElementById("best-target-book-select");
             const bestCompareBook = document.getElementById("best-compare-book-select");
@@ -2228,6 +2380,11 @@
                 e.preventDefault();
                 setMode("props");
                 fetchAllSportsPlayerProps();
+            });
+
+            document.getElementById("props-parlay-btn").addEventListener("click", () => {
+                setMode("props");
+                buildPropsParlay();
             });
 
             document.getElementById("props-reset-btn").addEventListener("click", () => {
