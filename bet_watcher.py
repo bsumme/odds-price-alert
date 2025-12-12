@@ -11,6 +11,12 @@ You can enter one or more bets like:
 Modes:
   - Normal: watch & alert in a loop
   - Snapshot: with --snapshot-only / -s, just print current odds once and exit
+
+# NOTE: This script now serves as the single CLI watcher; the older
+# nba_price_alert.py one-off script was removed because it duplicated
+# the same polling logic. Fully merging the configs would require
+# untangling interactive prompts and defaults across both tools, which
+# is more involved than the quick cleanup we can safely do here.
 """
 
 import argparse
