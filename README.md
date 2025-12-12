@@ -156,6 +156,8 @@ odds-price-alert/
    uvicorn main:app --reload
    ```
 
+   On Windows, you can also start the app from the repo root with the included `start_server.bat` script. It activates `.venv` (if present) and runs the same `uvicorn main:app --reload` command used above.
+
 4. **Access the application**:
    Open http://localhost:8000 in your browser
 
