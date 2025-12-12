@@ -12,6 +12,12 @@
         return mobileRegex.test(userAgent.toLowerCase()) || (isSmallScreen && hasTouchScreen);
     };
 
+    const normalizePathname = (pathname = "") => {
+        const trimmed = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+        if (!trimmed || trimmed === "/") return "/";
+        return trimmed.toLowerCase().replace(/\.html$/, "");
+    };
+
     const enforceMobileMainPage = () => {
         if (!isMobileDevice()) return true;
 
