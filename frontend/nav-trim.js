@@ -1,4 +1,5 @@
 (() => {
+    const navTrimVersion = "2024-12-17";
     const mobileMainPage = "/BensSportsBookApp.html";
     const hiddenNavTargets = ["/watcher.html", "/linetracker.html", "/value.html"];
     const mobileAllowedPages = [
@@ -95,6 +96,7 @@
     };
 
     const initialize = () => {
+        debugLog("nav-trim version", navTrimVersion);
         if (!enforceMobileMainPage()) return;
         stripHiddenToolbarLinks();
     };
