@@ -21,7 +21,17 @@
     const normalizePathname = (pathname = "") => {
         const trimmed = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
         if (!trimmed || trimmed === "/") return "/";
-        return trimmed.toLowerCase().replace(/\.html$/, "");
+
+        const lower = trimmed.toLowerCase();
+        const withoutHtml = lower.replace(/\.html$/, "");
+        const segments = withoutHtml.split("/");
+        const lastSegment = segments[segments.length - 1];
+
+        if (lastSegment === "settings") {
+            return "/settings";
+        }
+
+        return withoutHtml;
     };
 
     const normalizeMobilePath = (pathname = "") => normalizePathname(pathname === "/" ? mobileMainPage : pathname);
@@ -56,9 +66,26 @@
         stripHiddenToolbarLinks();
     };
 
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initialize);
-    } else {
-        initialize();
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = {
+            allowedMobilePaths,
+            enforceMobileMainPage,
+            initialize,
+            isMobileDevice,
+            mobileAllowedPages,
+            mobileMainPage,
+            normalizeMobilePath,
+            normalizePathname,
+            stripHiddenToolbarLinks,
+            shouldHideLink,
+        };
+    }
+
+    if (typeof document !== "undefined") {
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initialize);
+        } else {
+            initialize();
+        }
     }
 })();
