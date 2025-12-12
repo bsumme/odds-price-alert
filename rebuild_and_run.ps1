@@ -269,9 +269,9 @@ if ($Mobile) {
 }
 
 Write-Host "TRACE_LEVEL set to $traceLevel" -ForegroundColor Cyan
-Write-Host "Server will be available at: http://$hostAddress:$port/BensSportsBookApp.html" -ForegroundColor Green
+Write-Host "Server will be available at: http://${hostAddress}:${port}/BensSportsBookApp.html" -ForegroundColor Green
 if ($Mobile) {
-    Write-Host "Mobile URL: http://$mobileIpAddress:$port/BensSportsBookApp.html" -ForegroundColor Cyan
+    Write-Host "Mobile URL: http://${mobileIpAddress}:${port}/BensSportsBookApp.html" -ForegroundColor Cyan
 } else {
     Write-Host "Use -Mobile to expose the app to your LAN for device testing" -ForegroundColor Yellow
 }
