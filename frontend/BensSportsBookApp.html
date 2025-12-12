@@ -2022,6 +2022,16 @@
             select.appendChild(frag);
         }
 
+        function updatePropsSearchButton() {
+            const sportSelected = Boolean(document.getElementById("props-sport")?.value);
+            const searchBtn = document.getElementById("props-search-btn");
+
+            if (!searchBtn) return;
+
+            searchBtn.disabled = !sportSelected;
+            searchBtn.title = sportSelected ? "" : "Select sport from drop down";
+        }
+
         function formatPropsGameLabel(game) {
             const matchup = game.matchup || `${game.away_team || ""} @ ${game.home_team || ""}`.trim();
             const startLabel = formatStartTime(game.start_time || game.commence_time);
@@ -3085,7 +3095,10 @@
 
             arbModeBtn.addEventListener("click", () => setMode("arb"));
             propsModeBtn.addEventListener("click", () => setMode("props"));
-            document.getElementById("props-sport").addEventListener("change", loadPropsGames);
+            document.getElementById("props-sport").addEventListener("change", () => {
+                updatePropsSearchButton();
+                loadPropsGames();
+            });
             document.getElementById("props-search-btn").addEventListener("click", (e) => {
                 e.preventDefault();
                 setMode("props");
@@ -3108,11 +3121,13 @@
                 renderPlayerPropResults();
                 setPropsStatus("Ready.");
                 setPropsSummary("Results from player props search will display here.");
+                updatePropsSearchButton();
             });
 
             // Initialize player props filters on load (ensures games list populates when a sport is preselected)
             resetMarkets();
             loadPropsGames();
+            updatePropsSearchButton();
 
             setMode("arb");
 
