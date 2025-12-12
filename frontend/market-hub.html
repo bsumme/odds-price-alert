@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Arbitrage & Player Props Hub</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #0f172a;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            padding: 1rem 1.5rem;
+            background: #1e293b;
+            border-bottom: 2px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        header nav {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        header nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.9rem;
+            padding: 0.35rem 0.65rem;
+            border-radius: 0.5rem;
+            border: 1px solid transparent;
+        }
+
+        header nav a:hover {
+            color: #e5e7eb;
+            border-color: #1f2937;
+            background: #111827;
+        }
+
+        header nav a.active {
+            color: #bbf7d0;
+            font-weight: 600;
+            border-color: #166534;
+            background: #0b1220;
+        }
+
+        main {
+            padding: 1rem 1.25rem 1.5rem;
+            display: grid;
+            grid-template-columns: minmax(320px, 360px) minmax(0, 1fr) minmax(280px, 320px);
+            gap: 1rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1200px) {
+            main {
+                grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+            }
+
+            .side-column {
+                display: none;
+            }
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            padding: 1rem 1.1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.05rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            margin-top: 0.6rem;
+            margin-bottom: 0.2rem;
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        select,
+        input[type="number"] {
+            width: 100%;
+            padding: 0.5rem 0.6rem;
+            border-radius: 0.5rem;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #e5e7eb;
+            font-size: 0.95rem;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 0.55rem;
+            padding: 0.55rem 0.9rem;
+            font-size: 0.95rem;
+            cursor: pointer;
+            margin-top: 0.8rem;
+        }
+
+        .btn-primary {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .btn-primary:hover {
+            background: #15803d;
+        }
+
+        .btn-secondary {
+            background: #475569;
+            color: #e5e7eb;
+        }
+
+        .btn-secondary:hover {
+            background: #64748b;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .mode-toggle button {
+            flex: 1;
+            background: #0f172a;
+            color: #e5e7eb;
+            border: 1px solid #334155;
+            border-radius: 0.55rem;
+            padding: 0.65rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mode-toggle button.active {
+            background: #166534;
+            border-color: #15803d;
+            color: #bbf7d0;
+        }
+
+        .mode-section {
+            display: none;
+        }
+
+        .mode-section.active {
+            display: block;
+        }
+
+        .table-card {
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .table-card header {
+            padding: 1rem 1.1rem;
+            position: static;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #111827;
+        }
+
+        th,
+        td {
+            padding: 0.65rem 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #1f2937;
+            font-size: 0.95rem;
+        }
+
+        th {
+            color: #cbd5e1;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .helper {
+            color: #cbd5e1;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .pill-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .pill-group label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.55rem;
+            padding: 0.35rem 0.6rem;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .chip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .chip-list label {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 999px;
+            padding: 0.35rem 0.8rem;
+            margin: 0;
+        }
+
+        .section-helper {
+            margin-top: 0.3rem;
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .side-card {
+            position: sticky;
+            top: 1.25rem;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="/nav-trim.js"></script>
+    <header>
+        <div>
+            <h1>Arbitrage & Player Props</h1>
+            <div style="color: #cbd5e1; font-size: 0.9rem;">Compare opportunities from both workflows in one view.</div>
+        </div>
+        <nav>
+            <a href="/market-hub.html" class="active">Arb & Props Hub</a>
+            <a href="/value.html">Value Finder</a>
+            <a href="/sgp-builder.html">SGP Builder</a>
+            <a href="/watcher.html">Watchlist</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="card">
+            <div class="mode-toggle">
+                <button id="arb-toggle" class="active" aria-pressed="true">Arbitrage</button>
+                <button id="props-toggle" aria-pressed="false">Player Props</button>
+            </div>
+
+            <section id="arbitrage-filters" class="mode-section active" aria-labelledby="arb-toggle">
+                <h2>Arbitrage Filters</h2>
+                <div class="helper">Imported from the Arbitrage Finder for side-by-side comparisons.</div>
+                <label>Select Sports</label>
+                <div id="arb-sports" class="chip-list">
+                    <label><input type="checkbox" checked>Basketball</label>
+                    <label><input type="checkbox" checked>Football</label>
+                    <label><input type="checkbox" checked>Hockey</label>
+                    <label><input type="checkbox" checked>Soccer</label>
+                </div>
+
+                <label style="margin-top: 0.8rem;">Select Markets</label>
+                <div class="pill-group">
+                    <label><input type="checkbox" checked>Moneyline</label>
+                    <label><input type="checkbox" checked>Spreads</label>
+                    <label><input type="checkbox" checked>Totals</label>
+                </div>
+
+                <label for="arb-target">Target book</label>
+                <select id="arb-target">
+                    <option>DraftKings</option>
+                    <option>FanDuel</option>
+                    <option>Fliff</option>
+                    <option>Novig</option>
+                </select>
+
+                <label for="arb-compare" style="margin-top: 0.4rem;">Compare against</label>
+                <select id="arb-compare">
+                    <option>Novig</option>
+                    <option>DraftKings</option>
+                    <option>FanDuel</option>
+                    <option>Fliff</option>
+                </select>
+
+                <label for="arb-promo" style="margin-top: 0.6rem;">Promo boost % (20-100, default 30)</label>
+                <input id="arb-promo" type="number" min="20" max="100" step="5" value="30" />
+
+                <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                    <button class="btn btn-primary">Find Arbitrage</button>
+                    <button class="btn btn-secondary">Reset Filters</button>
+                </div>
+            </section>
+
+            <section id="playerprops-filters" class="mode-section" aria-labelledby="props-toggle">
+                <h2>Player Props Filters</h2>
+                <div class="helper">Pulled directly from the Player Props finder for targeted prop searches.</div>
+                <label for="props-sport">Sport</label>
+                <select id="props-sport">
+                    <option value="">Select a sport</option>
+                    <option value="nba">NBA</option>
+                    <option value="nfl">NFL</option>
+                    <option value="mlb">MLB</option>
+                    <option value="nhl">NHL</option>
+                </select>
+
+                <label for="props-game">Upcoming Games</label>
+                <select id="props-game">
+                    <option value="">All Games</option>
+                </select>
+                <div class="section-helper">Select a matchup to scope searches to a single game.</div>
+
+                <label for="props-team">Team</label>
+                <select id="props-team">
+                    <option value="">All Teams</option>
+                </select>
+
+                <label for="props-player">Player</label>
+                <select id="props-player">
+                    <option value="">All Players</option>
+                </select>
+
+                <label>Markets</label>
+                <div class="pill-group" id="props-markets">
+                    <label><input type="checkbox" checked>All player props</label>
+                    <label><input type="checkbox" checked>Points</label>
+                    <label><input type="checkbox" checked>Rebounds</label>
+                    <label><input type="checkbox" checked>Assists</label>
+                    <label><input type="checkbox" checked>Threes</label>
+                </div>
+
+                <label for="props-target">Target book</label>
+                <select id="props-target">
+                    <option value="draftkings">DraftKings</option>
+                    <option value="fanduel">FanDuel</option>
+                    <option value="fliff">Fliff</option>
+                    <option value="novig">Novig</option>
+                </select>
+
+                <label for="props-compare" style="margin-top: 0.4rem;">Compare against</label>
+                <select id="props-compare">
+                    <option value="novig" selected>Novig</option>
+                    <option value="draftkings">DraftKings</option>
+                    <option value="fanduel">FanDuel</option>
+                    <option value="fliff">Fliff</option>
+                </select>
+
+                <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                    <button class="btn btn-primary">Find Player Props</button>
+                    <button class="btn btn-secondary">Reset Filters</button>
+                </div>
+            </section>
+        </section>
+
+        <section class="card table-card">
+            <header style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 id="table-title" style="margin: 0;">Arbitrage Results</h2>
+                    <div class="helper" id="table-subtitle">Results from arbitrage search will display here.</div>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span style="font-size: 0.9rem; color: #94a3b8;">Toggle to switch datasets</span>
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #22c55e;"></div>
+                </div>
+            </header>
+            <table>
+                <thead id="arb-head">
+                    <tr>
+                        <th>Matchup</th>
+                        <th>Market</th>
+                        <th>Best +EV</th>
+                        <th>Target Book</th>
+                        <th>Compare Book</th>
+                    </tr>
+                </thead>
+                <thead id="props-head" style="display: none;">
+                    <tr>
+                        <th>Player</th>
+                        <th>Market</th>
+                        <th>Target Odds</th>
+                        <th>Best Opposing</th>
+                        <th>Game</th>
+                    </tr>
+                </thead>
+                <tbody id="arb-body">
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: #94a3b8;">Run a search to view arbitrage
+                            opportunities.</td>
+                    </tr>
+                </tbody>
+                <tbody id="props-body" style="display: none;">
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: #94a3b8;">Switch to player props to see
+                            prop results.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="side-column">
+            <div class="card side-card">
+                <h2>Tips</h2>
+                <ul style="padding-left: 1.2rem; color: #cbd5e1; line-height: 1.5;">
+                    <li>Use the toggle to switch between arbitrage controls and player prop filters.</li>
+                    <li>The center table reuses a single container; headers and rows adjust per mode.</li>
+                    <li>You can still open the legacy pages if you prefer their dedicated layouts.</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const arbToggle = document.getElementById("arb-toggle");
+        const propsToggle = document.getElementById("props-toggle");
+        const arbFilters = document.getElementById("arbitrage-filters");
+        const propsFilters = document.getElementById("playerprops-filters");
+        const arbHead = document.getElementById("arb-head");
+        const propsHead = document.getElementById("props-head");
+        const arbBody = document.getElementById("arb-body");
+        const propsBody = document.getElementById("props-body");
+        const tableTitle = document.getElementById("table-title");
+        const tableSubtitle = document.getElementById("table-subtitle");
+
+        function setMode(mode) {
+            const isArb = mode === "arb";
+
+            arbToggle.classList.toggle("active", isArb);
+            propsToggle.classList.toggle("active", !isArb);
+            arbToggle.setAttribute("aria-pressed", String(isArb));
+            propsToggle.setAttribute("aria-pressed", String(!isArb));
+
+            arbFilters.classList.toggle("active", isArb);
+            propsFilters.classList.toggle("active", !isArb);
+
+            arbHead.style.display = isArb ? "table-header-group" : "none";
+            propsHead.style.display = isArb ? "none" : "table-header-group";
+            arbBody.style.display = isArb ? "table-row-group" : "none";
+            propsBody.style.display = isArb ? "none" : "table-row-group";
+
+            tableTitle.textContent = isArb ? "Arbitrage Results" : "Player Props Results";
+            tableSubtitle.textContent = isArb
+                ? "Results from arbitrage search will display here."
+                : "Results from player props search will display here.";
+        }
+
+        arbToggle.addEventListener("click", () => setMode("arb"));
+        propsToggle.addEventListener("click", () => setMode("props"));
+    </script>
+</body>
+
+</html>
