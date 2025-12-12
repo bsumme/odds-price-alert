@@ -895,7 +895,7 @@
         <div class="results-panel" id="props-results-panel" style="display: none;">
             <section class="card">
                 <h2>Player Props Results</h2>
-                <div class="small-text" id="props-summary-bar" style="margin-bottom: 0.4rem;">Results from player props search will display here.</div>
+                <div class="small-text" id="props-summary-bar" style="margin-bottom: 0.4rem;">Use the filters above to find arbitrage opportunities for player props</div>
                 <div class="scroll-container">
                     <table>
                         <thead>
@@ -908,7 +908,7 @@
                             </tr>
                         </thead>
                         <tbody id="props-results-body">
-                            <tr><td colspan="5" class="small-text">No player props yet.</td></tr>
+                            <tr><td colspan="5" class="small-text">Use the filters above to find arbitrage opportunities for player props</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -976,6 +976,8 @@
         let arbitrageSortMode = "arb-margin";
         let currentMode = "arb";
         let propsData = null;
+        let hasRunPropsSearch = false;
+        const DEFAULT_PROPS_EMPTY_MESSAGE = "Use the filters above to find arbitrage opportunities for player props";
         // Placeholder to ensure stopWatcher is always defined in the current scope
         let stopWatcher = () => {};
         const BOOK_LABELS = {
@@ -1988,6 +1990,12 @@
             if (bar) bar.textContent = msg;
         }
 
+        setPropsSummary(DEFAULT_PROPS_EMPTY_MESSAGE);
+        const propsResultsBody = document.getElementById("props-results-body");
+        if (propsResultsBody) {
+            propsResultsBody.innerHTML = `<tr><td colspan="5" class="small-text">${DEFAULT_PROPS_EMPTY_MESSAGE}</td></tr>`;
+        }
+
         function getSelectedPropMarkets() {
             const boxes = Array.from(document.querySelectorAll('#props-markets input[type="checkbox"]:checked'));
             const markets = boxes.map(box => box.value).filter(Boolean);
@@ -2096,6 +2104,8 @@
                 return;
             }
 
+            hasRunPropsSearch = true;
+
             const payload = {
                 sport_key: sportKey,
                 team: document.getElementById("props-team").value || null,
@@ -2135,6 +2145,8 @@
             const button = document.getElementById("props-all-sports-btn");
             setPropsStatus("Scanning all sports for player prop arbitrage vs Novig...");
             if (button) button.disabled = true;
+
+            hasRunPropsSearch = true;
 
             try {
                 const res = await fetch("/api/player-props/arbitrage-all", {
@@ -2177,9 +2189,12 @@
             body.innerHTML = "";
 
             const plays = Array.isArray(propsData?.plays) ? propsData.plays : [];
-            if (!plays.length) {
-                body.innerHTML = '<tr><td colspan="5" class="small-text">No player prop value plays found.</td></tr>';
-                setPropsSummary("No player prop results yet.");
+            if (!hasRunPropsSearch || !plays.length) {
+                const message = hasRunPropsSearch
+                    ? "No player prop value plays found."
+                    : DEFAULT_PROPS_EMPTY_MESSAGE;
+                body.innerHTML = `<tr><td colspan="5" class="small-text">${message}</td></tr>`;
+                setPropsSummary(message);
                 return;
             }
 
@@ -3117,10 +3132,11 @@
                 setSelectOptions(document.getElementById("props-team"), [], "All Teams");
                 setSelectOptions(document.getElementById("props-player"), [], "All Players");
                 resetMarkets();
-                propsData = { plays: [] };
+                propsData = null;
+                hasRunPropsSearch = false;
                 renderPlayerPropResults();
                 setPropsStatus("Ready.");
-                setPropsSummary("Results from player props search will display here.");
+                setPropsSummary(DEFAULT_PROPS_EMPTY_MESSAGE);
                 updatePropsSearchButton();
             });
 
