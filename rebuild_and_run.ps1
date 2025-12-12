@@ -6,10 +6,15 @@
 # 4. Install all required dependencies
 # 5. Start the FastAPI server
 #
-# Usage: .\rebuild_and_run.ps1 [-d|-t] [-f "<file_path>"]
-#   -d : Run the app in debug trace level
-#   -t : Run the app in trace level
-#   -f : Log script output to the specified file path
+# Usage: .\rebuild_and_run.ps1 [-d|-t] [-f "<file_path>"] [-PreferCache] [-Mobile]
+#   -d           : Run the app in debug trace level
+#   -t           : Run the app in trace level
+#   -f           : Log script output to the specified file path
+#   -PreferCache : Prefer installing dependencies from the local pip cache before
+#                  falling back to online downloads (mirrors the removed
+#                  rebuild_and_run_cached.ps1)
+#   -Mobile      : Bind the server to 0.0.0.0 and print the LAN URL for mobile
+#                  testing (replaces start_server_for_mobile_test.ps1)
 #   default (no flag): Run in regular mode
 # Example with logging to a full path:
 #   .\rebuild_and_run.ps1 -d -f "C:\logs\rebuild_and_run.log"
@@ -17,7 +22,9 @@
 param(
     [switch]$d,
     [switch]$t,
-    [string]$f
+    [string]$f,
+    [switch]$PreferCache,
+    [switch]$Mobile
 )
 
 if ($d -and $t) {
@@ -31,6 +38,9 @@ if ($d) {
 } elseif ($t) {
     $traceLevel = "trace"
 }
+
+$hostAddress = if ($Mobile) { "0.0.0.0" } else { "127.0.0.1" }
+$port = 8000
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Rebuilding and Starting Bet Watcher" -ForegroundColor Cyan
@@ -169,13 +179,58 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "  Installing packages: fastapi, uvicorn, requests, pydantic..." -ForegroundColor Yellow
-pip install fastapi uvicorn[standard] requests pydantic
-if ($LASTEXITCODE -ne 0) {
+$requirementsPath = Join-Path $scriptDir "requirements.txt"
+$installed = $false
+
+if (Test-Path $requirementsPath) {
+    if ($PreferCache) {
+        $pipCacheDir = (& python -m pip cache dir 2>$null).Trim()
+        $wheelCacheDir = if ($pipCacheDir) { Join-Path $pipCacheDir "wheels" } else { $null }
+        $hasCachedWheels = $false
+
+        if ($wheelCacheDir -and (Test-Path $wheelCacheDir)) {
+            $cachedWheel = Get-ChildItem -Path $wheelCacheDir -Recurse -Filter "*.whl" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($cachedWheel) {
+                $hasCachedWheels = $true
+                Write-Host "  Found cached wheels in: $wheelCacheDir" -ForegroundColor Green
+            }
+        }
+
+        if ($hasCachedWheels) {
+            Write-Host "  Attempting cached install from requirements.txt..." -ForegroundColor Yellow
+            pip install --upgrade --no-index --find-links $wheelCacheDir -r $requirementsPath
+            if ($LASTEXITCODE -eq 0) {
+                $installed = $true
+                Write-Host "  [OK] Dependencies installed from cache" -ForegroundColor Green
+            } else {
+                Write-Host "  [WARNING] Cached install failed; falling back to online install" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "  No cached wheels detected; proceeding with online install" -ForegroundColor Yellow
+        }
+    }
+
+    if (-not $installed) {
+        Write-Host "  Installing packages from requirements.txt..." -ForegroundColor Yellow
+        pip install --upgrade -r $requirementsPath
+        if ($LASTEXITCODE -eq 0) {
+            $installed = $true
+            Write-Host "  [OK] Dependencies installed" -ForegroundColor Green
+        }
+    }
+} else {
+    Write-Host "  [WARNING] requirements.txt not found; installing base dependencies..." -ForegroundColor Yellow
+    pip install fastapi uvicorn[standard] requests pydantic
+    if ($LASTEXITCODE -eq 0) {
+        $installed = $true
+        Write-Host "  [OK] Base dependencies installed" -ForegroundColor Green
+    }
+}
+
+if (-not $installed) {
     Write-Host "  [ERROR] Failed to install dependencies!" -ForegroundColor Red
     exit 1
 }
-Write-Host "  [OK] All dependencies installed" -ForegroundColor Green
 
 # Step 6: Check for API key
 Write-Host ""
@@ -198,22 +253,28 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Starting FastAPI server..." -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Detecting local IP address for mobile access..." -ForegroundColor Yellow
-$mobileIpAddress = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
-    $_.IPAddress -notlike "127.*" -and
-    $_.IPAddress -notlike "169.254.*"
-} | Select-Object -First 1).IPAddress
+if ($Mobile) {
+    Write-Host "Detecting local IP address for mobile access..." -ForegroundColor Yellow
+    $mobileIpAddress = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
+        $_.IPAddress -notlike "127.*" -and
+        $_.IPAddress -notlike "169.254.*"
+    } | Select-Object -First 1).IPAddress
 
-if ($mobileIpAddress) {
-    Write-Host "  [OK] Mobile testing IP detected: $mobileIpAddress" -ForegroundColor Green
-} else {
-    Write-Host "  [WARNING] Could not find local IP, using 0.0.0.0" -ForegroundColor Yellow
-    $mobileIpAddress = "0.0.0.0"
+    if ($mobileIpAddress) {
+        Write-Host "  [OK] Mobile testing IP detected: $mobileIpAddress" -ForegroundColor Green
+    } else {
+        Write-Host "  [WARNING] Could not find local IP, using 0.0.0.0" -ForegroundColor Yellow
+        $mobileIpAddress = "0.0.0.0"
+    }
 }
 
 Write-Host "TRACE_LEVEL set to $traceLevel" -ForegroundColor Cyan
-Write-Host "Server will be available at: http://127.0.0.1:8000/BensSportsBookApp.html" -ForegroundColor Green
-Write-Host "Mobile URL: http://$mobileIpAddress:8000/BensSportsBookApp.html" -ForegroundColor Cyan
+Write-Host "Server will be available at: http://$hostAddress:$port/BensSportsBookApp.html" -ForegroundColor Green
+if ($Mobile) {
+    Write-Host "Mobile URL: http://$mobileIpAddress:$port/BensSportsBookApp.html" -ForegroundColor Cyan
+} else {
+    Write-Host "Use -Mobile to expose the app to your LAN for device testing" -ForegroundColor Yellow
+}
 Write-Host "Press CTRL+C to stop the server" -ForegroundColor Yellow
 Write-Host ""
 
@@ -222,10 +283,10 @@ $env:TRACE_LEVEL = $traceLevel
 
 # Open browser after a short delay
 Start-Sleep -Seconds 2
-Start-Process "http://127.0.0.1:8000/BensSportsBookApp.html"
+Start-Process "http://127.0.0.1:$port/BensSportsBookApp.html"
 
 # Start uvicorn server
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
+uvicorn main:app --reload --host $hostAddress --port $port
 
 if ($transcriptStarted) {
     Stop-Transcript | Out-Null
