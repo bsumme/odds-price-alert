@@ -35,5 +35,10 @@ global.document = undefined;
 
 assert.strictEqual(navTrim.normalizePathname('/frontend/settings.html'), '/settings', 'normalizePathname should strip nested settings path');
 assert.strictEqual(navTrim.enforceMobileMainPage(), true, 'enforceMobileMainPage should allow nested settings path');
+assert.strictEqual(
+    navTrim.allowedMobilePaths.has(navTrim.normalizePathname('/settings-mobile.html')),
+    true,
+    'settings-mobile.html should be whitelisted for mobile navigation'
+);
 
 console.log('All nav-trim tests passed');

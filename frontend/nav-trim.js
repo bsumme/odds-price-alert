@@ -4,9 +4,14 @@
     const mobileAllowedPages = [
         mobileMainPage,
         "/sgp-builder.html",
+        "/sgp-builder-mobile.html",
         "/settings.html",
         "/settings",
         "/settings/",
+        "/settings-mobile.html",
+        "/ArbritrageBetFinder-mobile.html",
+        "/value-mobile.html",
+        "/watcher-mobile.html",
     ];
 
     const isDebugNavEnabled = () => {
