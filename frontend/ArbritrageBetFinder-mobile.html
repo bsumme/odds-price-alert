@@ -502,8 +502,34 @@
             border-top: 1px solid #334155;
             padding: 0.75rem 1rem;
             z-index: 999;
-            text-align: center;
             padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0));
+        }
+
+        .footer-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            text-align: center;
+        }
+
+        .footer-settings-btn {
+            background: #334155;
+            color: #e5e7eb;
+            border: 1px solid #475569;
+            border-radius: 10px;
+            padding: 0.45rem 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .footer-settings-btn:hover,
+        .footer-settings-btn:focus {
+            background: #475569;
+            border-color: #64748b;
         }
 
         .credits-display {
@@ -840,8 +866,11 @@
 
     <!-- Footer -->
     <footer>
-        <div class="credits-display">
-            <span id="api-credits">API: Loading...</span>
+        <div class="footer-actions">
+            <a href="/settings.html" class="footer-settings-btn">Settings</a>
+            <div class="credits-display">
+                <span id="api-credits">API: Loading...</span>
+            </div>
         </div>
     </footer>
 
