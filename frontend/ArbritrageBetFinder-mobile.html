@@ -921,6 +921,99 @@
             return date.toLocaleString("en-US", options) + " ET";
         }
 
+        const PROP_MARKET_LABELS = {
+            player_points: "Points",
+            player_assists: "Assists",
+            player_rebounds: "Rebounds",
+            player_threes: "Threes",
+            player_pass_yds: "Pass Yards",
+            player_rec_yds: "Receiving Yards",
+            player_rush_yds: "Rush Yards",
+            player_anytime_td: "Anytime TD",
+            player_pass_tds: "Pass TDs",
+            player_goals: "Goals",
+            player_shots_on_goal: "Shots on Goal",
+            player_power_play_points: "Power Play Points",
+            player_blocks: "Blocks",
+            player_saves: "Saves",
+        };
+
+        const PLAYER_PROP_MARKETS_BY_SPORT = {
+            basketball_nba: [
+                "player_points",
+                "player_assists",
+                "player_rebounds",
+                "player_threes",
+            ],
+            americanfootball_nfl: [
+                "player_pass_yds",
+                "player_rec_yds",
+                "player_rush_yds",
+                "player_anytime_td",
+                "player_pass_tds",
+            ],
+            icehockey_nhl: [
+                "player_points",
+                "player_goals",
+                "player_assists",
+                "player_shots_on_goal",
+                "player_power_play_points",
+                "player_blocks",
+                "player_saves",
+            ],
+        };
+
+        const ALL_PLAYER_PROP_MARKETS = Array.from(
+            new Set(Object.values(PLAYER_PROP_MARKETS_BY_SPORT).flat())
+        );
+
+        function formatPropMarketLabel(marketKey) {
+            if (!marketKey) return "";
+            return PROP_MARKET_LABELS[marketKey] || marketKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        }
+
+        function getPropMarketsForSport(sportKey) {
+            if (sportKey && PLAYER_PROP_MARKETS_BY_SPORT[sportKey]) {
+                return PLAYER_PROP_MARKETS_BY_SPORT[sportKey];
+            }
+            return ALL_PLAYER_PROP_MARKETS;
+        }
+
+        function renderPropMarketCheckboxes(sportKey) {
+            const container = document.getElementById("props-markets");
+            if (!container) return;
+
+            const currentSelection = new Set(getSelectedPropMarkets());
+            const markets = getPropMarketsForSport(sportKey);
+            const fragment = document.createDocumentFragment();
+
+            const addCheckbox = (value, label, checked = true) => {
+                const wrapper = document.createElement("label");
+                const input = document.createElement("input");
+                input.type = "checkbox";
+                input.value = value;
+                input.checked = checked;
+                wrapper.appendChild(input);
+                wrapper.append(label);
+                fragment.appendChild(wrapper);
+            };
+
+            const hasAllSelected = currentSelection.size === 0 || currentSelection.has("all_player_props");
+            const hasOverlap = markets.some((market) => currentSelection.has(market));
+            const defaultToAll = hasAllSelected || !hasOverlap;
+
+            const shouldCheck = (value) =>
+                value === "all_player_props" ? hasAllSelected : defaultToAll || currentSelection.has(value);
+
+            addCheckbox("all_player_props", "All player props", hasAllSelected);
+            markets.forEach((market) => {
+                addCheckbox(market, formatPropMarketLabel(market), shouldCheck(market));
+            });
+
+            container.innerHTML = "";
+            container.appendChild(fragment);
+        }
+
         let showAllSportsModeM = false;
 
         async function fetchAndRenderSportsMobile(showAll = false) {
@@ -1393,9 +1486,8 @@
         }
 
         function resetMarkets() {
-            document.querySelectorAll('#props-markets input[type="checkbox"]').forEach((box, idx) => {
-                box.checked = idx === 0 || box.value === "player_points" || box.value === "player_rebounds" || box.value === "player_assists" || box.value === "player_threes";
-            });
+            const selectedSport = document.getElementById("props-sport")?.value || "";
+            renderPropMarketCheckboxes(selectedSport);
         }
 
         function setSelectOptions(select, options, placeholder) {
@@ -2120,7 +2212,9 @@
 
             document.getElementById("arb-mode-btn").addEventListener("click", () => setMode("arb"));
             document.getElementById("props-mode-btn").addEventListener("click", () => setMode("props"));
-            document.getElementById("props-sport").addEventListener("change", () => {
+            document.getElementById("props-sport").addEventListener("change", (event) => {
+                const sport = event.target.value;
+                renderPropMarketCheckboxes(sport);
                 updatePropsSearchButton();
                 loadPropsGames();
             });
