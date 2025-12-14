@@ -937,6 +937,8 @@
             totals: "Totals",
         };
 
+        const MOBILE_DEFAULT_MAX_RESULTS = 5;
+
         const MAX_PARLAY_LEGS = 3;
 
         function getBookLabel(key) {
@@ -1746,8 +1748,13 @@
 
                 propsData = await res.json();
                 const count = Array.isArray(propsData?.plays) ? propsData.plays.length : 0;
-                setPropsStatus(`Loaded ${count} player prop results.`);
-                renderPlayerPropResults();
+                const renderCounts = renderPlayerPropResults();
+                const displayedCount = renderCounts?.displayedCount ?? count;
+                const totalCount = renderCounts?.totalCount ?? count;
+                const statusPrefix = totalCount > displayedCount
+                    ? `Loaded top ${displayedCount} of ${totalCount}`
+                    : `Loaded ${displayedCount}`;
+                setPropsStatus(`${statusPrefix} player prop results.`);
             } catch (err) {
                 console.error(err);
                 setPropsStatus(`Error loading player props: ${err.message}`);
@@ -1778,14 +1785,19 @@
 
                 propsData = await res.json();
                 const count = Array.isArray(propsData?.plays) ? propsData.plays.length : 0;
-                renderPlayerPropResults();
+                const renderCounts = renderPlayerPropResults();
+                const displayedCount = renderCounts?.displayedCount ?? count;
+                const totalCount = renderCounts?.totalCount ?? count;
 
                 const targetSummary = (propsData?.target_books || [])
                     .map(getBookLabel)
                     .filter(Boolean)
                     .join(", ") || "DraftKings, FanDuel, Fliff";
                 const compareSummary = getBookLabel(propsData?.compare_book) || "Novig";
-                setPropsSummary(`Found ${count} player prop arbitrage plays across all sports. Targets: ${targetSummary}; Hedge: ${compareSummary}.`);
+                const summaryPrefix = totalCount > displayedCount
+                    ? `Showing top ${displayedCount} of ${totalCount}`
+                    : `Showing ${displayedCount}`;
+                setPropsSummary(`${summaryPrefix} player prop arbitrage plays across all sports. Targets: ${targetSummary}; Hedge: ${compareSummary}.`);
                 setPropsStatus("Done.");
             } catch (err) {
                 console.error(err);
@@ -1809,7 +1821,7 @@
                 body.innerHTML = '<tr><td colspan="5" class="small-text">No player prop value plays found.</td></tr>';
                 setPropsSummary("No player prop results yet.");
                 renderParlaySummary("props-parlay-bar", [], 0, formatPropsParlayLeg, "Search player props to build a parlay.");
-                return;
+                return { displayedCount: 0, totalCount: 0 };
             }
 
             const targetBookLabel = document.querySelector("#props-target option:checked")?.textContent || "Target book";
@@ -1822,7 +1834,8 @@
             };
 
             const sorted = sortPlaysByArbitrageMargin(plays, "desc");
-            const playsWithStake = sorted.map(play => {
+            const limitedResults = sorted.slice(0, MOBILE_DEFAULT_MAX_RESULTS);
+            const playsWithStake = limitedResults.map(play => {
                 const hedgeStakeAmounts = TableRenderers.helpers.calculateHedgeStakeAmounts(play.book_price, play.novig_reverse_price);
                 return {
                     ...play,
@@ -1844,7 +1857,14 @@
                 emptyMessage: "No player prop value plays found.",
             });
 
-            setPropsSummary(`Showing ${playsWithStake.length} player prop results.`);
+            const displayedCount = playsWithStake.length;
+            const totalCount = sorted.length;
+            const summaryPrefix = totalCount > displayedCount
+                ? `Showing top ${displayedCount} of ${totalCount}`
+                : `Showing ${displayedCount}`;
+            setPropsSummary(`${summaryPrefix} player prop results.`);
+
+            return { displayedCount, totalCount };
         }
 
         function clearBestResults() {
@@ -1868,7 +1888,7 @@
 
             if (!data || !Array.isArray(data.plays) || data.plays.length === 0) {
                 body.innerHTML = '<tr><td colspan="5" class="small-text">No arbitrage opportunities found.</td></tr>';
-                return;
+                return { displayedCount: 0, totalCount: 0 };
             }
 
             let plays = data.plays;
@@ -1884,10 +1904,11 @@
 
                 if (plays.length === 0) {
                     body.innerHTML = '<tr><td colspan="5" class="small-text">No hedge opportunities found (arbitrage margin ≥ 0%).</td></tr>';
-                    return;
+                    return { displayedCount: 0, totalCount: 0 };
                 }
             }
 
+            const totalPlays = plays.length;
             const sportLabels = {
                 "basketball_nba": "NBA",
                 "americanfootball_nfl": "NFL",
@@ -1903,8 +1924,9 @@
             };
 
             const sortedPlays = sortPlaysByArbitrageMargin(plays, "desc");
+            const limitedPlays = sortedPlays.slice(0, MOBILE_DEFAULT_MAX_RESULTS);
 
-            TableRenderers.renderArbRows(body, sortedPlays, {
+            TableRenderers.renderArbRows(body, limitedPlays, {
                 includeSportColumn: true,
                 sportLabels,
                 marketLabels,
@@ -1923,6 +1945,8 @@
                 parseTeamFromOutcome,
                 parseTeamsFromMatchup,
             });
+
+            return { displayedCount: limitedPlays.length, totalCount: totalPlays };
         }
 
         // Request browser notification permission
@@ -2052,7 +2076,7 @@
             const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
             const targetBook = document.getElementById("best-target-book-select").value;
             const compareBook = document.getElementById("best-compare-book-select").value;
-            const maxResults = 50;
+            const maxResults = MOBILE_DEFAULT_MAX_RESULTS;
 
             if (sportCheckboxes.length === 0) {
                 setBestStatus("Error: Please select at least one sport.");
@@ -2084,7 +2108,7 @@
             }
 
             try {
-                const requestMaxResults = isWatcherRunning ? maxResults : maxResults * 2;
+                const requestMaxResults = maxResults;
 
                 const res = await fetch("/api/best-value-plays", {
                     method: "POST",
@@ -2105,7 +2129,7 @@
                 const data = await res.json();
                 lastBestValueData = data;
 
-                renderBestValuePlays(data, isWatcherRunning);
+                const renderCounts = renderBestValuePlays(data, isWatcherRunning);
 
                 if (isWatcherRunning) {
                     const hedgePlays = (data.plays || []).filter(p =>
@@ -2127,21 +2151,16 @@
                     }
                 }
 
-                let playsCount = (data.plays || []).length;
-                if (isWatcherRunning) {
-                    playsCount = data.plays.filter(p =>
-                        p.arb_margin_percent !== null &&
-                        p.arb_margin_percent !== undefined &&
-                        p.arb_margin_percent >= 0 &&
-                        p.novig_reverse_price !== null &&
-                        p.novig_reverse_price !== undefined
-                    ).length;
-                }
+                const playsCount = renderCounts?.totalCount ?? (data.plays || []).length;
+                const displayedCount = renderCounts?.displayedCount ?? playsCount;
                 const compareBookLabel = document.querySelector("#best-compare-book-select option:checked").textContent;
+                const summaryPrefix = playsCount > displayedCount
+                    ? `Showing top ${displayedCount} of ${playsCount}`
+                    : `Showing ${displayedCount}`;
                 if (isWatcherRunning) {
-                    setBestSummary(`Hedge Watcher: Showing ${playsCount} hedge opportunities (arbitrage margin ≥ 0%) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
+                    setBestSummary(`Hedge Watcher: ${summaryPrefix} hedge opportunities (arbitrage margin ≥ 0%) across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 } else {
-                    setBestSummary(`Found ${playsCount} arbitrage opportunities across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
+                    setBestSummary(`${summaryPrefix} arbitrage opportunities across ${sportKeys.length} sport(s) and ${markets.length} market(s). Sorted by Arbitrage Margin (vs ${compareBookLabel}).`);
                 }
                 setBestStatus(isWatcherRunning ? "Watcher: Updated." : "Done.");
             } catch (e) {
