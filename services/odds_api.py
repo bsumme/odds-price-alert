@@ -366,6 +366,7 @@ def fetch_player_props(
     markets: str,
     bookmaker_keys: List[str],
     team: Optional[str] = None,
+    player_name: Optional[str] = None,
     event_id: Optional[str] = None,
     use_dummy_data: bool = False,
     dummy_data_generator=None,
@@ -378,6 +379,9 @@ def fetch_player_props(
     dedicated player props route. We fetch the list of events for the sport, optionally
     filter by team, and then request odds for each event with the desired player prop
     markets enabled.
+
+    The optional player_name filter is currently ignored but accepted for compatibility
+    with legacy callers.
     """
     if use_dummy_data and dummy_data_generator:
         return dummy_data_generator(sport_key, markets, bookmaker_keys)
