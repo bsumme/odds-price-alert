@@ -1,6 +1,7 @@
 """Repository layer centralizing odds/event data retrieval."""
 from __future__ import annotations
 
+import time
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from services.odds_api import fetch_odds, fetch_player_props, fetch_sport_events
@@ -30,7 +31,12 @@ class OddsRepository:
         self._dummy_odds_generator = dummy_odds_generator
         self._dummy_player_props_generator = dummy_player_props_generator
         self._enable_cache = enable_cache
-        self._cache: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
+        self._cache: Dict[Tuple[Any, ...], Tuple[float, List[Dict[str, Any]]]] = {}
+        self._cache_ttls: Dict[str, int] = {
+            "odds": 5,
+            "player_props": 10,
+            "sport_events": 300,
+        }
 
     def resolve_api_key(self, use_dummy_data: bool) -> str:
         """Return an API key unless dummy data is being used."""
@@ -77,9 +83,10 @@ class OddsRepository:
             player_name,
             event_id,
         )
-
-        if self._enable_cache and cache_key in self._cache:
-            return self._cache[cache_key]
+        cache_ttl = self._resolve_ttl(cache_key[0]) if self._enable_cache else None
+        cached_value = self._get_cached_value(cache_key) if cache_ttl else None
+        if cached_value is not None:
+            return cached_value
 
         markets_param = ",".join(normalized_markets)
         if use_dummy_data:
@@ -105,8 +112,8 @@ class OddsRepository:
                 credit_tracker=credit_tracker,
             )
 
-        if self._enable_cache:
-            self._cache[cache_key] = events
+        if cache_ttl is not None and not use_dummy_data:
+            self._store_cache_value(cache_key, events, cache_ttl)
         return events
 
     def get_sport_events(
@@ -133,8 +140,10 @@ class OddsRepository:
                 None,
                 None,
             )
-            if cache_key in self._cache:
-                return self._cache[cache_key]
+            cache_ttl = self._resolve_ttl(cache_key[0])
+            cached_value = self._get_cached_value(cache_key) if cache_ttl else None
+            if cached_value is not None:
+                return cached_value
 
         if use_dummy_data:
             events = self._fetch_dummy_events(
@@ -146,8 +155,10 @@ class OddsRepository:
         else:
             events = self._events_fetcher(api_key=api_key, sport_key=sport_key)
 
-        if cache_key is not None:
-            self._cache[cache_key] = events
+        if cache_key is not None and not use_dummy_data:
+            cache_ttl = self._resolve_ttl(cache_key[0])
+            if cache_ttl is not None:
+                self._store_cache_value(cache_key, events, cache_ttl)
         return events
 
     @staticmethod
@@ -180,6 +191,26 @@ class OddsRepository:
             player_name,
             event_id,
         )
+
+    def _resolve_ttl(self, category: str) -> Optional[int]:
+        return self._cache_ttls.get(category)
+
+    def _get_cached_value(self, cache_key: Tuple[Any, ...]) -> Optional[List[Dict[str, Any]]]:
+        cached = self._cache.get(cache_key)
+        if not cached:
+            return None
+
+        expires_at, value = cached
+        if time.monotonic() < expires_at:
+            return value
+
+        self._cache.pop(cache_key, None)
+        return None
+
+    def _store_cache_value(
+        self, cache_key: Tuple[Any, ...], payload: List[Dict[str, Any]], ttl: int
+    ) -> None:
+        self._cache[cache_key] = (time.monotonic() + ttl, payload)
 
     def _fetch_dummy_events(
         self,

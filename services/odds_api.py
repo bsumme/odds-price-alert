@@ -21,6 +21,7 @@ from utils.logging_control import (
     should_log_api_calls,
     should_log_trace_entries,
 )
+from services.odds_cache import cached_odds
 
 BASE_URL = "https://api.the-odds-api.com/v4"
 
@@ -164,6 +165,7 @@ def _log_real_api_response(
         pass
 
 
+@cached_odds(ttl=5)
 def fetch_odds(
     api_key: str,
     sport_key: str,
@@ -214,6 +216,7 @@ def fetch_odds(
     return data
 
 
+@cached_odds(ttl=300)
 def fetch_sport_events(
     api_key: str, sport_key: str, credit_tracker: Optional[ApiCreditTracker] = None
 ) -> List[Dict[str, Any]]:
@@ -359,6 +362,7 @@ def _parse_invalid_markets(error_text: str) -> List[str]:
     return [m.strip() for m in markets_raw.split(",") if m.strip()]
 
 
+@cached_odds(ttl=10)
 def fetch_player_props(
     api_key: str,
     sport_key: str,
