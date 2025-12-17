@@ -1,8 +1,9 @@
 (() => {
-    const mobileMainPage = "/BensSportsBookApp.html";
+    const mobileMainPage = "/Bens-Direct-FliffBet.html";
     const hiddenNavTargets = ["/watcher.html", "/linetracker.html", "/value.html"];
     const mobileAllowedPages = [
         mobileMainPage,
+        "/BensSportsBookApp.html",
         "/sgp-builder.html",
         "/settings.html",
         "/settings",
