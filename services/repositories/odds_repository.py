@@ -222,26 +222,18 @@ class OddsRepository:
         event_id: Optional[str],
         credit_tracker: Optional[Any],
     ) -> List[Dict[str, Any]]:
-        if is_player_request:
-            return self._player_props_fetcher(
-                api_key=api_key,
-                sport_key=sport_key,
-                regions=regions,
-                markets=markets_param,
-                bookmaker_keys=bookmaker_keys,
-                team=team,
-                event_id=event_id,
-                use_dummy_data=False,
-                credit_tracker=credit_tracker,
-            )
-
-        # Standard odds fetcher does not accept team/player filters.
-        return self._odds_fetcher(
+        fetcher = (
+            self._player_props_fetcher if is_player_request else self._odds_fetcher
+        )
+        return fetcher(
             api_key=api_key,
             sport_key=sport_key,
             regions=regions,
             markets=markets_param,
             bookmaker_keys=bookmaker_keys,
+            team=team,
+            player_name=player_name,
+            event_id=event_id,
             use_dummy_data=False,
             credit_tracker=credit_tracker,
         )
