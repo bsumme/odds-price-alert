@@ -428,9 +428,6 @@
         });
     }
 
-    const existingRenderers = global.TableRenderers || {};
-    const existingHelpers = (existingRenderers && existingRenderers.helpers) || {};
-
     global.TableRenderers = {
         ...existingRenderers,
         renderArbRows,

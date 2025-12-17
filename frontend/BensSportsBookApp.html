@@ -2400,17 +2400,12 @@
             const sorted = sortPlaysByArbitrageMargin(arbPlays, "desc");
             const topPlays = sorted.slice(0, 12);
 
-            if (TableRenderers && typeof TableRenderers.renderPropComparisonRows === "function") {
-                TableRenderers.renderPropComparisonRows(body, topPlays, {
-                    bookOrder,
-                    oddsFormatter: TableRenderers.helpers.formatOddsWithColor,
-                    startTimeFormatter: TableRenderers.helpers.formatStartTime,
-                    emptyMessage: "No player prop prices available for comparison.",
-                });
-            } else {
-                console.warn("TableRenderers.renderPropComparisonRows is not available; skipping price comparison table render.");
-                body.innerHTML = `<tr><td colspan="${totalColumns}" class="small-text">Price comparison unavailable.</td></tr>`;
-            }
+            TableRenderers.renderPropComparisonRows(body, topPlays, {
+                bookOrder,
+                oddsFormatter: TableRenderers.helpers.formatOddsWithColor,
+                startTimeFormatter: TableRenderers.helpers.formatStartTime,
+                emptyMessage: "No player prop prices available for comparison.",
+            });
 
             if (topPlays.length) {
                 summary.textContent = `Showing top ${topPlays.length} arbitrage-friendly player props with prices from Novig, DraftKings, FanDuel, and Fliff.`;
