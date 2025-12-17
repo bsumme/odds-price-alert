@@ -123,6 +123,8 @@ class ValuePlayOutcome(BaseModel):
     novig_reverse_name: Optional[str]
     novig_reverse_price: Optional[int]
     book_price: int
+    book_prices: Dict[str, Optional[int]] = Field(default_factory=dict)
+    opposing_prices: Dict[str, Optional[int]] = Field(default_factory=dict)
     ev_percent: float        # estimated edge in percent (vs Novig same side)
     hedge_ev_percent: Optional[float] = None  # Hedge score (arb margin %) when an opposite side exists
     is_arbitrage: bool = False
@@ -952,6 +954,76 @@ def collect_value_plays(
 
     # Filter out live events at the event level
     now_utc = datetime.now(timezone.utc)
+
+    is_player_prop = market_key.startswith("player_")
+    is_totals_market = market_key == "totals"
+
+    def _sanitize_outcomes(market: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return a filtered list of usable outcomes for comparisons."""
+
+        cleaned: List[Dict[str, Any]] = []
+        for outcome in market.get("outcomes", []):
+            name = outcome.get("name")
+            price = outcome.get("price")
+            point = outcome.get("point", None)
+            description = outcome.get("description", None)
+
+            if name is None or price is None:
+                continue
+            if abs(price) >= MAX_VALID_AMERICAN_ODDS:
+                continue
+
+            if is_totals_market:
+                if point is None:
+                    continue
+                if name.lower() not in ("over", "under"):
+                    continue
+                if price < -150 or price > 150:
+                    continue
+
+            cleaned.append(
+                {
+                    "name": name,
+                    "price": price,
+                    "point": point,
+                    "description": description,
+                }
+            )
+
+        return cleaned
+
+    def _find_matching_outcome(
+        outcomes: List[Dict[str, Any]],
+        expected_name: str,
+        expected_description: Optional[str],
+        expected_point: Optional[float],
+        *,
+        allow_half_point_flex: bool,
+        opposite: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Find the best matching outcome for a selection, favoring player/point matches."""
+
+        if is_player_prop and expected_description:
+            normalized_desc = normalize_player_name(expected_description)
+            for comp_outcome in outcomes:
+                comp_name = comp_outcome.get("name")
+                comp_desc = comp_outcome.get("description")
+                comp_point = comp_outcome.get("point", None)
+                if (
+                    comp_name == expected_name
+                    and comp_desc
+                    and normalized_desc == normalize_player_name(comp_desc)
+                    and points_match(expected_point, comp_point, allow_half_point_flex)
+                ):
+                    return comp_outcome
+
+        return find_best_comparison_outcome(
+            outcomes=outcomes,
+            name=expected_name,
+            point=expected_point,
+            allow_half_point_flex=allow_half_point_flex,
+            opposite=opposite,
+        )
     
     for event in events:
         home = event.get("home_team")
@@ -977,6 +1049,7 @@ def collect_value_plays(
 
         compare_market = None
         book_market = None
+        market_outcomes_by_book: Dict[str, List[Dict[str, Any]]] = {}
 
         for bookmaker in event.get("bookmakers", []):
             key = bookmaker.get("key")
@@ -986,6 +1059,12 @@ def collect_value_plays(
             )
             if not market:
                 continue
+
+            sanitized_outcomes = _sanitize_outcomes(market)
+            if not sanitized_outcomes:
+                continue
+
+            market_outcomes_by_book[key] = sanitized_outcomes
 
             if key == compare_book:
                 compare_market = market
@@ -998,7 +1077,7 @@ def collect_value_plays(
         # For moneylines, only process events where the target book has posted both sides.
         # This avoids calculating synthetic prices when the sportsbook has not actually
         # published the moneyline market yet.
-        book_outcomes = book_market.get("outcomes", [])
+        book_outcomes = market_outcomes_by_book.get(target_book, [])
         if market_key == "h2h":
             posted_prices = [
                 o.get("price")
@@ -1010,26 +1089,25 @@ def collect_value_plays(
 
         # Allow 0.5-point flex for spreads, totals, and player props (Odds API sometimes
         # differs by 0.5 between books).
-        is_player_prop = market_key.startswith("player_")
         allow_half_point_flex = market_key in ("totals", "spreads") or is_player_prop
-
-        compare_outcomes: List[Dict[str, Any]] = []
-        for o in compare_market.get("outcomes", []):
-            name = o.get("name")
-            price = o.get("price")
-            point = o.get("point", None)
-            description = o.get("description", None)  # For player props, this is the player name
-            if name is None or price is None:
-                continue
-            if abs(price) >= MAX_VALID_AMERICAN_ODDS:
-                # Skip absurd values like -100000
-                continue
-            compare_outcomes.append(
-                {"name": name, "price": price, "point": point, "description": description}
-            )
-
+        compare_outcomes: List[Dict[str, Any]] = market_outcomes_by_book.get(compare_book, [])
         if not compare_outcomes:
             continue
+
+        def _collect_prices_for_selection(
+            outcome_name: str, outcome_description: Optional[str], outcome_point: Optional[float]
+        ) -> Dict[str, Optional[int]]:
+            prices: Dict[str, Optional[int]] = {}
+            for book_key, outcomes in market_outcomes_by_book.items():
+                match = _find_matching_outcome(
+                    outcomes,
+                    expected_name=outcome_name,
+                    expected_description=outcome_description,
+                    expected_point=outcome_point,
+                    allow_half_point_flex=allow_half_point_flex,
+                )
+                prices[book_key] = match.get("price") if match and match.get("price") is not None else None
+            return prices
 
         for o in book_outcomes:
             name = o.get("name")
@@ -1068,37 +1146,13 @@ def collect_value_plays(
                 adjusted_price = apply_vig_adjustment(price, target_book)
 
             # For player props, match by name, description (player), and point
-            matching_compare = None
-            if is_player_prop and description:
-                normalized_desc = normalize_player_name(description)
-                # Find matching outcome with same name, normalized description, and point
-                for comp_outcome in compare_outcomes:
-                    comp_name = comp_outcome.get("name")
-                    comp_desc = comp_outcome.get("description")
-                    comp_point = comp_outcome.get("point", None)
-                    if (
-                        comp_name == name
-                        and comp_desc
-                        and normalized_desc == normalize_player_name(comp_desc)
-                        and points_match(point, comp_point, allow_half_point_flex)
-                    ):
-                        matching_compare = comp_outcome
-                        break
-                # Fall back to point-based matching if names were slightly off
-                if matching_compare is None:
-                    matching_compare = find_best_comparison_outcome(
-                        outcomes=compare_outcomes,
-                        name=name,
-                        point=point,
-                        allow_half_point_flex=allow_half_point_flex,
-                    )
-            else:
-                matching_compare = find_best_comparison_outcome(
-                    outcomes=compare_outcomes,
-                    name=name,
-                    point=point,
-                    allow_half_point_flex=allow_half_point_flex,
-                )
+            matching_compare = _find_matching_outcome(
+                compare_outcomes,
+                expected_name=name,
+                expected_description=description,
+                expected_point=point,
+                allow_half_point_flex=allow_half_point_flex,
+            )
             if matching_compare is None:
                 continue
 
@@ -1107,24 +1161,19 @@ def collect_value_plays(
             if is_player_prop and description:
                 # For player props, find opposite side (Over -> Under or vice versa) with same player and point
                 opposite_name = "Under" if name == "Over" else "Over"
-                normalized_desc = normalize_player_name(description)
-                for comp_outcome in compare_outcomes:
-                    comp_name = comp_outcome.get("name")
-                    comp_desc = comp_outcome.get("description")
-                    comp_point = comp_outcome.get("point", None)
-                    if (
-                        comp_name == opposite_name
-                        and comp_desc
-                        and normalized_desc == normalize_player_name(comp_desc)
-                        and points_match(point, comp_point, allow_half_point_flex)
-                    ):
-                        other_compare = comp_outcome
-                        break
+                other_compare = _find_matching_outcome(
+                    compare_outcomes,
+                    expected_name=opposite_name,
+                    expected_description=description,
+                    expected_point=point,
+                    allow_half_point_flex=allow_half_point_flex,
+                )
             else:
-                other_compare = find_best_comparison_outcome(
-                    outcomes=compare_outcomes,
-                    name=name,
-                    point=point,
+                other_compare = _find_matching_outcome(
+                    compare_outcomes,
+                    expected_name=name,
+                    expected_description=description,
+                    expected_point=point,
                     allow_half_point_flex=allow_half_point_flex,
                     opposite=True,
                 )
@@ -1210,6 +1259,15 @@ def collect_value_plays(
             elif market_key == "totals" and novig_reverse_name and point is not None:
                 reverse_display_name = f"{novig_reverse_name} {point}"
 
+            book_prices = _collect_prices_for_selection(name, description, point)
+            hedge_prices: Dict[str, Optional[int]] = {}
+            if other_compare is not None:
+                hedge_prices = _collect_prices_for_selection(
+                    other_compare.get("name", novig_reverse_name or ""),
+                    other_compare.get("description", description),
+                    other_compare.get("point", point),
+                )
+
             plays.append(
                 ValuePlayOutcome(
                     event_id=event_id,
@@ -1222,6 +1280,8 @@ def collect_value_plays(
                     novig_reverse_name=reverse_display_name,
                     novig_reverse_price=novig_reverse_price,
                     book_price=adjusted_price,  # Use adjusted price with vig
+                    book_prices=book_prices,
+                    opposing_prices=hedge_prices,
                     ev_percent=ev_pct,
                     hedge_ev_percent=hedge_ev_percent,
                     is_arbitrage=is_arb,
