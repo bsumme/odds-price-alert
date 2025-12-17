@@ -4,6 +4,7 @@
     const mobileAllowedPages = [
         mobileMainPage,
         "/BensSportsBookApp.html",
+        "/Dooleys_easy_bets.html",
         "/sgp-builder.html",
         "/settings.html",
         "/settings",
