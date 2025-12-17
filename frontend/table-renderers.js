@@ -1,5 +1,5 @@
 (function (global) {
-    const DEFAULT_HEDGE_STAKE = 25;
+    const DEFAULT_HEDGE_STAKE = 10;
 
     function americanToDecimal(odds) {
         if (odds === null || odds === undefined) return null;
