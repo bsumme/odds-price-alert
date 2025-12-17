@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dooley's Easy Bets</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+        (function enforceMobileOnly() {
+            function isMobileDevice() {
+                const userAgent = navigator.userAgent || navigator.vendor || window.opera || "";
+                const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
+                const isSmallScreen = window.innerWidth < 900;
+                const hasTouchScreen = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+                return mobileRegex.test((userAgent || "").toLowerCase()) || (isSmallScreen && hasTouchScreen);
+            }
+
+            if (!isMobileDevice()) {
+                const destination = "/BensSportsBookApp.html" + (window.location.search || "") + (window.location.hash || "");
+                window.location.replace(destination);
+            }
+        })();
+    </script>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --panel: #111827;
+            --accent: #38bdf8;
+            --muted: #94a3b8;
+            --border: #1f2937;
+            --danger: #f87171;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: #e5e7eb;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            padding: 0 1rem 2rem;
+        }
+
+        header {
+            padding: 1rem 0.25rem 0.5rem;
+            position: sticky;
+            top: 0;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(15, 23, 42, 0.7) 60%, rgba(15, 23, 42, 0) 100%);
+            backdrop-filter: blur(10px);
+            z-index: 5;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            letter-spacing: 0.01em;
+        }
+
+        .subtitle {
+            margin: 0.15rem 0 0;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1rem;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
+        }
+
+        .stack {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        button {
+            background: var(--accent);
+            color: #0b1626;
+            border: none;
+            border-radius: 999px;
+            padding: 0.75rem 1rem;
+            font-weight: 700;
+            font-size: 1rem;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(56, 189, 248, 0.35);
+        }
+
+        button:disabled {
+            opacity: 0.75;
+            box-shadow: none;
+        }
+
+        .status {
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: #0b172d;
+            border: 1px solid var(--border);
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            color: #cbd5e1;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #e5e7eb;
+        }
+
+        .label {
+            color: var(--muted);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .tile {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .empty {
+            border: 1px dashed var(--border);
+            text-align: center;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            color: var(--muted);
+        }
+
+        .list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .bet-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 0.85rem;
+            padding: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .bet-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .highlight {
+            color: var(--accent);
+            font-weight: 800;
+        }
+
+        @media (max-width: 520px) {
+            body {
+                padding: 0 0.75rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Dooley's Easy Bets</h1>
+        <p class="subtitle">Best 3 Fanduel/DraftKings opportunities vs Novig across main markets and player props.</p>
+    </header>
+
+    <main class="stack">
+        <div class="card stack" id="result-card">
+            <div class="row">
+                <span class="badge" id="book-label">Fanduel + DraftKings ↔ Novig</span>
+                <span class="status" id="updated-at">Loading…</span>
+            </div>
+
+            <div id="bet-list" class="list"></div>
+
+            <button id="refresh-btn">Refresh best bets</button>
+            <div class="status" id="status-text"></div>
+        </div>
+    </main>
+
+    <script>
+        const SPORT_KEYS = [
+            "basketball_nba",
+            "americanfootball_nfl",
+            "baseball_mlb",
+            "icehockey_nhl",
+        ];
+        const MARKETS = ["h2h", "spreads", "totals", "all_player_props"];
+        const TARGET_BOOKS = ["fanduel", "draftkings"];
+        const COMPARE_BOOK = "novig";
+
+        const statusText = document.getElementById("status-text");
+        const betList = document.getElementById("bet-list");
+        const updatedAt = document.getElementById("updated-at");
+        const refreshBtn = document.getElementById("refresh-btn");
+
+        function formatPercentage(value) {
+            if (value === null || value === undefined) return "—";
+            return `${value.toFixed(2)}%`;
+        }
+
+        function formatPoint(point) {
+            if (point === null || point === undefined) return "";
+            const pointNumber = Number(point);
+            if (Number.isNaN(pointNumber)) return `${point}`;
+            return pointNumber > 0 ? `+${pointNumber}` : `${pointNumber}`;
+        }
+
+        function formatPrice(price) {
+            if (price === null || price === undefined) return "—";
+            const asNumber = Number(price);
+            return Number.isNaN(asNumber) ? `${price}` : asNumber > 0 ? `+${asNumber}` : `${asNumber}`;
+        }
+
+        function bookLabel(bookKey) {
+            if (!bookKey) return "";
+            const mapping = { fanduel: "Fanduel", draftkings: "DraftKings" };
+            return mapping[bookKey] || bookKey;
+        }
+
+        function describeMarket(bet) {
+            const line = [bet.market?.toUpperCase(), bet.outcome_name, formatPoint(bet.point)]
+                .filter(Boolean)
+                .join(" · ");
+            return line || "Unknown market";
+        }
+
+        function renderBets(bets) {
+            betList.innerHTML = "";
+
+            if (!bets || bets.length === 0) {
+                betList.innerHTML = `
+                    <div class="empty">
+                        <strong>No high-value bets right now.</strong><br />
+                        Try again in a few moments.
+                    </div>
+                `;
+                return;
+            }
+
+            bets.slice(0, 3).forEach((bet, index) => {
+                const matchup = bet.matchup || `${bet.sport_key} matchup`;
+                const start = bet.start_time || "—";
+                const marketLine = describeMarket(bet);
+                const isArb = typeof bet.arb_margin_percent === "number";
+
+                const tile = document.createElement("div");
+                tile.className = "bet-card";
+                tile.innerHTML = `
+                    <div class="bet-title">
+                        <div>
+                            <div class="label">Pick #${index + 1}</div>
+                            <div class="value">${matchup}</div>
+                            <div class="muted">${start}</div>
+                        </div>
+                        <span class="badge">${bookLabel(bet.target_book)}</span>
+                    </div>
+
+                    <div>
+                        <div class="label">Market</div>
+                        <div class="value">${marketLine}</div>
+                    </div>
+
+                    <div class="grid">
+                        <div class="tile">
+                            <div class="label">Book Price</div>
+                            <div class="value highlight">${formatPrice(bet.book_price)}</div>
+                        </div>
+                        <div class="tile">
+                            <div class="label">Novig Opposite</div>
+                            <div class="value">${formatPrice(bet.novig_reverse_price)}</div>
+                        </div>
+                        <div class="tile">
+                            <div class="label">Arb Margin</div>
+                            <div class="value">${formatPercentage(bet.arb_margin_percent)}</div>
+                        </div>
+                        <div class="tile">
+                            <div class="label">Value Score</div>
+                            <div class="value">${formatPercentage(bet.ev_percent)}</div>
+                        </div>
+                    </div>
+
+                    <div class="muted">${isArb ? "Great hedge window found." : "Strong value vs Novig."}</div>
+                `;
+                betList.appendChild(tile);
+            });
+        }
+
+        function pickTopBets(booksResults) {
+            const combined = booksResults
+                .flatMap((result) => (result?.plays || []).map((play) => ({ ...play, target_book: result.book })));
+
+            const sorted = combined.sort((a, b) => {
+                const arbA = typeof a.arb_margin_percent === "number" ? a.arb_margin_percent : -Infinity;
+                const arbB = typeof b.arb_margin_percent === "number" ? b.arb_margin_percent : -Infinity;
+
+                if (arbA !== arbB) return arbB - arbA;
+
+                const evA = typeof a.ev_percent === "number" ? a.ev_percent : -Infinity;
+                const evB = typeof b.ev_percent === "number" ? b.ev_percent : -Infinity;
+                return evB - evA;
+            });
+
+            return sorted.slice(0, 3);
+        }
+
+        async function fetchBookPlays(book) {
+            const response = await fetch("/api/best-value-plays", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sport_keys: SPORT_KEYS,
+                    markets: MARKETS,
+                    target_book: book,
+                    compare_book: COMPARE_BOOK,
+                    max_results: 50,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || `Request failed with status ${response.status}`);
+            }
+
+            const data = await response.json();
+            return { book, plays: data.plays || [] };
+        }
+
+        async function fetchBestBets() {
+            refreshBtn.disabled = true;
+            statusText.textContent = "Scanning Fanduel/DraftKings vs Novig for best opportunities...";
+            updatedAt.textContent = "Loading…";
+            betList.innerHTML = "";
+
+            try {
+                const results = await Promise.all(
+                    TARGET_BOOKS.map((book) => fetchBookPlays(book).catch((error) => ({ book, error })))
+                );
+
+                const errors = results.filter((r) => r.error);
+                if (errors.length === results.length) {
+                    throw new Error(errors.map((e) => `${bookLabel(e.book)} failed`).join(", "));
+                }
+
+                const successful = results.filter((r) => !r.error);
+                const bestBets = pickTopBets(successful);
+
+                renderBets(bestBets);
+                updatedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+                if (errors.length > 0) {
+                    statusText.textContent = `${errors.length} book(s) unavailable. Showing what we found.`;
+                } else {
+                    statusText.textContent = bestBets.length
+                        ? "Showing the best three Fanduel/DraftKings angles vs Novig."
+                        : "Waiting for a new edge to appear.";
+                }
+            } catch (error) {
+                statusText.textContent = `Error fetching bets: ${error.message || error}`;
+                betList.innerHTML = "<div class=\"empty\">Could not load bets right now.</div>";
+            } finally {
+                refreshBtn.disabled = false;
+            }
+        }
+
+        refreshBtn.addEventListener("click", fetchBestBets);
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) {
+                fetchBestBets();
+            }
+        });
+
+        fetchBestBets();
+    </script>
+    <script src="/nav-trim.js" defer></script>
+</body>
+
+</html>
