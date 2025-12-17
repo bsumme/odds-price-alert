@@ -24,6 +24,7 @@ from services.odds_api import (
     BASE_URL,
     ApiCreditTracker,
 )
+from services.odds_service import OddsService
 from services.odds_utils import (
     american_to_decimal,
     estimate_ev_percent,
@@ -32,6 +33,7 @@ from services.odds_utils import (
     MAX_VALID_AMERICAN_ODDS,
     decimal_to_american,
 )
+from services.value_play_service import ValuePlayService
 from utils.regions import compute_regions_for_books
 from utils.formatting import pretty_book_label, format_start_time_est
 from utils.logging_control import apply_trace_level, should_log_trace_entries
@@ -1351,6 +1353,25 @@ def _validate_data_source(events: List[Dict[str, Any]], allow_dummy: bool) -> No
         )
 
 
+# Service instances
+odds_service = OddsService(
+    odds_fetcher=fetch_odds_with_dummy,
+    data_validator=_validate_data_source,
+    price_out_model=PriceOut,
+    single_bet_odds_model=SingleBetOdds,
+    odds_response_model=OddsResponse,
+)
+
+value_play_service = ValuePlayService(
+    odds_fetcher=fetch_odds_with_dummy,
+    data_validator=_validate_data_source,
+    collect_value_plays=collect_value_plays,
+    value_response_model=ValuePlaysResponse,
+    best_value_response_model=BestValuePlaysResponse,
+    best_value_outcome_model=BestValuePlayOutcome,
+)
+
+
 def _load_sports_schema() -> list:
     schema_path = Path(__file__).parent / "data" / "sports_schema.json"
     if not schema_path.exists():
@@ -1422,116 +1443,7 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
     if not all_book_keys:
         raise HTTPException(status_code=400, detail="No bookmakers specified")
 
-    regions = compute_regions_for_books(list(all_book_keys))
-
-    all_bets_results: List[SingleBetOdds] = []
-
-    by_sport: Dict[str, List[BetRequest]] = {}
-    for bet in payload.bets:
-        by_sport.setdefault(bet.sport_key, []).append(bet)
-
-    for sport_key, bets_for_sport in by_sport.items():
-        markets = sorted({b.market for b in bets_for_sport})
-        bookmaker_keys = sorted({bk for b in bets_for_sport for bk in b.bookmaker_keys})
-
-        events = fetch_odds_with_dummy(
-            api_key=api_key,
-            sport_key=sport_key,
-            regions=regions,
-            markets=",".join(markets),
-            bookmaker_keys=bookmaker_keys,
-            use_dummy_data=use_dummy_data,
-        )
-
-        _validate_data_source(events, allow_dummy=use_dummy_data)
-
-        for bet in bets_for_sport:
-            prices_per_book: List[PriceOut] = []
-
-            for book_key in bet.bookmaker_keys:
-                price_for_team: Optional[int] = None
-                verified_from_api = False
-
-                for event in events:
-                    home = event.get("home_team")
-                    away = event.get("away_team")
-
-                    if bet.team not in (home, away):
-                        continue
-
-                    book_market = None
-                    for bookmaker in event.get("bookmakers", []):
-                        if bookmaker.get("key") != book_key:
-                            continue
-                        book_market = next(
-                            (m for m in bookmaker.get("markets", []) if m.get("key") == bet.market),
-                            None,
-                        )
-                        if book_market:
-                            break
-                    if not book_market:
-                        continue
-
-                    for outcome in book_market.get("outcomes", []):
-                        name = outcome.get("name")
-                        price = outcome.get("price")
-                        point = outcome.get("point", None)
-
-                        if name != bet.team:
-                            continue
-
-                        if bet.point is not None:
-                            if point is None:
-                                continue
-                            if abs(point - bet.point) > 1e-6:
-                                continue
-
-                        if price is None:
-                            continue
-                        if abs(price) >= MAX_VALID_AMERICAN_ODDS:
-                            continue
-
-                        price_for_team = price
-                        verified_from_api = not use_dummy_data
-                        break
-
-                if price_for_team is not None:
-                    break
-
-                prices_per_book.append(
-                    PriceOut(
-                        bookmaker_key=book_key,
-                        bookmaker_name=pretty_book_label(book_key),
-                        price=price_for_team,
-                        verified_from_api=verified_from_api,
-                    )
-                )
-
-            valid_prices = [
-                (bk, p)
-                for bk, p in [(po.bookmaker_key, po.price) for po in prices_per_book]
-                if p is not None
-            ]
-            best_price_for_team: Optional[int] = None
-            best_book: Optional[str] = None
-            if valid_prices:
-                best_book, best_price_for_team = max(valid_prices, key=lambda x: american_to_decimal(x[1]))
-
-            for po in prices_per_book:
-                if po.price is None and po.bookmaker_key == best_book:
-                    po.price = best_price_for_team
-
-            all_bets_results.append(
-                SingleBetOdds(
-                    sport_key=sport_key,
-                    market=bet.market,
-                    team=bet.team,
-                    point=bet.point,
-                    prices=prices_per_book,
-                )
-            )
-
-    return OddsResponse(bets=all_bets_results)
+    return odds_service.get_odds(payload=payload, api_key=api_key, use_dummy_data=use_dummy_data)
 
 
 @app.post("/api/value-plays", response_model=ValuePlaysResponse)
@@ -1569,68 +1481,8 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         except RuntimeError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    bookmaker_keys = [target_book, compare_book]
-    regions = compute_regions_for_books(bookmaker_keys)
-
-    events = fetch_odds_with_dummy(
-        api_key=api_key,
-        sport_key=payload.sport_key,
-        regions=regions,
-        markets=market_key,
-        bookmaker_keys=bookmaker_keys,
-        use_dummy_data=use_dummy_data,
-    )
-
-    _validate_data_source(events, allow_dummy=use_dummy_data)
-
-    raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
-
-    # Filter out live events and games that have already started
-    now_utc = datetime.now(timezone.utc)
-    filtered_plays: List[ValuePlayOutcome] = []
-    for p in raw_plays:
-        if not p.start_time:
-            # If no start time, exclude it to be safe
-            continue
-        try:
-            dt = datetime.fromisoformat(p.start_time.replace("Z", "+00:00"))
-            # Only include games that haven't started yet (start_time is in the future)
-            if dt > now_utc:
-                filtered_plays.append(p)
-        except Exception:
-            # If we can't parse the time, exclude it to be safe
-            continue
-
-    # Convert start_time into an easy-to-read EST string for display
-    for p in filtered_plays:
-        if p.start_time:
-            p.start_time = format_start_time_est(p.start_time)
-
-    # Sort primarily by hedge opportunity (arb_margin_percent) descending.
-    # Plays with no comparison book opposite side get pushed to the bottom.
-    def hedge_sort_key(play: ValuePlayOutcome) -> float:
-        """
-        Sort plays by hedge margin first. Plays without an opposite comparison book side
-        get a large negative default so they appear at the bottom.
-        """
-        if play.arb_margin_percent is not None:
-            return play.arb_margin_percent
-        # No opposite side: effectively no hedge opportunity.
-        return -1_000_000.0 + play.ev_percent
-
-    top_plays = sorted(filtered_plays, key=hedge_sort_key, reverse=True)
-
-
-    # Respect max_results if provided
-    max_results = getattr(payload, "max_results", None)
-    if max_results is not None and max_results > 0:
-        top_plays = top_plays[:max_results]
-
-    return ValuePlaysResponse(
-        target_book=target_book,
-        compare_book=compare_book,
-        market=market_key,
-        plays=top_plays,
+    return value_play_service.get_value_plays(
+        payload=payload, api_key=api_key, use_dummy_data=use_dummy_data
     )
 
 
@@ -1664,99 +1516,8 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
         except RuntimeError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    bookmaker_keys = [target_book, compare_book]
-    regions = compute_regions_for_books(bookmaker_keys)
-
-    all_plays: List[BestValuePlayOutcome] = []
-
-    # Search across all sport/market combinations
-    for sport_key in payload.sport_keys:
-        for market_key in payload.markets:
-            try:
-                events = fetch_odds_with_dummy(
-                    api_key=api_key,
-                    sport_key=sport_key,
-                    regions=regions,
-                    markets=market_key,
-                    bookmaker_keys=bookmaker_keys,
-                    use_dummy_data=use_dummy_data,
-                )
-
-                _validate_data_source(events, allow_dummy=use_dummy_data)
-
-                raw_plays = collect_value_plays(events, market_key, target_book, compare_book)
-
-                # Filter out live events and games that have already started
-                now_utc = datetime.now(timezone.utc)
-                filtered_plays: List[ValuePlayOutcome] = []
-                for p in raw_plays:
-                    if not p.start_time:
-                        # If no start time, exclude it to be safe
-                        continue
-                    try:
-                        dt = datetime.fromisoformat(p.start_time.replace("Z", "+00:00"))
-                        # Only include games that haven't started yet (start_time is in the future)
-                        if dt > now_utc:
-                            filtered_plays.append(p)
-                    except Exception:
-                        # If we can't parse the time, exclude it to be safe
-                        continue
-
-                # Convert to BestValuePlayOutcome with sport and market info
-                for p in filtered_plays:
-                    formatted_time = p.start_time
-                    if formatted_time and formatted_time.strip():
-                        try:
-                            formatted_time = format_start_time_est(formatted_time)
-                        except Exception:
-                            formatted_time = p.start_time or "—"
-                    else:
-                        formatted_time = "—"
-
-                    all_plays.append(
-                        BestValuePlayOutcome(
-                            sport_key=sport_key,
-                            market=market_key,
-                            event_id=p.event_id,
-                            matchup=p.matchup,
-                            start_time=formatted_time,
-                            outcome_name=p.outcome_name,
-                            point=p.point,
-                            novig_price=p.novig_price,
-                            novig_reverse_name=p.novig_reverse_name,
-                            novig_reverse_price=p.novig_reverse_price,
-                            book_price=p.book_price,
-                            ev_percent=p.ev_percent,
-                            hedge_ev_percent=p.hedge_ev_percent,
-                            is_arbitrage=p.is_arbitrage,
-                            arb_margin_percent=p.arb_margin_percent,
-                        )
-                    )
-            except Exception as e:
-                # Log error with full traceback but continue with other sports/markets
-                print(f"Error processing {sport_key}/{market_key}: {repr(e)}")
-                traceback.print_exc()
-                continue
-
-    # Sort by hedge opportunity (arb_margin_percent) descending
-    def hedge_sort_key(play: BestValuePlayOutcome) -> float:
-        if play.arb_margin_percent is not None:
-            return play.arb_margin_percent
-        # No opposite side: effectively no hedge opportunity.
-        return -1_000_000.0 + play.ev_percent
-
-    top_plays = sorted(all_plays, key=hedge_sort_key, reverse=True)
-
-    # Respect max_results if provided
-    max_results = payload.max_results or 50
-    if max_results > 0:
-        top_plays = top_plays[:max_results]
-
-    return BestValuePlaysResponse(
-        target_book=target_book,
-        compare_book=compare_book,
-        plays=top_plays,
-        used_dummy_data=use_dummy_data,
+    return value_play_service.get_best_value_plays(
+        payload=payload, api_key=api_key, use_dummy_data=use_dummy_data
     )
 
 
