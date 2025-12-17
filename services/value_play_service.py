@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, List
+
+from services.domain import models
 from utils.formatting import format_start_time_est
 from utils.regions import compute_regions_for_books
 
@@ -18,18 +20,14 @@ class ValuePlayService:
         odds_fetcher,
         data_validator,
         collect_value_plays: Callable[..., List[Any]],
-        value_response_model,
-        best_value_response_model,
-        best_value_outcome_model,
     ) -> None:
         self._odds_fetcher = odds_fetcher
         self._data_validator = data_validator
         self._collect_value_plays = collect_value_plays
-        self._value_response_model = value_response_model
-        self._best_value_response_model = best_value_response_model
-        self._best_value_outcome_model = best_value_outcome_model
 
-    def get_value_plays(self, payload, api_key: str, use_dummy_data: bool):
+    def get_value_plays(
+        self, payload: models.ValuePlaysQuery, api_key: str, use_dummy_data: bool
+    ) -> models.ValuePlaysResult:
         bookmaker_keys = [payload.target_book, payload.compare_book]
         regions = compute_regions_for_books(bookmaker_keys)
 
@@ -44,9 +42,28 @@ class ValuePlayService:
 
         self._data_validator(events, allow_dummy=use_dummy_data)
 
-        raw_plays = self._collect_value_plays(
+        raw_plays_dto = self._collect_value_plays(
             events, payload.market, payload.target_book, payload.compare_book
         )
+        raw_plays = [
+            models.ValuePlay(
+                event_id=play.event_id,
+                matchup=play.matchup,
+                start_time=play.start_time,
+                outcome_name=play.outcome_name,
+                point=play.point,
+                market=getattr(play, "market", payload.market),
+                novig_price=play.novig_price,
+                novig_reverse_name=play.novig_reverse_name,
+                novig_reverse_price=play.novig_reverse_price,
+                book_price=play.book_price,
+                ev_percent=play.ev_percent,
+                hedge_ev_percent=getattr(play, "hedge_ev_percent", None),
+                is_arbitrage=getattr(play, "is_arbitrage", False),
+                arb_margin_percent=getattr(play, "arb_margin_percent", None),
+            )
+            for play in raw_plays_dto
+        ]
 
         filtered_plays = self._filter_future_events(raw_plays)
         self._format_start_times(filtered_plays)
@@ -57,14 +74,16 @@ class ValuePlayService:
         if max_results is not None and max_results > 0:
             top_plays = top_plays[:max_results]
 
-        return self._value_response_model(
+        return models.ValuePlaysResult(
             target_book=payload.target_book,
             compare_book=payload.compare_book,
             market=payload.market,
             plays=top_plays,
         )
 
-    def get_best_value_plays(self, payload, api_key: str, use_dummy_data: bool):
+    def get_best_value_plays(
+        self, payload: models.BestValuePlaysQuery, api_key: str, use_dummy_data: bool
+    ) -> models.BestValuePlaysResult:
         bookmaker_keys = [payload.target_book, payload.compare_book]
         regions = compute_regions_for_books(bookmaker_keys)
 
@@ -84,11 +103,31 @@ class ValuePlayService:
 
                     self._data_validator(events, allow_dummy=use_dummy_data)
 
-                    raw_plays = self._collect_value_plays(
+                    raw_plays_dto = self._collect_value_plays(
                         events, market_key, payload.target_book, payload.compare_book
                     )
 
-                    filtered_plays = self._filter_future_events(raw_plays)
+                    filtered_plays = self._filter_future_events(
+                        [
+                            models.ValuePlay(
+                                event_id=play.event_id,
+                                matchup=play.matchup,
+                                start_time=play.start_time,
+                                outcome_name=play.outcome_name,
+                                point=play.point,
+                                market=getattr(play, "market", market_key),
+                                novig_price=play.novig_price,
+                                novig_reverse_name=play.novig_reverse_name,
+                                novig_reverse_price=play.novig_reverse_price,
+                                book_price=play.book_price,
+                                ev_percent=play.ev_percent,
+                                hedge_ev_percent=getattr(play, "hedge_ev_percent", None),
+                                is_arbitrage=getattr(play, "is_arbitrage", False),
+                                arb_margin_percent=getattr(play, "arb_margin_percent", None),
+                            )
+                            for play in raw_plays_dto
+                        ]
+                    )
 
                     for play in filtered_plays:
                         formatted_time = play.start_time
@@ -101,7 +140,7 @@ class ValuePlayService:
                             formatted_time = "—"
 
                         all_plays.append(
-                            self._best_value_outcome_model(
+                            models.BestValuePlay(
                                 sport_key=sport_key,
                                 market=market_key,
                                 event_id=play.event_id,
@@ -129,7 +168,7 @@ class ValuePlayService:
         if max_results > 0:
             top_plays = top_plays[:max_results]
 
-        return self._best_value_response_model(
+        return models.BestValuePlaysResult(
             target_book=payload.target_book,
             compare_book=payload.compare_book,
             plays=top_plays,
