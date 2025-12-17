@@ -191,3 +191,72 @@ def test_filters_events_within_48_hours():
 
     remaining_ids = {event["id"] for event in filtered}
     assert remaining_ids == {"soon"}
+
+
+def test_player_prop_arbitrage_requires_matching_player_name():
+    start_time = (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat().replace(
+        "+00:00", "Z"
+    )
+
+    events = [
+        {
+            "id": "event-1",
+            "home_team": "Home Team",
+            "away_team": "Away Team",
+            "commence_time": start_time,
+            "bookmakers": [
+                {
+                    "key": "fanduel",
+                    "title": "FanDuel",
+                    "last_update": start_time,
+                    "markets": [
+                        {
+                            "key": "player_points",
+                            "outcomes": [
+                                {
+                                    "name": "Under",
+                                    "price": -125,
+                                    "point": 19.5,
+                                    "description": "Jaren Jackson Jr",
+                                },
+                                {
+                                    "name": "Over",
+                                    "price": 105,
+                                    "point": 19.5,
+                                    "description": "Jaren Jackson Jr",
+                                },
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "key": "novig",
+                    "title": "Novig",
+                    "last_update": start_time,
+                    "markets": [
+                        {
+                            "key": "player_points",
+                            "outcomes": [
+                                {
+                                    "name": "Over",
+                                    "price": 300,
+                                    "point": 19.5,
+                                    "description": "Donte DiVincenzo",
+                                },
+                                {
+                                    "name": "Under",
+                                    "price": -400,
+                                    "point": 19.5,
+                                    "description": "Donte DiVincenzo",
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ],
+        }
+    ]
+
+    plays = main.collect_value_plays(events, "player_points", "fanduel", "novig")
+
+    assert plays == []

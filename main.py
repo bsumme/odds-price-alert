@@ -1001,21 +1001,52 @@ def collect_value_plays(
         allow_half_point_flex: bool,
         opposite: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        """Find the best matching outcome for a selection, favoring player/point matches."""
+        """Find the best matching outcome for a selection, favoring player/point matches.
 
-        if is_player_prop and expected_description:
-            normalized_desc = normalize_player_name(expected_description)
+        For player props we prioritize exact player matches. If multiple players share the
+        same line, we avoid returning a mismatched player by requiring the description to
+        align when provided. Only when a single candidate fits the line do we fall back to
+        a point-based match without a description.
+        """
+
+        if is_player_prop:
+            normalized_desc = (
+                normalize_player_name(expected_description)
+                if expected_description
+                else None
+            )
+
+            candidates: List[Dict[str, Any]] = []
             for comp_outcome in outcomes:
                 comp_name = comp_outcome.get("name")
-                comp_desc = comp_outcome.get("description")
+                if opposite:
+                    if comp_name == expected_name:
+                        continue
+                elif comp_name != expected_name:
+                    continue
+
                 comp_point = comp_outcome.get("point", None)
-                if (
-                    comp_name == expected_name
-                    and comp_desc
-                    and normalized_desc == normalize_player_name(comp_desc)
-                    and points_match(expected_point, comp_point, allow_half_point_flex)
-                ):
-                    return comp_outcome
+                if not points_match(expected_point, comp_point, allow_half_point_flex):
+                    continue
+
+                candidates.append(comp_outcome)
+
+            if normalized_desc:
+                for comp_outcome in candidates:
+                    comp_desc = comp_outcome.get("description")
+                    if comp_desc and normalized_desc == normalize_player_name(comp_desc):
+                        return comp_outcome
+
+                described_candidates = [c for c in candidates if c.get("description")]
+                if described_candidates:
+                    # We have player-labeled outcomes but none match the requested player;
+                    # avoid pairing with the wrong athlete.
+                    return None
+
+            if len(candidates) == 1:
+                return candidates[0]
+
+            return None
 
         return find_best_comparison_outcome(
             outcomes=outcomes,
