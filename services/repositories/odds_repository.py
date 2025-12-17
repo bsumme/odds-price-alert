@@ -225,16 +225,28 @@ class OddsRepository:
         fetcher = (
             self._player_props_fetcher if is_player_request else self._odds_fetcher
         )
-        return fetcher(
-            api_key=api_key,
-            sport_key=sport_key,
-            regions=regions,
-            markets=markets_param,
-            bookmaker_keys=bookmaker_keys,
-            team=team,
-            player_name=player_name,
-            event_id=event_id,
-            use_dummy_data=False,
-            credit_tracker=credit_tracker,
-        )
+        if is_player_request:
+            return fetcher(
+                api_key=api_key,
+                sport_key=sport_key,
+                regions=regions,
+                markets=markets_param,
+                bookmaker_keys=bookmaker_keys,
+                team=team,
+                player_name=player_name,
+                event_id=event_id,
+                use_dummy_data=False,
+                credit_tracker=credit_tracker,
+            )
+
+        odds_kwargs: Dict[str, Any] = {
+            "api_key": api_key,
+            "sport_key": sport_key,
+            "regions": regions,
+            "markets": markets_param,
+            "bookmaker_keys": bookmaker_keys,
+            "use_dummy_data": False,
+            "credit_tracker": credit_tracker,
+        }
+        return fetcher(**odds_kwargs)
 
