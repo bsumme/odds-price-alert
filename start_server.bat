@@ -13,4 +13,4 @@ if exist .venv\Scripts\activate.bat (
 )
 
 echo Starting FastAPI server at http://127.0.0.1:8000 ...
-uvicorn main:app --reload
+python main.py --reload %*

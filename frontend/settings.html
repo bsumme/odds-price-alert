@@ -363,23 +363,11 @@
     <main>
         <section class="page-intro">
             <p style="margin-bottom: 0.35rem;">Customize how Ben's Sports Book App behaves on your device.</p>
-            <p style="margin: 0;">Changes save locally and sync the <strong>Use Dummy Data</strong> toggle with the server for mobile users.</p>
+            <p style="margin: 0;">Changes save locally for your device.</p>
         </section>
 
         <section class="card">
             <h2>Application Settings</h2>
-
-            <!-- Dummy Data Setting -->
-            <div class="setting-group">
-                <div class="setting-label">
-                    <input type="checkbox" id="dummy-data-setting" />
-                    <label for="dummy-data-setting">Use Dummy Data</label>
-                </div>
-                <div class="setting-description">
-                    Enable dummy data for development when API credits are exhausted. Disabling uses real API data from
-                    The Odds API.
-                </div>
-            </div>
 
             <!-- Logging Setting -->
             <div class="setting-group">
@@ -438,7 +426,6 @@
         // Settings storage key
         const SETTINGS_KEY = 'bensAppSettings';
         const DEFAULT_SETTINGS = {
-            useDummyData: false,
             enableLogging: false,
             defaultSports: {
                 americanfootball_nfl: true,
@@ -448,36 +435,6 @@
                 icehockey_nhl: true
             }
         };
-
-        async function syncServerSettings() {
-            try {
-                const res = await fetch('/api/settings');
-                if (!res.ok) throw new Error('Failed to fetch server settings');
-                const serverSettings = await res.json();
-
-                const current = loadSettings();
-                const merged = {
-                    ...DEFAULT_SETTINGS,
-                    ...current,
-                    useDummyData: !!serverSettings.use_dummy_data
-                };
-                saveSettings(merged);
-            } catch (err) {
-                console.warn('Unable to sync server settings; using local defaults', err);
-            }
-        }
-
-        async function persistServerSettings(settings) {
-            const response = await fetch('/api/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ use_dummy_data: settings.useDummyData })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to persist server settings');
-            }
-        }
 
         // Load settings from localStorage
         function loadSettings() {
@@ -538,14 +495,12 @@
         // Update UI from settings
         function updateUI() {
             const settings = loadSettings();
-            document.getElementById('dummy-data-setting').checked = settings.useDummyData;
             document.getElementById('logging-setting').checked = settings.enableLogging;
         }
 
         // Save button handler
-        document.getElementById('save-settings-btn').addEventListener('click', async () => {
+        document.getElementById('save-settings-btn').addEventListener('click', () => {
             const settings = {
-                useDummyData: document.getElementById('dummy-data-setting').checked,
                 enableLogging: document.getElementById('logging-setting').checked,
                 defaultSports: {}
             };
@@ -557,27 +512,14 @@
             });
 
             saveSettings(settings);
-
-            try {
-                await persistServerSettings(settings);
-                showStatus('Settings saved successfully!', true);
-            } catch (err) {
-                console.error(err);
-                showStatus('Saved locally, but server settings failed to update', false);
-            }
+            showStatus('Settings saved successfully!', true);
         });
 
         // Reset button handler
-        document.getElementById('reset-settings-btn').addEventListener('click', async () => {
+        document.getElementById('reset-settings-btn').addEventListener('click', () => {
             if (confirm('Are you sure you want to reset all settings to defaults?')) {
                 saveSettings(DEFAULT_SETTINGS);
-                try {
-                    await persistServerSettings(DEFAULT_SETTINGS);
-                    showStatus('Settings reset to defaults', true);
-                } catch (err) {
-                    console.error('Failed to reset server settings', err);
-                    showStatus('Local settings reset, but server update failed', false);
-                }
+                showStatus('Settings reset to defaults', true);
                 updateUI();
                 populateSports();
             }
@@ -608,7 +550,6 @@
 
         // Initialize page
         async function initializeSettingsPage() {
-            await syncServerSettings();
             updateUI();
             populateSports();
             fadeInPage();
