@@ -146,6 +146,35 @@
             gap: 0.5rem;
         }
 
+        .action-toolbar {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            background: #111827;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.6rem 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .action-toolbar__controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .action-toolbar__controls .btn {
+            margin: 0;
+        }
+
+        .action-toolbar__hint {
+            color: #cbd5e1;
+        }
+
         .mode-toggle button {
             flex: 1;
             background: #0f172a;
@@ -681,6 +710,16 @@
             <div class="small-text">Swap between arbitrage finder and player props search without leaving the main page.</div>
         </div>
 
+        <div class="action-toolbar">
+            <div class="action-toolbar__controls">
+                <button class="btn btn-secondary" id="build-parlay-btn">Build Best Parlay</button>
+                <div class="small-text">Generate a parlay recommendation using your current main market filters.</div>
+            </div>
+            <div class="small-text action-toolbar__hint">
+                Looking for same-game parlays? Visit the dedicated <a href="/sgp-builder.html">SGP Builder</a> to pick a matchup first.
+            </div>
+        </div>
+
         <!-- Filter Panel -->
         <div class="filter-panel" id="arb-filter-panel">
             <section class="card">
@@ -755,16 +794,6 @@
                             </button>
 
                             <button class="btn btn-secondary" id="clear-best-btn">Clear</button>
-                        </div>
-
-                        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <button class="btn btn-secondary" id="build-parlay-btn">Build Best Parlay</button>
-                            <a class="btn btn-secondary" href="/sgp-builder.html"
-                                style="text-align: center; text-decoration: none;">Open SGP Builder</a>
-                        </div>
-
-                        <div class="small-text" style="margin-top: 0.5rem;">
-                            Build same-game parlays in the dedicated SGP Builder after picking a matchup.
                         </div>
 
                         <div class="small-text" style="margin-top: 0.5rem;">Filter total SGP odds</div>
