@@ -6,7 +6,7 @@
 # 4. Install all required dependencies
 # 5. Start the FastAPI server
 #
-# Usage: .\rebuild_and_run.ps1 [-d|-t] [-f "<file_path>"] [-PreferCache] [-Mobile]
+# Usage: .\rebuild_and_run.ps1 [-d|-t] [-f "<file_path>"] [-PreferCache] [-Mobile] [-DummyData]
 #   -d           : Run the app in debug trace level
 #   -t           : Run the app in trace level
 #   -f           : Log script output to the specified file path
@@ -15,6 +15,7 @@
 #                  rebuild_and_run_cached.ps1)
 #   -Mobile      : Bind the server to 0.0.0.0 and print the LAN URL for mobile
 #                  testing (replaces start_server_for_mobile_test.ps1)
+#   -DummyData   : Serve mock odds instead of live API responses (startup only)
 #   default (no flag): Run in regular mode
 # Example with logging to a full path:
 #   .\rebuild_and_run.ps1 -d -f "C:\logs\rebuild_and_run.log"
@@ -24,7 +25,8 @@ param(
     [switch]$t,
     [string]$f,
     [switch]$PreferCache,
-    [switch]$Mobile
+    [switch]$Mobile,
+    [switch]$DummyData
 )
 
 if ($d -and $t) {
@@ -41,11 +43,20 @@ if ($d) {
 
 $hostAddress = if ($Mobile) { "0.0.0.0" } else { "127.0.0.1" }
 $port = 8000
+$dummyDataEnabled = $DummyData -or ($env:DUMMY_DATA -and $env:DUMMY_DATA.ToLower() -in @("1", "true", "yes"))
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Rebuilding and Starting Bet Watcher" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
+
+if ($DummyData) {
+    $env:DUMMY_DATA = "true"
+    $dummyDataEnabled = $true
+    Write-Host "[INFO] Dummy data ENABLED for this session (startup flag)" -ForegroundColor Yellow
+} elseif ($dummyDataEnabled) {
+    Write-Host "[INFO] Dummy data ENABLED via existing DUMMY_DATA environment variable" -ForegroundColor Yellow
+}
 
 # Get the script directory
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -269,6 +280,11 @@ if ($Mobile) {
 }
 
 Write-Host "TRACE_LEVEL set to $traceLevel" -ForegroundColor Cyan
+if ($dummyDataEnabled) {
+    Write-Host "Dummy data mode: ENABLED (restart without -DummyData to disable)" -ForegroundColor Yellow
+} else {
+    Write-Host "Dummy data mode: disabled (start with -DummyData to serve mock odds)" -ForegroundColor Yellow
+}
 Write-Host "Server will be available at: http://${hostAddress}:${port}/BensSportsBookApp.html" -ForegroundColor Green
 if ($Mobile) {
     Write-Host "Mobile URL: http://${mobileIpAddress}:${port}/BensSportsBookApp.html" -ForegroundColor Cyan
