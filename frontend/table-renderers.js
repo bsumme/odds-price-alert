@@ -429,10 +429,12 @@
     }
 
     global.TableRenderers = {
+        ...existingRenderers,
         renderArbRows,
         renderPropRows,
         renderPropComparisonRows,
         helpers: {
+            ...existingHelpers,
             formatOdds,
             formatOddsWithColor,
             formatStartTime,
