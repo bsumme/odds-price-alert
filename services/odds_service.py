@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+from services.domain import models
 from utils.formatting import pretty_book_label
 from utils.regions import compute_regions_for_books
 from services.odds_utils import american_to_decimal, MAX_VALID_AMERICAN_ODDS
@@ -15,24 +16,20 @@ class OddsService:
         self,
         odds_fetcher,
         data_validator,
-        price_out_model,
-        single_bet_odds_model,
-        odds_response_model,
     ) -> None:
         self._odds_fetcher = odds_fetcher
         self._data_validator = data_validator
-        self._price_out_model = price_out_model
-        self._single_bet_odds_model = single_bet_odds_model
-        self._odds_response_model = odds_response_model
 
-    def get_odds(self, payload, api_key: str, use_dummy_data: bool):
-        """Build an OddsResponse for the provided request payload."""
+    def get_odds(
+        self, bets: Sequence[models.Bet], api_key: str, use_dummy_data: bool
+    ) -> models.OddsResult:
+        """Build an OddsResult for the provided request payload."""
 
-        all_book_keys = self._collect_bookmaker_keys(payload.bets)
+        all_book_keys = self._collect_bookmaker_keys(bets)
         regions = compute_regions_for_books(list(all_book_keys))
 
         all_bets_results: List[Any] = []
-        bets_by_sport = self._group_bets_by_sport(payload.bets)
+        bets_by_sport = self._group_bets_by_sport(bets)
 
         for sport_key, bets_for_sport in bets_by_sport.items():
             markets = sorted({b.market for b in bets_for_sport})
@@ -50,7 +47,7 @@ class OddsService:
             self._data_validator(events, allow_dummy=use_dummy_data)
 
             for bet in bets_for_sport:
-                prices_per_book: List[Any] = []
+                prices_per_book: List[models.PriceQuote] = []
 
                 for book_key in bet.bookmaker_keys:
                     price_for_team: Optional[int] = None
@@ -103,7 +100,7 @@ class OddsService:
                         break
 
                     prices_per_book.append(
-                        self._price_out_model(
+                        models.PriceQuote(
                             bookmaker_key=book_key,
                             bookmaker_name=pretty_book_label(book_key),
                             price=price_for_team,
@@ -126,7 +123,7 @@ class OddsService:
                         po.price = best_price_for_team
 
                 all_bets_results.append(
-                    self._single_bet_odds_model(
+                    models.SingleBetOdds(
                         sport_key=sport_key,
                         market=bet.market,
                         team=bet.team,
@@ -135,7 +132,7 @@ class OddsService:
                     )
                 )
 
-        return self._odds_response_model(bets=all_bets_results)
+        return models.OddsResult(bets=all_bets_results)
 
     @staticmethod
     def _collect_bookmaker_keys(bets: Sequence[Any]) -> set[str]:

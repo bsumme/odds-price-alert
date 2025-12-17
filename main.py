@@ -24,6 +24,7 @@ from services.odds_api import (
     BASE_URL,
     ApiCreditTracker,
 )
+from services.domain import mappers as domain_mappers
 from services.odds_service import OddsService
 from services.odds_utils import (
     american_to_decimal,
@@ -1357,18 +1358,12 @@ def _validate_data_source(events: List[Dict[str, Any]], allow_dummy: bool) -> No
 odds_service = OddsService(
     odds_fetcher=fetch_odds_with_dummy,
     data_validator=_validate_data_source,
-    price_out_model=PriceOut,
-    single_bet_odds_model=SingleBetOdds,
-    odds_response_model=OddsResponse,
 )
 
 value_play_service = ValuePlayService(
     odds_fetcher=fetch_odds_with_dummy,
     data_validator=_validate_data_source,
     collect_value_plays=collect_value_plays,
-    value_response_model=ValuePlaysResponse,
-    best_value_response_model=BestValuePlaysResponse,
-    best_value_outcome_model=BestValuePlayOutcome,
 )
 
 
@@ -1443,7 +1438,17 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
     if not all_book_keys:
         raise HTTPException(status_code=400, detail="No bookmakers specified")
 
-    return odds_service.get_odds(payload=payload, api_key=api_key, use_dummy_data=use_dummy_data)
+    domain_bets = domain_mappers.map_bet_requests_to_domain(payload.bets)
+    odds_result = odds_service.get_odds(
+        bets=domain_bets, api_key=api_key, use_dummy_data=use_dummy_data
+    )
+
+    return domain_mappers.map_odds_result_to_dto(
+        odds_result,
+        price_out_model=PriceOut,
+        single_bet_odds_model=SingleBetOdds,
+        odds_response_model=OddsResponse,
+    )
 
 
 @app.post("/api/value-plays", response_model=ValuePlaysResponse)
@@ -1481,8 +1486,15 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         except RuntimeError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    return value_play_service.get_value_plays(
-        payload=payload, api_key=api_key, use_dummy_data=use_dummy_data
+    domain_request = domain_mappers.map_value_plays_query(payload)
+    domain_result = value_play_service.get_value_plays(
+        payload=domain_request, api_key=api_key, use_dummy_data=use_dummy_data
+    )
+
+    return domain_mappers.map_value_plays_result_to_dto(
+        domain_result,
+        value_play_model=ValuePlayOutcome,
+        response_model=ValuePlaysResponse,
     )
 
 
@@ -1516,8 +1528,15 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
         except RuntimeError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    return value_play_service.get_best_value_plays(
-        payload=payload, api_key=api_key, use_dummy_data=use_dummy_data
+    domain_payload = domain_mappers.map_best_value_plays_query(payload)
+    domain_result = value_play_service.get_best_value_plays(
+        payload=domain_payload, api_key=api_key, use_dummy_data=use_dummy_data
+    )
+
+    return domain_mappers.map_best_value_plays_result_to_dto(
+        domain_result,
+        best_value_model=BestValuePlayOutcome,
+        response_model=BestValuePlaysResponse,
     )
 
 
