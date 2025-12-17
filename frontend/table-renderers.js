@@ -366,9 +366,72 @@
         });
     }
 
+    function renderPropComparisonRows(tbody, plays, options = {}) {
+        const {
+            bookOrder = ["novig", "draftkings", "fanduel", "fliff"],
+            oddsFormatter = formatOddsWithColor,
+            startTimeFormatter = formatStartTime,
+            emptyMessage = "No player prop prices available for comparison.",
+        } = options;
+
+        tbody.innerHTML = "";
+
+        const rows = Array.isArray(plays) ? [...plays] : [];
+        if (!rows.length) {
+            tbody.innerHTML = `<tr><td colspan="${bookOrder.length + 3}" class="small-text">${emptyMessage}</td></tr>`;
+            return;
+        }
+
+        rows.forEach((play) => {
+            const tr = document.createElement("tr");
+            const lineText = play.point !== null && play.point !== undefined ? `${play.point > 0 ? "+" : ""}${play.point}` : "";
+
+            const selectionCell = document.createElement("td");
+            const marketLabel = play.market ? `<div class="small-text">${play.market} ${lineText}</div>` : "";
+            const matchup = play.matchup ? `<div class="small-text">${play.matchup}</div>` : "";
+            selectionCell.innerHTML = `<strong>${play.outcome_name || ""}</strong>${marketLabel}${matchup}`;
+            tr.appendChild(selectionCell);
+
+            const arbCell = document.createElement("td");
+            if (play.arb_margin_percent !== null && play.arb_margin_percent !== undefined) {
+                const arbRounded = Math.round(play.arb_margin_percent * 100) / 100;
+                const arbClass = arbRounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                arbCell.innerHTML = `<span class="${arbClass}">${arbRounded}%</span>`;
+            } else {
+                arbCell.innerHTML = '<span class="small-text">-</span>';
+            }
+            tr.appendChild(arbCell);
+
+            bookOrder.forEach((bookKey) => {
+                const cell = document.createElement("td");
+                const bookPrices = play.book_prices || {};
+                const opposingPrices = play.opposing_prices || {};
+                const mainPrice = bookPrices[bookKey];
+                const hedgePrice = opposingPrices[bookKey];
+
+                const mainText = mainPrice !== null && mainPrice !== undefined
+                    ? oddsFormatter(mainPrice)
+                    : '<span class="small-text">—</span>';
+                const hedgeText = hedgePrice !== null && hedgePrice !== undefined
+                    ? `<div class="small-text">Opp: ${oddsFormatter(hedgePrice)}</div>`
+                    : "";
+
+                cell.innerHTML = `${mainText}${hedgeText}`;
+                tr.appendChild(cell);
+            });
+
+            const startCell = document.createElement("td");
+            startCell.textContent = startTimeFormatter(play.start_time);
+            tr.appendChild(startCell);
+
+            tbody.appendChild(tr);
+        });
+    }
+
     global.TableRenderers = {
         renderArbRows,
         renderPropRows,
+        renderPropComparisonRows,
         helpers: {
             formatOdds,
             formatOddsWithColor,
