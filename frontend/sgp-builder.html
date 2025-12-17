@@ -335,11 +335,6 @@
                 <option value="fliff">Fliff</option>
             </select>
 
-            <label style="display: flex; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
-                <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
-                <span>Use Dummy Data</span>
-            </label>
-
             <label for="sgp-boost-input" style="margin-top: 0.75rem;">Promo boost % (20-100, default 30)</label>
             <input id="sgp-boost-input" type="number" min="20" max="100" step="5" value="30" />
 
@@ -603,7 +598,6 @@
 
         async function loadGames() {
             const sport = document.getElementById("sport-select").value;
-            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
             const helper = document.getElementById("game-helper-text");
             const select = document.getElementById("game-select");
 
@@ -626,7 +620,6 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         sport_key: sport,
-                        use_dummy_data: useDummyData,
                     }),
                 });
 
@@ -674,7 +667,6 @@
             const eventId = document.getElementById("game-select").value || null;
             const targetBook = document.getElementById("target-book-select").value;
             const compareBook = document.getElementById("compare-book-select").value;
-            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
             const avoidCorrelation = document.getElementById("avoid-correlation-checkbox").checked;
             const boostPercent = clampBoostInput();
             const { minOdds, maxOdds } = getSgpOddsRange();
@@ -703,7 +695,6 @@
                         target_book: targetBook,
                         compare_book: compareBook,
                         boost_percent: boostPercent,
-                        use_dummy_data: useDummyData,
                         avoid_correlation: avoidCorrelation,
                         min_total_american_odds: minOdds,
                         max_total_american_odds: maxOdds,
@@ -786,7 +777,6 @@
                 loadGames();
             });
 
-            document.getElementById("dummy-data-checkbox").addEventListener("change", loadGames);
             document.getElementById("game-select").addEventListener("change", updateBuildButtonState);
 
             document.getElementById("target-book-select").addEventListener("change", updateBuildButtonState);
