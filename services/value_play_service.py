@@ -7,7 +7,6 @@ from typing import Any, Callable, Iterable, List
 
 from services.domain import models
 from utils.formatting import format_start_time_est
-from utils.regions import compute_regions_for_books
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +16,11 @@ class ValuePlayService:
 
     def __init__(
         self,
-        odds_fetcher,
+        repository,
         data_validator,
         collect_value_plays: Callable[..., List[Any]],
     ) -> None:
-        self._odds_fetcher = odds_fetcher
+        self._repository = repository
         self._data_validator = data_validator
         self._collect_value_plays = collect_value_plays
 
@@ -29,12 +28,10 @@ class ValuePlayService:
         self, payload: models.ValuePlaysQuery, api_key: str, use_dummy_data: bool
     ) -> models.ValuePlaysResult:
         bookmaker_keys = [payload.target_book, payload.compare_book]
-        regions = compute_regions_for_books(bookmaker_keys)
 
-        events = self._odds_fetcher(
+        events = self._repository.get_odds_events(
             api_key=api_key,
             sport_key=payload.sport_key,
-            regions=regions,
             markets=payload.market,
             bookmaker_keys=bookmaker_keys,
             use_dummy_data=use_dummy_data,
@@ -84,20 +81,16 @@ class ValuePlayService:
     def get_best_value_plays(
         self, payload: models.BestValuePlaysQuery, api_key: str, use_dummy_data: bool
     ) -> models.BestValuePlaysResult:
-        bookmaker_keys = [payload.target_book, payload.compare_book]
-        regions = compute_regions_for_books(bookmaker_keys)
-
         all_plays: List[Any] = []
 
         for sport_key in payload.sport_keys:
             for market_key in payload.markets:
                 try:
-                    events = self._odds_fetcher(
+                    events = self._repository.get_odds_events(
                         api_key=api_key,
                         sport_key=sport_key,
-                        regions=regions,
                         markets=market_key,
-                        bookmaker_keys=bookmaker_keys,
+                        bookmaker_keys=[payload.target_book, payload.compare_book],
                         use_dummy_data=use_dummy_data,
                     )
 

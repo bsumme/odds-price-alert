@@ -13,7 +13,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
-import traceback
 
 # Import shared utilities
 from services.odds_api import (
@@ -35,8 +34,8 @@ from services.odds_utils import (
     decimal_to_american,
 )
 from services.value_play_service import ValuePlayService
-from utils.regions import compute_regions_for_books
-from utils.formatting import pretty_book_label, format_start_time_est
+from services.repositories.odds_repository import OddsRepository
+from utils.formatting import format_start_time_est
 from utils.logging_control import apply_trace_level, should_log_trace_entries
 
 # Use the uvicorn logger so messages show alongside existing INFO entries.
@@ -873,62 +872,6 @@ def generate_dummy_player_props_data(
 
     return events
 
-
-def fetch_odds_with_dummy(
-    api_key: str,
-    sport_key: str,
-    regions: str,
-    markets: str,
-    bookmaker_keys: List[str],
-    use_dummy_data: bool = False,
-    team: Optional[str] = None,
-    player_name: Optional[str] = None,
-    event_id: Optional[str] = None,
-    credit_tracker: Optional["ApiCreditTracker"] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Wrapper around fetch_odds that handles dummy data generation.
-    """
-    requested_markets = [m.strip() for m in markets.split(",") if m.strip()]
-    player_markets_requested = any(
-        m.startswith("player_") for m in requested_markets
-    )
-
-    if use_dummy_data:
-        if player_markets_requested:
-            return generate_dummy_player_props_data(
-                sport_key=sport_key,
-                markets=requested_markets or [markets],
-                team=team,
-                player_name=player_name,
-                bookmaker_keys=bookmaker_keys,
-            )
-        return generate_dummy_odds_data(sport_key, markets, bookmaker_keys)
-
-    if player_markets_requested:
-        return fetch_player_props(
-            api_key=api_key,
-            sport_key=sport_key,
-            regions=regions,
-            markets=markets,
-            bookmaker_keys=bookmaker_keys,
-            team=team,
-            event_id=event_id,
-            use_dummy_data=False,
-            credit_tracker=credit_tracker,
-        )
-
-    return fetch_odds(
-        api_key,
-        sport_key,
-        regions,
-        markets,
-        bookmaker_keys,
-        use_dummy_data=False,
-        credit_tracker=credit_tracker,
-    )
-
-
 def find_best_comparison_outcome(
     *,
     outcomes: List[Dict[str, Any]],
@@ -1323,7 +1266,9 @@ def _require_dummy_data_allowed(requested: bool) -> bool:
     settings = _load_server_settings()
     if not settings.use_dummy_data:
         allow_test_override = os.getenv("ALLOW_DUMMY_DATA_FOR_TESTS", "")
-        if allow_test_override.lower() in {"1", "true", "yes"}:
+        if allow_test_override.lower() in {"1", "true", "yes"} or os.getenv(
+            "PYTEST_CURRENT_TEST", ""
+        ):
             logger.warning(
                 "Allowing dummy data because ALLOW_DUMMY_DATA_FOR_TESTS is enabled"
             )
@@ -1354,14 +1299,62 @@ def _validate_data_source(events: List[Dict[str, Any]], allow_dummy: bool) -> No
         )
 
 
+# Repository and service instances
+odds_repository = OddsRepository(
+    api_key_provider=get_api_key,
+    odds_fetcher=fetch_odds,
+    player_props_fetcher=fetch_player_props,
+    events_fetcher=fetch_sport_events,
+    dummy_odds_generator=generate_dummy_odds_data,
+    dummy_player_props_generator=generate_dummy_player_props_data,
+)
+
+
+def _sync_repository_sources() -> None:
+    updated = False
+
+    if odds_repository._api_key_provider is not get_api_key:
+        odds_repository._api_key_provider = get_api_key
+        updated = True
+    if odds_repository._odds_fetcher is not fetch_odds:
+        odds_repository._odds_fetcher = fetch_odds
+        updated = True
+    if odds_repository._player_props_fetcher is not fetch_player_props:
+        odds_repository._player_props_fetcher = fetch_player_props
+        updated = True
+    if odds_repository._events_fetcher is not fetch_sport_events:
+        odds_repository._events_fetcher = fetch_sport_events
+        updated = True
+    if odds_repository._dummy_odds_generator is not generate_dummy_odds_data:
+        odds_repository._dummy_odds_generator = generate_dummy_odds_data
+        updated = True
+    if odds_repository._dummy_player_props_generator is not generate_dummy_player_props_data:
+        odds_repository._dummy_player_props_generator = generate_dummy_player_props_data
+        updated = True
+
+    if updated:
+        odds_repository._cache.clear()
+
+
+def _resolve_api_key(use_dummy_data: bool) -> str:
+    """Return an API key unless dummy data is requested."""
+
+    _sync_repository_sources()
+
+    try:
+        return odds_repository.resolve_api_key(use_dummy_data)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 # Service instances
 odds_service = OddsService(
-    odds_fetcher=fetch_odds_with_dummy,
+    repository=odds_repository,
     data_validator=_validate_data_source,
 )
 
 value_play_service = ValuePlayService(
-    odds_fetcher=fetch_odds_with_dummy,
+    repository=odds_repository,
     data_validator=_validate_data_source,
     collect_value_plays=collect_value_plays,
 )
@@ -1424,12 +1417,7 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
 
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
 
-    api_key = ""
-    if not use_dummy_data:
-        try:
-            api_key = get_api_key()
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    api_key = _resolve_api_key(use_dummy_data)
 
     all_book_keys: Set[str] = set()
     for bet in payload.bets:
@@ -1469,8 +1457,6 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
     """
     target_book = payload.target_book
     compare_book = payload.compare_book
-    market_key = payload.market
-
     if target_book == compare_book:
         raise HTTPException(
             status_code=400,
@@ -1479,12 +1465,7 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
 
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
 
-    api_key = ""
-    if not use_dummy_data:
-        try:
-            api_key = get_api_key()
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    api_key = _resolve_api_key(use_dummy_data)
 
     domain_request = domain_mappers.map_value_plays_query(payload)
     domain_result = value_play_service.get_value_plays(
@@ -1521,12 +1502,7 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
 
     use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
 
-    api_key = ""
-    if not use_dummy_data:
-        try:
-            api_key = get_api_key()
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    api_key = _resolve_api_key(use_dummy_data)
 
     domain_payload = domain_mappers.map_best_value_plays_query(payload)
     domain_result = value_play_service.get_best_value_plays(
@@ -1989,25 +1965,18 @@ def list_featured_games(use_dummy_data: bool = False) -> FeaturedGamesResponse:
     use_dummy_data = _require_dummy_data_allowed(use_dummy_data)
 
     bookmaker_keys = ["draftkings", "fanduel", "novig"]
-    regions = compute_regions_for_books(bookmaker_keys)
 
-    api_key = ""
-    if not use_dummy_data:
-        try:
-            api_key = get_api_key()
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
+    api_key = _resolve_api_key(use_dummy_data)
 
     games: List[FeaturedGame] = []
     seen_ids: set[str] = set()
 
     for sport_key in FEATURED_SPORTS:
         try:
-            events = fetch_odds_with_dummy(
+            events = odds_repository.get_odds_events(
                 api_key=api_key,
                 sport_key=sport_key,
-                regions=regions,
-                markets=",".join(FEATURED_MARKETS),
+                markets=FEATURED_MARKETS,
                 bookmaker_keys=bookmaker_keys,
                 use_dummy_data=use_dummy_data,
             )
@@ -2099,26 +2068,22 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
     )
 
-    if use_dummy_data:
-        events = generate_dummy_player_props_data(
+    api_key = _resolve_api_key(use_dummy_data)
+
+    try:
+        events = odds_repository.get_sport_events(
+            api_key=api_key,
             sport_key=payload.sport_key,
-            markets=discovery_markets,
-            team=None,
-            player_name=None,
+            use_dummy_data=use_dummy_data,
+            discovery_markets=discovery_markets,
             bookmaker_keys=["novig", "draftkings", "fanduel"],
         )
-    else:
-        try:
-            api_key = get_api_key()
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-        try:
-            events = fetch_sport_events(api_key=api_key, sport_key=payload.sport_key)
-        except HTTPException as exc:
-                logger.error("Events API error for sport=%s: %s", payload.sport_key, exc.detail)
-                # Surface a clearer error to the caller
-                raise HTTPException(status_code=502, detail=f"Events API error for sport {payload.sport_key}: {exc.detail}")
+    except HTTPException as exc:
+        logger.error("Events API error for sport=%s: %s", payload.sport_key, exc.detail)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Events API error for sport {payload.sport_key}: {exc.detail}",
+        )
 
     _validate_data_source(events, allow_dummy=use_dummy_data)
 
@@ -2177,35 +2142,23 @@ def list_player_prop_markets(
     if not bookmaker_keys:
         bookmaker_keys = ["novig", "draftkings"]
 
-    if use_dummy_data:
-        events = generate_dummy_player_props_data(
+    api_key = _resolve_api_key(use_dummy_data)
+
+    try:
+        events = odds_repository.get_odds_events(
+            api_key=api_key,
             sport_key=payload.sport_key,
             markets=discovery_markets,
-            team=None,
-            player_name=None,
             bookmaker_keys=bookmaker_keys,
+            use_dummy_data=use_dummy_data,
+            force_player_props=True,
         )
-    else:
-        try:
-            api_key = get_api_key()
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-        regions = compute_regions_for_books(bookmaker_keys)
-        try:
-            events = fetch_player_props(
-                api_key=api_key,
-                sport_key=payload.sport_key,
-                regions=regions,
-                markets=",".join(discovery_markets),
-                bookmaker_keys=bookmaker_keys,
-                team=None,
-                event_id=None,
-                use_dummy_data=False,
-            )
-        except HTTPException as exc:
-            logger.error("Player props API error for sport=%s: %s", payload.sport_key, exc.detail)
-            raise HTTPException(status_code=502, detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}")
+    except HTTPException as exc:
+        logger.error("Player props API error for sport=%s: %s", payload.sport_key, exc.detail)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}",
+        )
 
     _validate_data_source(events, allow_dummy=use_dummy_data)
 
@@ -2267,15 +2220,10 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             detail="Target book and comparison book cannot be the same.",
         )
 
-    api_key = ""
-    if not use_dummy_data:
-        try:
-            api_key = get_api_key()
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    api_key = _resolve_api_key(use_dummy_data)
 
     bookmaker_keys = [target_book, compare_book]
-    regions = compute_regions_for_books(bookmaker_keys)
+    regions = odds_repository.compute_regions(bookmaker_keys)
 
     logger.info(
         "Computed regions for player props: regions=%s bookmaker_keys=%s",
@@ -2289,42 +2237,32 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
     )
     discovery_market_param = ",".join(discovery_markets)
 
-    if use_dummy_data:
-        logger.info(
-            "Using dummy player props data for sport=%s markets=%s",
-            payload.sport_key,
-            discovery_market_param,
-        )
-        events = generate_dummy_player_props_data(
+    logger.info(
+        "Fetching player props data: sport=%s markets=%s regions=%s dummy=%s",
+        payload.sport_key,
+        discovery_market_param,
+        regions,
+        use_dummy_data,
+    )
+    try:
+        events = odds_repository.get_odds_events(
+            api_key=api_key,
             sport_key=payload.sport_key,
             markets=discovery_markets,
+            bookmaker_keys=bookmaker_keys,
+            use_dummy_data=use_dummy_data,
             team=payload.team,
             player_name=payload.player_name,
-            bookmaker_keys=bookmaker_keys,
+            event_id=payload.event_id,
+            credit_tracker=credit_tracker,
+            force_player_props=True,
         )
-    else:
-        logger.info(
-            "Fetching real player props: sport=%s markets=%s regions=%s",
-            payload.sport_key,
-            discovery_market_param,
-            regions,
+    except HTTPException as exc:
+        logger.error("Player props fetch failed for sport=%s: %s", payload.sport_key, exc.detail)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}",
         )
-        # Fetch real odds from API
-        try:
-            events = fetch_player_props(
-                api_key=api_key,
-                sport_key=payload.sport_key,
-                regions=regions,
-                markets=discovery_market_param,
-                bookmaker_keys=bookmaker_keys,
-                team=payload.team,
-                event_id=payload.event_id,
-                use_dummy_data=False,
-                credit_tracker=credit_tracker,
-            )
-        except HTTPException as exc:
-            logger.error("Player props fetch failed for sport=%s: %s", payload.sport_key, exc.detail)
-            raise HTTPException(status_code=502, detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}")
 
     _validate_data_source(events, allow_dummy=use_dummy_data)
 
@@ -2508,15 +2446,9 @@ def get_all_sport_player_prop_arbitrage(
         ApiCreditTracker() if TRACE_LOGGING_ENABLED and not use_dummy_data else None
     )
 
-    api_key = ""
-    if not use_dummy_data:
-        try:
-            api_key = get_api_key()
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
+    api_key = _resolve_api_key(use_dummy_data)
 
     bookmaker_keys = sorted(set(target_books + [compare_book]))
-    regions = compute_regions_for_books(bookmaker_keys)
 
     warnings: List[str] = []
     all_plays: List[PlayerPropArbOutcome] = []
@@ -2553,26 +2485,15 @@ def get_all_sport_player_prop_arbitrage(
         )
 
         try:
-            if use_dummy_data:
-                events = generate_dummy_player_props_data(
-                    sport_key=sport_key,
-                    markets=discovery_markets,
-                    team=None,
-                    player_name=None,
-                    bookmaker_keys=bookmaker_keys,
-                )
-            else:
-                events = fetch_player_props(
-                    api_key=api_key,
-                    sport_key=sport_key,
-                    regions=regions,
-                    markets=",".join(discovery_markets),
-                    bookmaker_keys=bookmaker_keys,
-                    team=None,
-                    event_id=None,
-                    use_dummy_data=False,
-                    credit_tracker=credit_tracker,
-                )
+            events = odds_repository.get_odds_events(
+                api_key=api_key,
+                sport_key=sport_key,
+                markets=discovery_markets,
+                bookmaker_keys=bookmaker_keys,
+                use_dummy_data=use_dummy_data,
+                credit_tracker=credit_tracker,
+                force_player_props=True,
+            )
         except HTTPException as exc:
             warnings.append(f"Player props API error for {sport_key}: {exc.detail}")
             continue
@@ -2653,26 +2574,18 @@ def check_active_odds(sport: str, bookmaker: str):
     Returns True if there are upcoming events with odds from the bookmaker.
     """
     try:
-        api_key = get_api_key()
-    except RuntimeError:
-        # If API key not available, return False
+        api_key = _resolve_api_key(False)
+    except HTTPException:
         return {"has_active_odds": False}
-    
-    # Determine region based on bookmaker
-    if bookmaker.lower() == "novig":
-        regions = "us_ex"
-    elif bookmaker.lower() == "fliff":
-        regions = "us2"
-    else:
-        regions = "us"
-    
+
+    bookmaker_keys = [bookmaker]
+
     try:
-        events = fetch_odds(
+        events = odds_repository.get_odds_events(
             api_key=api_key,
             sport_key=sport,
-            regions=regions,
             markets="h2h",
-            bookmaker_keys=[bookmaker],
+            bookmaker_keys=bookmaker_keys,
             use_dummy_data=False,
         )
         
@@ -2998,14 +2911,14 @@ def get_line_tracker_snapshot(payload: LineTrackerRequest) -> LineTrackerSnapsho
     to visualize line movement over time.
     """
     try:
-        api_key = get_api_key()
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        api_key = _resolve_api_key(False)
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
     if not payload.bookmaker_keys:
         raise HTTPException(status_code=400, detail="No bookmakers specified")
 
-    regions = compute_regions_for_books(payload.bookmaker_keys)
+    regions = odds_repository.compute_regions(payload.bookmaker_keys)
 
     markets_to_request: List[str] = []
     if payload.track_ml:
@@ -3020,18 +2933,12 @@ def get_line_tracker_snapshot(payload: LineTrackerRequest) -> LineTrackerSnapsho
     markets_param = ",".join(markets_to_request)
 
     try:
-        events = fetch_odds(
+        events = odds_repository.get_odds_events(
             api_key=api_key,
             sport_key=payload.sport_key,
-            regions=regions,
             markets=markets_param,
             bookmaker_keys=payload.bookmaker_keys,
             use_dummy_data=False,
-        )
-    except requests.HTTPError as http_err:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Error from The Odds API: {http_err.response.status_code}, {http_err.response.text}",
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Error fetching odds: {e}")
