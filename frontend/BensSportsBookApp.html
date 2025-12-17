@@ -944,6 +944,29 @@
                     </table>
                 </div>
             </section>
+
+            <section class="card" id="props-price-section" style="display: none;">
+                <h2>Sportsbook Prop Prices</h2>
+                <div class="small-text" id="props-price-summary" style="margin-bottom: 0.4rem;">Run a player props search to compare prices across Novig, DraftKings, FanDuel, and Fliff.</div>
+                <div class="scroll-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Selection</th>
+                                <th>Arb Margin</th>
+                                <th>Novig</th>
+                                <th>DraftKings</th>
+                                <th>FanDuel</th>
+                                <th>Fliff</th>
+                                <th>Start / Game</th>
+                            </tr>
+                        </thead>
+                        <tbody id="props-price-body">
+                            <tr><td colspan="7" class="small-text">Run a player props search to compare prices across books.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
         <div class="toggle-buttons" id="builder-toggle-container" style="display: none;">
@@ -2350,6 +2373,47 @@
             });
 
             setPropsSummary(`Showing ${playsWithStake.length} player prop results.`);
+            renderPlayerPropComparisonTable(playsWithStake);
+        }
+
+        function renderPlayerPropComparisonTable(plays) {
+            const section = document.getElementById("props-price-section");
+            const body = document.getElementById("props-price-body");
+            const summary = document.getElementById("props-price-summary");
+            if (!section || !body || !summary) return;
+
+            const bookOrder = ["novig", "draftkings", "fanduel", "fliff"];
+            const totalColumns = bookOrder.length + 3;
+
+            const playList = Array.isArray(plays) ? plays : [];
+            if (!hasRunPropsSearch || !playList.length) {
+                const message = hasRunPropsSearch
+                    ? "No player prop prices available for comparison."
+                    : "Run a player props search to compare prices across books.";
+                body.innerHTML = `<tr><td colspan="${totalColumns}" class="small-text">${message}</td></tr>`;
+                summary.textContent = "Run a player props search to compare prices across Novig, DraftKings, FanDuel, and Fliff.";
+                section.style.display = "block";
+                return;
+            }
+
+            const arbPlays = playList.filter((play) => play.arb_margin_percent !== null && play.arb_margin_percent !== undefined);
+            const sorted = sortPlaysByArbitrageMargin(arbPlays, "desc");
+            const topPlays = sorted.slice(0, 12);
+
+            TableRenderers.renderPropComparisonRows(body, topPlays, {
+                bookOrder,
+                oddsFormatter: TableRenderers.helpers.formatOddsWithColor,
+                startTimeFormatter: TableRenderers.helpers.formatStartTime,
+                emptyMessage: "No player prop prices available for comparison.",
+            });
+
+            if (topPlays.length) {
+                summary.textContent = `Showing top ${topPlays.length} arbitrage-friendly player props with prices from Novig, DraftKings, FanDuel, and Fliff.`;
+            } else {
+                summary.textContent = "No player prop prices available for comparison.";
+            }
+
+            section.style.display = "block";
         }
 
         function renderValueFromState() {
