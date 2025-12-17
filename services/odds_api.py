@@ -538,6 +538,9 @@ def fetch_player_props(
                 if resp.status == 422:
                     invalid_markets = _parse_invalid_markets(body)
                     if invalid_markets:
+                        # The Odds API returns 422 when a requested market isn't
+                        # supported for the sport. Remove those markets and retry so we
+                        # still return the valid ones instead of failing the whole call.
                         remaining = [m for m in markets_to_use if m not in invalid_markets]
                         logger.warning(
                             "Retrying player props for event %s without invalid markets: %s",
