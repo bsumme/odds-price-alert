@@ -334,9 +334,17 @@
             font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
             font-size: 0.75rem;
             color: #cbd5e1;
-            max-height: 180px;
+            min-height: 10rem;
+            max-height: 16rem;
             overflow: auto;
             white-space: pre-wrap;
+        }
+
+        @media (min-width: 1024px) {
+            .log-box {
+                min-height: 14rem;
+                max-height: 28rem;
+            }
         }
 
         table {
@@ -949,8 +957,9 @@
                 <div class="status-bar" id="watcher-status-bar" style="margin-top: 0.4rem;">Watcher stopped.</div>
                 <div class="status-bar" id="test-sms-status" style="margin-top: 0.4rem; display: none;"></div>
 
-                <div class="log-box" id="client-log" aria-live="polite"
-                    style="margin-top: 0.35rem; max-height:10rem; overflow:auto;">Client log initialized.</div>
+                <div class="log-box" id="client-log" aria-live="polite" style="margin-top: 0.35rem;">
+                    Client log initialized.
+                </div>
             </section>
         </div>
     </main>
