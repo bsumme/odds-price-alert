@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dooley's Spoon-Fed Bet</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: #0f172a;
+            color: #e5e7eb;
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+
+        .card {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            width: min(600px, 100%);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        h1 {
+            margin: 0 0 1rem;
+            font-size: 1.4rem;
+            letter-spacing: 0.01em;
+        }
+
+        .status {
+            color: #94a3b8;
+            margin-bottom: 0.75rem;
+            font-size: 0.95rem;
+        }
+
+        .bet-box {
+            background: #0b172d;
+            border: 1px solid #1f2937;
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            min-height: 3.25rem;
+            display: flex;
+            align-items: center;
+            color: #e2e8f0;
+        }
+
+        .error {
+            color: #fca5a5;
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <h1>Dooley's Spoon-Fed Bet</h1>
+        <div id="status" class="status">Loading best bet…</div>
+        <div id="bet-box" class="bet-box" aria-live="polite"></div>
+    </main>
+
+    <script>
+        function formatBookName(bookKey) {
+            if (!bookKey) return "Unknown book";
+            return bookKey
+                .split("_")
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(" ");
+        }
+
+        function formatPrice(price) {
+            if (typeof price !== "number") return "";
+            return price > 0 ? `+${price}` : `${price}`;
+        }
+
+        function buildBetLabel(play, targetBook) {
+            const pieces = [];
+            if (play.matchup) {
+                pieces.push(play.matchup);
+            }
+            if (play.outcome_name) {
+                pieces.push(play.outcome_name);
+            }
+            if (play.point !== null && play.point !== undefined) {
+                pieces.push(play.point);
+            }
+
+            const betName = pieces.join(" ").trim();
+            const price = formatPrice(play.book_price);
+            const book = formatBookName(targetBook);
+
+            if (!betName && !price) return "No bet details available";
+            return `${betName} ${price} @${book}`.trim();
+        }
+
+        function selectTopArbitragePlay(plays) {
+            if (!Array.isArray(plays) || plays.length === 0) return null;
+
+            const withMargins = plays
+                .filter((play) => typeof play.arb_margin_percent === "number")
+                .sort((a, b) => b.arb_margin_percent - a.arb_margin_percent);
+
+            if (withMargins.length > 0) {
+                return withMargins[0];
+            }
+
+            return plays[0];
+        }
+
+        async function loadTopBet() {
+            const statusEl = document.getElementById("status");
+            const betBox = document.getElementById("bet-box");
+
+            statusEl.textContent = "Loading best bet…";
+            statusEl.classList.remove("error");
+            betBox.textContent = "";
+
+            const payload = {
+                sport_keys: [
+                    "americanfootball_nfl",
+                    "basketball_nba",
+                    "baseball_mlb",
+                    "icehockey_nhl",
+                ],
+                markets: ["h2h", "spreads", "totals", "player_points"],
+                target_book: "draftkings",
+                compare_book: "novig",
+                max_results: 25,
+                use_dummy_data: true,
+            };
+
+            try {
+                const response = await fetch("/api/best-value-plays", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Request failed with status ${response.status}`);
+                }
+
+                const data = await response.json();
+                const plays = data?.plays ?? [];
+                const topPlay = selectTopArbitragePlay(plays);
+
+                if (!topPlay) {
+                    statusEl.textContent = "No bets available right now.";
+                    betBox.textContent = "Check back soon for a spoon-fed play.";
+                    return;
+                }
+
+                betBox.textContent = buildBetLabel(topPlay, data?.target_book || payload.target_book);
+                statusEl.textContent = "Here’s your top arbitrage-ready value bet:";
+            } catch (error) {
+                console.error(error);
+                statusEl.textContent = "Could not load the best bet.";
+                statusEl.classList.add("error");
+                betBox.textContent = "";
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", loadTopBet);
+    </script>
+</body>
+</html>
