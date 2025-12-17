@@ -4,9 +4,8 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from services.domain import models
-from utils.formatting import pretty_book_label
-from utils.regions import compute_regions_for_books
 from services.odds_utils import american_to_decimal, MAX_VALID_AMERICAN_ODDS
+from utils.formatting import pretty_book_label
 
 
 class OddsService:
@@ -14,19 +13,16 @@ class OddsService:
 
     def __init__(
         self,
-        odds_fetcher,
+        repository,
         data_validator,
     ) -> None:
-        self._odds_fetcher = odds_fetcher
+        self._repository = repository
         self._data_validator = data_validator
 
     def get_odds(
         self, bets: Sequence[models.Bet], api_key: str, use_dummy_data: bool
     ) -> models.OddsResult:
         """Build an OddsResult for the provided request payload."""
-
-        all_book_keys = self._collect_bookmaker_keys(bets)
-        regions = compute_regions_for_books(list(all_book_keys))
 
         all_bets_results: List[Any] = []
         bets_by_sport = self._group_bets_by_sport(bets)
@@ -35,10 +31,9 @@ class OddsService:
             markets = sorted({b.market for b in bets_for_sport})
             bookmaker_keys = sorted({bk for b in bets_for_sport for bk in b.bookmaker_keys})
 
-            events = self._odds_fetcher(
+            events = self._repository.get_odds_events(
                 api_key=api_key,
                 sport_key=sport_key,
-                regions=regions,
                 markets=",".join(markets),
                 bookmaker_keys=bookmaker_keys,
                 use_dummy_data=use_dummy_data,
