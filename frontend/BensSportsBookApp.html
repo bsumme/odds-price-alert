@@ -739,12 +739,6 @@
                         style="display: none;" />
 
                     <label
-                        style="display: none; align-items: center; margin-top: 0.75rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
-                        <input type="checkbox" id="dummy-data-checkbox" style="margin-right: 0.5rem;" />
-                        <span>Use Dummy Data (for development when API credits are exhausted)</span>
-                    </label>
-
-                    <label
                         style="display: none; align-items: center; margin-top: 0.5rem; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px;">
                         <input type="checkbox" id="log-results-checkbox" style="margin-right: 0.5rem;" />
                         <span>Save search results as JSON</span>
@@ -1391,7 +1385,7 @@
             return `${timestamp}_${sanitize(marketPart)}_${sanitize(sportPart)}_${sanitize(targetLabel)}_vs_${sanitize(compareLabel)}.json`;
         }
 
-        function logSearchResultsToFile(data, { sportKeys, markets, targetBook, compareBook, maxResults, useDummyData }) {
+        function logSearchResultsToFile(data, { sportKeys, markets, targetBook, compareBook, maxResults }) {
             const payload = {
                 logged_at: new Date().toISOString(),
                 filters: {
@@ -1399,8 +1393,7 @@
                     markets,
                     target_book: targetBook,
                     compare_book: compareBook,
-                    max_results: maxResults,
-                    use_dummy_data: useDummyData
+                    max_results: maxResults
                 },
                 results: data
             };
@@ -1845,7 +1838,7 @@
             }
 
             if (data.used_dummy_data) {
-                html += '<div class="small-text" style="color: #f87171; margin-top: 0.25rem;">Dummy odds enabled — switch off "Use dummy data" to fetch live lines.</div>';
+                html += '<div class="small-text" style="color: #f87171; margin-top: 0.25rem;">Dummy odds enabled — restart the server without -DummyData to fetch live lines.</div>';
             }
 
             container.innerHTML = html;
@@ -2151,7 +2144,6 @@
             const gameSelect = document.getElementById("props-game");
             const teamSelect = document.getElementById("props-team");
             const playerSelect = document.getElementById("props-player");
-            const useDummyData = document.getElementById("dummy-data-checkbox")?.checked;
 
             if (!sport) {
                 setSelectOptions(gameSelect, [], "All Games");
@@ -2165,7 +2157,7 @@
                 const res = await fetch("/api/player-props/games", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ sport_key: sport, use_dummy_data: useDummyData })
+                    body: JSON.stringify({ sport_key: sport })
                 });
 
                 if (!res.ok) {
@@ -2213,8 +2205,7 @@
                 event_id: document.getElementById("props-game").value || null,
                 markets: getSelectedPropMarkets(),
                 target_book: document.getElementById("props-target").value,
-                compare_book: document.getElementById("props-compare").value,
-                use_dummy_data: document.getElementById("dummy-data-checkbox")?.checked,
+                compare_book: document.getElementById("props-compare").value
             };
 
             try {
@@ -2253,7 +2244,6 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        use_dummy_data: document.getElementById("dummy-data-checkbox")?.checked,
                         max_results: 150,
                     }),
                 });
@@ -2648,7 +2638,6 @@
             const marketCheckboxes = document.querySelectorAll(".market-checkbox:checked");
             const targetBook = document.getElementById("best-target-book-select").value;
             const compareBook = document.getElementById("best-compare-book-select").value;
-            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
             const boostPercent = getPromoBoostPercent();
 
             showBuilderResultsSection();
@@ -2681,8 +2670,7 @@
                         target_book: targetBook,
                         compare_book: compareBook,
                         parlay_size: 3,
-                        boost_percent: boostPercent,
-                        use_dummy_data: useDummyData
+                        boost_percent: boostPercent
                     })
                 }, 'parlay-builder');
 
@@ -2703,7 +2691,6 @@
             const sportCheckboxes = document.querySelectorAll(".sport-checkbox:checked");
             const targetBook = document.getElementById("best-target-book-select").value;
             const compareBook = document.getElementById("best-compare-book-select").value;
-            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
             const boostPercent = getPromoBoostPercent();
 
             if (sportCheckboxes.length !== 1) {
@@ -2727,7 +2714,6 @@
                         target_book: targetBook,
                         compare_book: compareBook,
                         boost_percent: boostPercent,
-                        use_dummy_data: useDummyData,
                         avoid_correlation: true,
                         ...getSgpOddsRangeFilters()
                     })
@@ -2752,7 +2738,6 @@
             const targetBook = document.getElementById("best-target-book-select").value;
             const compareBook = document.getElementById("best-compare-book-select").value;
             const maxResults = Number(document.getElementById("best-max-results-input").value) || 50;
-            const useDummyData = document.getElementById("dummy-data-checkbox").checked;
             const shouldLogResults = document.getElementById("log-results-checkbox").checked;
 
             if (sportCheckboxes.length === 0) {
@@ -2785,10 +2770,6 @@
             } else {
                 setBestStatus("Searching for arbitrage opportunities across sports and markets...");
             }
-            if (useDummyData) {
-                setBestStatus((isWatcherRunning ? "Watcher: Checking for hedge opportunities..." : "Searching for arbitrage opportunities across sports and markets...") + " [DUMMY DATA MODE]");
-            }
-
             try {
                 // When watcher is running, we can request fewer results since we only care about hedge opportunities
                 // The API already sorts by arb_margin_percent, so top results are most likely to be hedge opportunities
@@ -2802,8 +2783,7 @@
                         markets: markets,
                         target_book: targetBook,
                         compare_book: compareBook,
-                        max_results: requestMaxResults,
-                        use_dummy_data: useDummyData
+                        max_results: requestMaxResults
                     }),
                 }, 'best-value-plays');
                 if (!res.ok) {
@@ -2819,8 +2799,7 @@
                         markets,
                         targetBook,
                         compareBook,
-                        maxResults: requestMaxResults,
-                        useDummyData
+                        maxResults: requestMaxResults
                     });
                 }
 
@@ -2881,7 +2860,6 @@
                 targetBook: document.getElementById("best-target-book-select").value,
                 compareBook: document.getElementById("best-compare-book-select").value,
                 maxResults: document.getElementById("best-max-results-input").value,
-                dummyData: document.getElementById("dummy-data-checkbox").checked,
                 logResults: document.getElementById("log-results-checkbox").checked,
                 watcherInterval: document.getElementById("watcher-interval-input").value,
                 smsThreshold: document.getElementById("sms-threshold-input").value
@@ -2920,9 +2898,6 @@
                 }
                 if (selections.maxResults) {
                     document.getElementById("best-max-results-input").value = selections.maxResults;
-                }
-                if (selections.dummyData !== undefined) {
-                    document.getElementById("dummy-data-checkbox").checked = selections.dummyData;
                 }
                 if (selections.logResults !== undefined) {
                     document.getElementById("log-results-checkbox").checked = selections.logResults;
@@ -3054,7 +3029,6 @@
                 document.getElementById("best-target-book-select").addEventListener("change", saveFormSelections);
                 document.getElementById("best-compare-book-select").addEventListener("change", saveFormSelections);
                 document.getElementById("best-max-results-input").addEventListener("change", saveFormSelections);
-                document.getElementById("dummy-data-checkbox").addEventListener("change", saveFormSelections);
                 document.getElementById("log-results-checkbox").addEventListener("change", saveFormSelections);
                 document.getElementById("watcher-interval-input").addEventListener("change", saveFormSelections);
                 document.getElementById("sms-threshold-input").addEventListener("change", saveFormSelections);
@@ -3065,18 +3039,6 @@
                 document.querySelectorAll(".sport-checkbox, .market-checkbox").forEach(el => {
                     el.addEventListener("change", saveFormSelections);
                 });
-            });
-
-            // Load dummy data setting from localStorage
-            const dummyDataCheckbox = document.getElementById("dummy-data-checkbox");
-            const savedDummyData = localStorage.getItem("useDummyData");
-            if (savedDummyData === "true") {
-                dummyDataCheckbox.checked = true;
-            }
-
-            // Save dummy data setting to localStorage when changed
-            dummyDataCheckbox.addEventListener("change", (e) => {
-                localStorage.setItem("useDummyData", e.target.checked ? "true" : "false");
             });
 
             // Load and save SMS phone number from localStorage

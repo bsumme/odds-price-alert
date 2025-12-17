@@ -120,6 +120,14 @@ The application handles common API errors:
 
 For development and testing when API credits are exhausted, the application includes a dummy data mode that generates realistic mock odds data.
 
+Launch the server with the `-DummyData` flag to enable mock responses everywhere:
+
+```bash
+python main.py --reload -DummyData
+```
+
+If you prefer to keep using `uvicorn main:app`, set `DUMMY_DATA=true` in the environment before starting it. Dummy data can only be enabled at startup; in-app toggles and settings pages now always target live API data.
+
 ## Project Structure
 
 ```
@@ -153,10 +161,10 @@ odds-price-alert/
 
 3. **Run the server**:
    ```bash
-   uvicorn main:app --reload
+   python main.py --reload
    ```
 
-   On Windows, you can also start the app from the repo root with the included `start_server.bat` script. It activates `.venv` (if present) and runs the same `uvicorn main:app --reload` command used above.
+   Add `-DummyData` to the command above (or set `DUMMY_DATA=true`) if you want to serve mock odds instead of live API data. On Windows, you can also start the app from the repo root with the included `start_server.bat` script, which passes any extra flags through to `python main.py`.
 
 4. **Access the application**:
    Open http://localhost:8000 in your browser

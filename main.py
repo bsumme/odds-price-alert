@@ -3,9 +3,10 @@ import logging
 import os
 import random
 import re
+import sys
 import unicodedata
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from typing import ClassVar, List, Dict, Any, Set, Optional
 
 import requests
@@ -56,7 +57,19 @@ FEATURED_SPORTS = [
 FEATURED_MARKETS = ["h2h", "spreads", "totals"]
 FEATURED_LOOKAHEAD_HOURS = 36
 
-SERVER_SETTINGS_PATH = Path(__file__).parent / "data" / "server_settings.json"
+
+def _dummy_data_flag_enabled() -> bool:
+    """Return True when the app was launched with a dummy-data flag or env var."""
+
+    normalized_args = {arg.lower() for arg in sys.argv[1:]}
+    if {"-dummydata", "--dummydata"} & normalized_args:
+        return True
+
+    env_flag = os.getenv("DUMMY_DATA", "")
+    return env_flag.lower() in {"1", "true", "yes"}
+
+
+DUMMY_DATA_ENABLED = _dummy_data_flag_enabled()
 
 # -------------------------------------------------------------------
 # Pydantic Models
@@ -80,12 +93,6 @@ class BetRequest(BaseModel):
     team: str    # for props, this might be a player name instead
     point: Optional[float] = None
     bookmaker_keys: List[str]  # e.g. ["draftkings", "fanduel", "novig"]
-
-
-class ServerSettings(BaseModel):
-    """Persisted server-side settings toggled from the Settings tab."""
-
-    use_dummy_data: bool = False
 
 
 class OddsRequest(BaseModel):
@@ -1230,58 +1237,31 @@ def collect_value_plays(
 app = FastAPI()
 
 
-def _load_server_settings() -> ServerSettings:
-    """Load persisted server settings, falling back to defaults on error."""
-
-    if not SERVER_SETTINGS_PATH.exists():
-        return ServerSettings()
-
-    try:
-        payload = json.loads(SERVER_SETTINGS_PATH.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict):
-            logger.warning("Server settings file malformed; using defaults")
-            return ServerSettings()
-        return ServerSettings(**payload)
-    except Exception:
-        logger.exception("Failed to read server settings; using defaults")
-        return ServerSettings()
-
-
-def _persist_server_settings(settings: ServerSettings) -> None:
-    """Persist server settings to disk for reuse across requests."""
-
-    try:
-        SERVER_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        SERVER_SETTINGS_PATH.write_text(settings.model_dump_json(), encoding="utf-8")
-    except Exception:
-        logger.exception("Failed to persist server settings")
-
-
 def _require_dummy_data_allowed(requested: bool) -> bool:
-    """Return True when dummy data is requested *and* enabled in settings."""
+    """Return True when dummy data is requested and startup allows it."""
+
+    if DUMMY_DATA_ENABLED:
+        return True
 
     if not requested:
         return False
 
-    settings = _load_server_settings()
-    if not settings.use_dummy_data:
-        allow_test_override = os.getenv("ALLOW_DUMMY_DATA_FOR_TESTS", "")
-        if allow_test_override.lower() in {"1", "true", "yes"} or os.getenv(
-            "PYTEST_CURRENT_TEST", ""
-        ):
-            logger.warning(
-                "Allowing dummy data because ALLOW_DUMMY_DATA_FOR_TESTS is enabled"
-            )
-            return True
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "Dummy data is disabled. Enable it from the Settings tab before "
-                "requesting mock odds."
-            ),
+    allow_test_override = os.getenv("ALLOW_DUMMY_DATA_FOR_TESTS", "")
+    if allow_test_override.lower() in {"1", "true", "yes"} or os.getenv(
+        "PYTEST_CURRENT_TEST", ""
+    ):
+        logger.warning(
+            "Allowing dummy data because ALLOW_DUMMY_DATA_FOR_TESTS is enabled"
         )
+        return True
 
-    return True
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "Dummy data is disabled. Restart the server with -DummyData to enable "
+            "mock odds."
+        ),
+    )
 
 
 def _validate_data_source(events: List[Dict[str, Any]], allow_dummy: bool) -> None:
@@ -1389,21 +1369,6 @@ def get_sports_schema():
         if not isinstance(item, dict) or "key" not in item:
             raise HTTPException(status_code=500, detail="Sports schema malformed")
     return payload
-
-
-@app.get("/api/settings", response_model=ServerSettings)
-def get_server_settings() -> ServerSettings:
-    """Expose persisted server settings for the Settings tab."""
-
-    return _load_server_settings()
-
-
-@app.post("/api/settings", response_model=ServerSettings)
-def update_server_settings(settings: ServerSettings) -> ServerSettings:
-    """Persist server settings submitted by the Settings tab."""
-
-    _persist_server_settings(settings)
-    return settings
 
 
 @app.post("/api/odds", response_model=OddsResponse)
@@ -3058,3 +3023,18 @@ async def legacy_arbitrage_page():
 
 # Static frontend (BensSportsBookApp.html, value.html, etc. under ./frontend)
 app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
+
+
+if __name__ == "__main__":
+    import argparse
+    import uvicorn
+
+    parser = argparse.ArgumentParser(description="Run the Odds Price Alert FastAPI server")
+    parser.add_argument("-DummyData", "--dummy-data", action="store_true", help="Serve mock data instead of real API calls")
+    parser.add_argument("--host", default="127.0.0.1", help="Host interface to bind")
+    parser.add_argument("--port", type=int, default=8000, help="Port to bind")
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
+
+    args = parser.parse_args()
+
+    uvicorn.run("main:app", host=args.host, port=args.port, reload=args.reload)
