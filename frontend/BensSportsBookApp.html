@@ -21,9 +21,9 @@
 
                 // Redirect if mobile device detected and not already on the mobile-first page
                 if ((mobileRegex.test(userAgent.toLowerCase()) || (isSmallScreen && hasTouchScreen))
-                    && !window.location.pathname.includes('Bens-Direct-FliffBet.html')) {
+                    && !window.location.pathname.includes('ArbritrageBetFinder-mobile.html')) {
                     // Preserve query string and hash if present
-                    const newUrl = '/Bens-Direct-FliffBet.html' + window.location.search + window.location.hash;
+                    const newUrl = '/ArbritrageBetFinder-mobile.html' + window.location.search + window.location.hash;
                     window.location.replace(newUrl);
                 }
             }

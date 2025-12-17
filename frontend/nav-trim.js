@@ -1,5 +1,5 @@
 (() => {
-    const mobileMainPage = "/Bens-Direct-FliffBet.html";
+    const mobileMainPage = "/ArbritrageBetFinder-mobile.html";
     const hiddenNavTargets = ["/watcher.html", "/linetracker.html", "/value.html"];
     const mobileAllowedPages = [
         mobileMainPage,
