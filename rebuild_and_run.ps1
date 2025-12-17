@@ -20,6 +20,54 @@
 # Example with logging to a full path:
 #   .\rebuild_and_run.ps1 -d -f "C:\logs\rebuild_and_run.log"
 
+function Get-ChromePath {
+    $possiblePaths = @(
+        Join-Path $env:ProgramFiles "Google\Chrome\Application\chrome.exe",
+        Join-Path ${env:ProgramFiles(x86)} "Google\Chrome\Application\chrome.exe",
+        Join-Path $env:LOCALAPPDATA "Google\Chrome\Application\chrome.exe",
+        Join-Path $env:ProgramW6432 "Google\Chrome\Application\chrome.exe"
+    ) | Where-Object { $_ }
+
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+
+    return $null
+}
+
+function Start-CleanChrome {
+    param([string]$Url)
+
+    $chromePath = Get-ChromePath
+    if ($chromePath) {
+        try {
+            $tempProfile = Join-Path ([System.IO.Path]::GetTempPath()) ("odds-price-alert-chrome-" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $tempProfile -Force | Out-Null
+
+            $arguments = @(
+                "--new-window",
+                "--incognito",
+                "--disable-application-cache",
+                "--disk-cache-size=1",
+                "--media-cache-size=1",
+                "--user-data-dir=`"$tempProfile`"",
+                $Url
+            )
+
+            Start-Process -FilePath $chromePath -ArgumentList $arguments -WindowStyle Normal
+            return
+        } catch {
+            Write-Host "[WARNING] Failed to launch Chrome with a fresh profile; opening default browser instead. $_" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "[INFO] Google Chrome not detected; opening the default browser instead." -ForegroundColor Yellow
+    }
+
+    Start-Process $Url
+}
+
 param(
     [switch]$d,
     [switch]$t,
@@ -299,7 +347,7 @@ $env:TRACE_LEVEL = $traceLevel
 
 # Open browser after a short delay
 Start-Sleep -Seconds 2
-Start-Process "http://127.0.0.1:$port/BensSportsBookApp.html"
+Start-CleanChrome "http://127.0.0.1:$port/BensSportsBookApp.html"
 
 # Start uvicorn server
 uvicorn main:app --reload --host $hostAddress --port $port
