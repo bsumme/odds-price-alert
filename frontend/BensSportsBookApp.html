@@ -1050,6 +1050,9 @@
         let propsData = null;
         let hasRunPropsSearch = false;
         const DEFAULT_PROPS_EMPTY_MESSAGE = "Use the filters above to find arbitrage opportunities for player props";
+        const PROPS_SEARCH_COOLDOWN_MS = 15000;
+        let propsSearchCoolingDown = false;
+        let propsSearchCooldownTimer = null;
         // Placeholder to ensure stopWatcher is always defined in the current scope
         let stopWatcher = () => {};
         const BOOK_LABELS = {
@@ -2192,14 +2195,54 @@
             select.appendChild(frag);
         }
 
-        function updatePropsSearchButton() {
+        function applyPropsSearchButtonState() {
             const sportSelected = Boolean(document.getElementById("props-sport")?.value);
             const searchBtn = document.getElementById("props-search-btn");
+            const allSportsBtn = document.getElementById("props-all-sports-btn");
 
-            if (!searchBtn) return;
+            if (searchBtn) {
+                const disabled = !sportSelected || propsSearchCoolingDown;
+                searchBtn.disabled = disabled;
+                if (!sportSelected) {
+                    searchBtn.title = "Select sport from drop down";
+                } else if (propsSearchCoolingDown) {
+                    searchBtn.title = "Please wait before searching player props again.";
+                } else {
+                    searchBtn.title = "";
+                }
+            }
 
-            searchBtn.disabled = !sportSelected;
-            searchBtn.title = sportSelected ? "" : "Select sport from drop down";
+            if (allSportsBtn) {
+                allSportsBtn.disabled = propsSearchCoolingDown;
+                allSportsBtn.title = propsSearchCoolingDown
+                    ? "Please wait before searching player props again."
+                    : "";
+            }
+        }
+
+        function startPropsSearchCooldown() {
+            propsSearchCoolingDown = true;
+            applyPropsSearchButtonState();
+            if (propsSearchCooldownTimer) {
+                clearTimeout(propsSearchCooldownTimer);
+            }
+            propsSearchCooldownTimer = setTimeout(() => {
+                propsSearchCoolingDown = false;
+                applyPropsSearchButtonState();
+            }, PROPS_SEARCH_COOLDOWN_MS);
+        }
+
+        function lockPropsSearchButtons() {
+            propsSearchCoolingDown = true;
+            if (propsSearchCooldownTimer) {
+                clearTimeout(propsSearchCooldownTimer);
+                propsSearchCooldownTimer = null;
+            }
+            applyPropsSearchButtonState();
+        }
+
+        function updatePropsSearchButton() {
+            applyPropsSearchButtonState();
         }
 
         function formatPropsGameLabel(game) {
@@ -2266,6 +2309,7 @@
             }
 
             hasRunPropsSearch = true;
+            lockPropsSearchButtons();
 
             const payload = {
                 sport_key: sportKey,
@@ -2298,13 +2342,14 @@
                 setPropsStatus(`Error loading player props: ${err.message}`);
                 propsData = { plays: [] };
                 renderPlayerPropResults();
+            } finally {
+                startPropsSearchCooldown();
             }
         }
 
         async function fetchAllSportsPlayerProps() {
-            const button = document.getElementById("props-all-sports-btn");
             setPropsStatus("Scanning all sports for player prop arbitrage vs Novig...");
-            if (button) button.disabled = true;
+            lockPropsSearchButtons();
 
             hasRunPropsSearch = true;
 
@@ -2339,7 +2384,7 @@
                 propsData = { plays: [] };
                 renderPlayerPropResults();
             } finally {
-                if (button) button.disabled = false;
+                startPropsSearchCooldown();
             }
         }
 
