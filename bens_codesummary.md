@@ -51,13 +51,13 @@
 ## Frontend (static assets)
 - `frontend/BensSportsBookApp.html`: desktop arbitrage finder homepage and navigation hub.  
 - `frontend/ArbritrageBetFinder-mobile.html`: mobile-first arbitrage finder landing page.  
-- `frontend/BestValueBetMobile.html`: mobile view for best-value searches.  
-- `frontend/Bens-Direct-FliffBet.html`: mobile-only page enforcing redirect when not on mobile, tailored to Fliff betting flow.  
+- `frontend/mobile/BestValueBetMobile.html`: mobile view for best-value searches.  
+- `frontend/mobile/Bens-Direct-FliffBet.html`: mobile-only page enforcing redirect when not on mobile, tailored to Fliff betting flow.  
 - `frontend/value.html`: value plays UI comparing target vs. comparison books.  
 - `frontend/watcher.html`: web-based bet watcher interface with controls for polling odds and testing alerts.  
 - `frontend/linetracker.html`: line movement tracker UI for monitoring specific matchups.  
 - `frontend/settings.html`: desktop settings/preferences page.  
-- `frontend/settings-mobile.html`: mobile settings/preferences page.  
+- `frontend/mobile/settings-mobile.html`: mobile settings/preferences page.  
 - `frontend/sgp-builder.html`: same-game parlay builder interface.  
 - `frontend/test-arbitrage.html`: page for exercising the arbitrage watcher text/SMS flow.  
 - `frontend/widgets.html`: collection of odds widgets and UI components.  
