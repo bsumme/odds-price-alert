@@ -13,6 +13,7 @@ class TraceLevel(str, Enum):
 
     DEBUG = "debug"
     TRACE = "trace"
+    HUMAN = "human"
     REGULAR = "regular"
 
 
@@ -20,8 +21,19 @@ def get_trace_level_from_env() -> TraceLevel:
     """Return the configured trace level, defaulting to REGULAR."""
 
     raw_value = os.getenv("TRACE_LEVEL", TraceLevel.REGULAR.value).lower()
+    normalized = raw_value.replace("_", "").replace("-", "")
+
+    alias_map = {
+        "humanreadable": TraceLevel.HUMAN,
+        "human": TraceLevel.HUMAN,
+        "h": TraceLevel.HUMAN,
+    }
+
+    if normalized in alias_map:
+        return alias_map[normalized]
+
     for level in TraceLevel:
-        if raw_value == level.value:
+        if normalized == level.value:
             return level
     return TraceLevel.REGULAR
 
@@ -33,12 +45,13 @@ def apply_trace_level(logger: logging.Logger) -> TraceLevel:
     level_mapping = {
         TraceLevel.DEBUG: logging.DEBUG,
         TraceLevel.TRACE: logging.INFO,
+        TraceLevel.HUMAN: logging.INFO,
         TraceLevel.REGULAR: logging.WARNING,
     }
     logger.setLevel(level_mapping[trace_level])
 
     log_path = None
-    if trace_level in (TraceLevel.DEBUG, TraceLevel.TRACE):
+    if trace_level in (TraceLevel.DEBUG, TraceLevel.TRACE, TraceLevel.HUMAN):
         log_path = _configure_file_logging(logger, trace_level)
 
     if log_path:
@@ -55,7 +68,7 @@ def should_log_trace_entries(trace_level: TraceLevel | None = None) -> bool:
     """Return True when info-level traces should be emitted or persisted."""
 
     trace_level = trace_level or get_trace_level_from_env()
-    return trace_level in (TraceLevel.TRACE, TraceLevel.DEBUG)
+    return trace_level in (TraceLevel.TRACE, TraceLevel.DEBUG, TraceLevel.HUMAN)
 
 
 def should_log_api_calls(trace_level: TraceLevel | None = None) -> bool:

@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - fallback when aiohttp is unavailable
     aiohttp = None
 
 from utils.logging_control import (
+    TraceLevel,
     get_trace_level_from_env,
     should_log_api_calls,
     should_log_trace_entries,
@@ -117,6 +118,123 @@ def _log_api_response(endpoint: str, response: Any) -> None:
     )
 
 
+def _format_outcome_for_human_log(outcome: Dict[str, Any]) -> Optional[str]:
+    """Return a concise description of a single outcome for human-readable logs."""
+
+    name = outcome.get("name")
+    price = outcome.get("price")
+    point = outcome.get("point")
+
+    if name is None and price is None and point is None:
+        return None
+
+    components = [str(name)] if name is not None else ["Outcome"]
+
+    if point is not None:
+        components.append(str(point))
+    if price is not None:
+        components.append(f"at {price}")
+
+    return " ".join(components)
+
+
+def build_human_readable_logs(
+    *,
+    payload: List[Dict[str, Any]],
+    markets: str,
+    bookmaker_keys: List[str],
+) -> List[str]:
+    """Construct abbreviated, human-friendly log lines for odds responses."""
+
+    market_list = [m.strip() for m in markets.split(",") if m.strip()]
+    messages: List[str] = []
+
+    for event in payload:
+        home = event.get("home_team") or "Home"
+        away = event.get("away_team") or "Away"
+        bookmakers = event.get("bookmakers", []) or []
+
+        for market_key in market_list:
+            book_names: List[str] = []
+            summaries: List[str] = []
+
+            for bookmaker in bookmakers:
+                book_key = bookmaker.get("key")
+                if book_key and bookmaker_keys and book_key not in bookmaker_keys:
+                    continue
+
+                market = next(
+                    (m for m in bookmaker.get("markets", []) if m.get("key") == market_key),
+                    None,
+                )
+                if not market:
+                    continue
+
+                outcomes = market.get("outcomes", []) or []
+                prioritized = [
+                    outcome
+                    for outcome in outcomes
+                    if outcome.get("name") in {home, away}
+                ]
+                selected = prioritized if prioritized else outcomes
+                formatted_outcomes = [
+                    summary
+                    for summary in (
+                        _format_outcome_for_human_log(outcome)
+                        for outcome in selected[:2]
+                    )
+                    if summary
+                ]
+
+                if not formatted_outcomes:
+                    continue
+
+                book_label = bookmaker.get("title") or bookmaker.get("key") or "Bookmaker"
+                book_names.append(book_label)
+                summaries.append(
+                    f"{book_label} has {' / '.join(formatted_outcomes)}"
+                )
+
+            if not summaries:
+                continue
+
+            matchup = f"{away} vs {home}"
+            books_phrase = " and ".join(book_names)
+            messages.append(
+                f"Retrieved {matchup} for market {market_key} at {books_phrase}"
+            )
+            messages.append(" | ".join(summaries))
+
+    return messages
+
+
+def _log_human_readable_response(
+    *,
+    sport_key: str,
+    regions: str,
+    markets: str,
+    bookmaker_keys: List[str],
+    payload: List[Dict[str, Any]],
+    endpoint: str,
+) -> None:
+    """Emit human-readable summaries instead of raw JSON payloads."""
+
+    messages = build_human_readable_logs(
+        payload=payload,
+        markets=markets,
+        bookmaker_keys=bookmaker_keys,
+    )
+
+    prefix = f"HumanReadable log for {endpoint} sport={sport_key} regions={regions}"
+    if not messages:
+        logger.info("%s: no bookmakers with prices to summarize", prefix)
+        return
+
+    logger.info(prefix)
+    for message in messages:
+        logger.info(message)
+
+
 def get_api_key() -> str:
     """Get The Odds API key from environment variable."""
     api_key = os.getenv("THE_ODDS_API_KEY")
@@ -141,6 +259,17 @@ def _log_real_api_response(
     compared to dummy data later. Failures here should never break
     the main request flow.
     """
+    if TRACE_LEVEL == TraceLevel.HUMAN:
+        _log_human_readable_response(
+            sport_key=sport_key,
+            regions=regions,
+            markets=markets,
+            bookmaker_keys=bookmaker_keys,
+            payload=payload,
+            endpoint=endpoint,
+        )
+        return
+
     if not should_log_trace_entries(TRACE_LEVEL):
         return
 
