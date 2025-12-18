@@ -106,6 +106,23 @@
         const statusEl = document.getElementById("status");
         const betBox = document.getElementById("bet-box");
 
+        function isTraceLoggingEnabled() {
+            try {
+                const params = new URLSearchParams(window.location.search || "");
+                const rawTraceFlag = params.get("t") || params.get("trace") || params.get("debug");
+                return /^(1|true|trace|debug)$/i.test(rawTraceFlag || "");
+            } catch (error) {
+                console.warn("[spoonfed-trace] Unable to parse trace flag", error);
+                return false;
+            }
+        }
+
+        const traceLogEnabled = isTraceLoggingEnabled();
+        const traceLog = (...args) => {
+            if (!traceLogEnabled) return;
+            console.debug("[spoonfed-trace]", ...args);
+        };
+
         function formatBookName(bookKey) {
             if (!bookKey) return "Unknown book";
             return bookKey
@@ -204,6 +221,8 @@
                 max_results: 25,
             };
 
+            traceLog("Requesting best-value plays", { targetBook, payload });
+
             const response = await fetch("/api/best-value-plays", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -226,6 +245,10 @@
             }
 
             const data = await response.json();
+            traceLog("Response for", targetBook, {
+                playsCount: data?.plays?.length || 0,
+                markets: Array.from(new Set((data?.plays || []).map((play) => play.market))).sort(),
+            });
             return {
                 targetBook,
                 plays: data?.plays ?? [],
@@ -245,6 +268,7 @@
                             return await requestTopBetForBook(book);
                         } catch (error) {
                             console.error(error);
+                            traceLog("Error while requesting plays", { targetBook: book, error });
                             return { targetBook: book, plays: [], error };
                         }
                     })
@@ -254,7 +278,19 @@
                     plays.map((play) => ({ ...play, targetBook }))
                 );
 
+                traceLog("Combined plays summary", {
+                    total: combinedPlays.length,
+                    byMarket: combinedPlays.reduce((acc, play) => {
+                        const market = play.market || "unknown";
+                        acc[market] = (acc[market] || 0) + 1;
+                        return acc;
+                    }, {}),
+                    sample: combinedPlays.slice(0, 3),
+                });
+
                 const topPlay = selectTopArbitragePlay(combinedPlays);
+
+                traceLog("Selected top play", topPlay);
 
                 if (!topPlay) {
                     const hadErrors = results.some((result) => result.error);
