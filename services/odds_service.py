@@ -13,14 +13,14 @@ class OddsService:
 
     def __init__(
         self,
-        repository,
+        events_provider,
         data_validator,
     ) -> None:
-        self._repository = repository
+        self._events_provider = events_provider
         self._data_validator = data_validator
 
     def get_odds(
-        self, bets: Sequence[models.Bet], api_key: str, use_dummy_data: bool
+        self, bets: Sequence[models.Bet], use_dummy_data: bool, snapshot=None
     ) -> models.OddsResult:
         """Build an OddsResult for the provided request payload."""
 
@@ -31,12 +31,12 @@ class OddsService:
             markets = sorted({b.market for b in bets_for_sport})
             bookmaker_keys = sorted({bk for b in bets_for_sport for bk in b.bookmaker_keys})
 
-            events = self._repository.get_odds_events(
-                api_key=api_key,
+            events = self._events_provider(
                 sport_key=sport_key,
                 markets=",".join(markets),
                 bookmaker_keys=bookmaker_keys,
-                use_dummy_data=use_dummy_data,
+                category="odds",
+                snapshot=snapshot,
             )
 
             self._data_validator(events, allow_dummy=use_dummy_data)

@@ -17,25 +17,25 @@ class ValuePlayService:
 
     def __init__(
         self,
-        repository,
+        events_provider,
         data_validator,
         collect_value_plays: Callable[..., List[Any]],
     ) -> None:
-        self._repository = repository
+        self._events_provider = events_provider
         self._data_validator = data_validator
         self._collect_value_plays = collect_value_plays
 
     def get_value_plays(
-        self, payload: models.ValuePlaysQuery, api_key: str, use_dummy_data: bool
+        self, payload: models.ValuePlaysQuery, use_dummy_data: bool, snapshot=None
     ) -> models.ValuePlaysResult:
         bookmaker_keys = [payload.target_book, payload.compare_book]
 
-        events = self._repository.get_odds_events(
-            api_key=api_key,
+        events = self._events_provider(
             sport_key=payload.sport_key,
             markets=payload.market,
             bookmaker_keys=bookmaker_keys,
-            use_dummy_data=use_dummy_data,
+            category="player_props" if payload.market.startswith("player_") else "odds",
+            snapshot=snapshot,
         )
 
         self._data_validator(events, allow_dummy=use_dummy_data)
@@ -80,7 +80,7 @@ class ValuePlayService:
         )
 
     def get_best_value_plays(
-        self, payload: models.BestValuePlaysQuery, api_key: str, use_dummy_data: bool
+        self, payload: models.BestValuePlaysQuery, use_dummy_data: bool, snapshot=None
     ) -> models.BestValuePlaysResult:
         all_plays: List[Any] = []
 
@@ -91,12 +91,12 @@ class ValuePlayService:
                     continue
 
                 try:
-                    events = self._repository.get_odds_events(
-                        api_key=api_key,
+                    events = self._events_provider(
                         sport_key=sport_key,
                         markets=expanded_markets,
                         bookmaker_keys=[payload.target_book, payload.compare_book],
-                        use_dummy_data=use_dummy_data,
+                        category="player_props" if any(m.startswith("player_") for m in expanded_markets) else "odds",
+                        snapshot=snapshot,
                     )
 
                     self._data_validator(events, allow_dummy=use_dummy_data)

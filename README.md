@@ -128,6 +128,31 @@ python main.py --reload -DummyData
 
 If you prefer to keep using `uvicorn main:app`, set `DUMMY_DATA=true` in the environment before starting it. Dummy data can only be enabled at startup; in-app toggles and settings pages now always target live API data.
 
+## Snapshot-based data flow
+
+The backend now captures Odds API payloads into an in-memory snapshot so every API route serves cached data instead of hitting the network per request.
+
+- **Gateway + repository**: `services/api_gateway.py` is the only layer that performs outbound HTTP calls. `OddsRepository` receives the gateway and fetchers but now feeds snapshot loading rather than being called per request.
+- **Snapshot loader**: `services/snapshot_loader.py` pulls all configured sports/markets/bookmakers (see `services/snapshot_config.py`) in one pass, collecting odds, player props, and sport events plus credit usage metadata.
+- **Global holder + scheduler**: `services/snapshot.py` exposes a thread-safe `SnapshotHolder`, while `services/scheduler.py` runs the loader on an interval (`SNAPSHOT_INTERVAL_SECONDS`, default 180s). The latest snapshot is stored for FastAPI handlers.
+- **Results store**: Derived analyses (odds, value plays, player props, featured games, etc.) are cached in `services/results_store.py` so repeated requests reuse work as long as the snapshot timestamp is unchanged.
+- **Runtime behavior**: During startup the app loads an initial snapshot; if live fetches fail it falls back to dummy data when available. Requests will use the newest snapshot; if none exists the server attempts to build one on demand.
+
+### Basic testing checklist
+
+Run the automated suite and linting before sending changes:
+
+```bash
+python -m pytest
+python -m ruff check
+```
+
+To manually verify the snapshot flow:
+
+1. Start the server (optionally with `DUMMY_DATA=true` for offline testing).
+2. Hit `/api/featured-games` or `/api/value-plays` and confirm responses arrive without outbound API calls after the initial snapshot.
+3. Observe `/api/credits` to see snapshot credit usage and timestamps update after each scheduler refresh.
+
 ## Project Structure
 
 ```
@@ -345,7 +370,6 @@ This project is for personal/educational use. The Odds API has its own terms of 
 
 - [The Odds API Documentation](https://the-odds-api.com/liveapi/guides/v4/#overview)
 - [The Odds API Website](https://the-odds-api.com/)
-
 
 
 

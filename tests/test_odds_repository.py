@@ -37,6 +37,8 @@ def test_live_odds_excludes_player_fields_for_team_markets() -> None:
         "bookmaker_keys": ["draftkings"],
         "use_dummy_data": False,
         "credit_tracker": None,
+        "gateway": None,
+        "gateway_caller": "snapshot_loader",
     }
 
     assert captured_kwargs == expected_kwargs

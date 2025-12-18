@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from services.api_gateway import ApiGateway
 from services.odds_api import fetch_odds, fetch_player_props, fetch_sport_events
 from utils.regions import compute_regions_for_books
 
@@ -22,6 +23,7 @@ class OddsRepository:
         dummy_odds_generator: Optional[Callable[..., List[Dict[str, Any]]]] = None,
         dummy_player_props_generator: Optional[Callable[..., List[Dict[str, Any]]]] = None,
         enable_cache: bool = True,
+        api_gateway: Optional[ApiGateway] = None,
     ) -> None:
         self._api_key_provider = api_key_provider
         self._region_resolver = region_resolver
@@ -31,6 +33,7 @@ class OddsRepository:
         self._dummy_odds_generator = dummy_odds_generator
         self._dummy_player_props_generator = dummy_player_props_generator
         self._enable_cache = enable_cache
+        self._api_gateway = api_gateway
         self._cache: Dict[Tuple[Any, ...], Tuple[float, List[Dict[str, Any]]]] = {}
         self._cache_ttls: Dict[str, int] = {
             "odds": 5,
@@ -64,6 +67,7 @@ class OddsRepository:
         event_id: Optional[str] = None,
         credit_tracker: Optional[Any] = None,
         force_player_props: bool = False,
+        gateway_caller: str = "snapshot_loader",
     ) -> List[Dict[str, Any]]:
         """Fetch odds or player props events for the requested markets."""
 
@@ -110,6 +114,7 @@ class OddsRepository:
                 player_name=player_name,
                 event_id=event_id,
                 credit_tracker=credit_tracker,
+                gateway_caller=gateway_caller,
             )
 
         if cache_ttl is not None and not use_dummy_data:
@@ -124,6 +129,7 @@ class OddsRepository:
         use_dummy_data: bool,
         discovery_markets: Optional[List[str]] = None,
         bookmaker_keys: Optional[List[str]] = None,
+        gateway_caller: str = "snapshot_loader",
     ) -> List[Dict[str, Any]]:
         """Return sport events, using dummy props when dummy mode is enabled."""
 
@@ -153,7 +159,12 @@ class OddsRepository:
                 is_player_request=True,
             )
         else:
-            events = self._events_fetcher(api_key=api_key, sport_key=sport_key)
+            events = self._events_fetcher(
+                api_key=api_key,
+                sport_key=sport_key,
+                gateway=self._api_gateway,
+                gateway_caller=gateway_caller,
+            )
 
         if cache_key is not None and not use_dummy_data:
             cache_ttl = self._resolve_ttl(cache_key[0])
@@ -252,6 +263,7 @@ class OddsRepository:
         player_name: Optional[str],
         event_id: Optional[str],
         credit_tracker: Optional[Any],
+        gateway_caller: str,
     ) -> List[Dict[str, Any]]:
         fetcher = (
             self._player_props_fetcher if is_player_request else self._odds_fetcher
@@ -268,6 +280,8 @@ class OddsRepository:
                 event_id=event_id,
                 use_dummy_data=False,
                 credit_tracker=credit_tracker,
+                gateway=self._api_gateway,
+                gateway_caller=gateway_caller,
             )
 
         odds_kwargs: Dict[str, Any] = {
@@ -278,6 +292,7 @@ class OddsRepository:
             "bookmaker_keys": bookmaker_keys,
             "use_dummy_data": False,
             "credit_tracker": credit_tracker,
+            "gateway": self._api_gateway,
+            "gateway_caller": gateway_caller,
         }
         return fetcher(**odds_kwargs)
-

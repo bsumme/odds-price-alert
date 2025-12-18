@@ -9,13 +9,11 @@ def test_best_value_expands_all_player_props_once():
     future_start = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat().replace("+00:00", "Z")
     expected_markets = PLAYER_PROP_MARKETS_BY_SPORT["americanfootball_nfl"]
 
-    class RecordingRepository:
-        def __init__(self):
-            self.calls = []
+    calls = []
 
-        def get_odds_events(self, **kwargs):
-            self.calls.append(kwargs)
-            return [{"id": "event-1"}]
+    def recording_provider(**kwargs):
+        calls.append(kwargs)
+        return [{"id": "event-1"}]
 
     def noop_validator(events, allow_dummy):
         return None
@@ -40,8 +38,7 @@ def test_best_value_expands_all_player_props_once():
             )
         ]
 
-    repository = RecordingRepository()
-    service = ValuePlayService(repository, noop_validator, stub_collect)
+    service = ValuePlayService(recording_provider, noop_validator, stub_collect)
     query = models.BestValuePlaysQuery(
         sport_keys=["americanfootball_nfl"],
         markets=["all_player_props"],
@@ -50,9 +47,9 @@ def test_best_value_expands_all_player_props_once():
         max_results=None,
     )
 
-    result = service.get_best_value_plays(query, api_key="dummy", use_dummy_data=False)
+    result = service.get_best_value_plays(query, use_dummy_data=False)
 
-    assert repository.calls[0]["markets"] == expected_markets
+    assert calls[0]["markets"] == expected_markets
     assert len(result.plays) == len(expected_markets)
     assert {play.market for play in result.plays} == set(expected_markets)
     assert all(play.sport_key == "americanfootball_nfl" for play in result.plays)
@@ -62,13 +59,11 @@ def test_best_value_filters_out_unsupported_nhl_player_props():
     future_start = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat().replace("+00:00", "Z")
     expected_markets = PLAYER_PROP_MARKETS_BY_SPORT["icehockey_nhl"]
 
-    class RecordingRepository:
-        def __init__(self):
-            self.calls = []
+    calls = []
 
-        def get_odds_events(self, **kwargs):
-            self.calls.append(kwargs)
-            return [{"id": "event-1"}]
+    def recording_provider(**kwargs):
+        calls.append(kwargs)
+        return [{"id": "event-1"}]
 
     def noop_validator(events, allow_dummy):
         return None
@@ -93,8 +88,7 @@ def test_best_value_filters_out_unsupported_nhl_player_props():
             )
         ]
 
-    repository = RecordingRepository()
-    service = ValuePlayService(repository, noop_validator, stub_collect)
+    service = ValuePlayService(recording_provider, noop_validator, stub_collect)
     query = models.BestValuePlaysQuery(
         sport_keys=["icehockey_nhl"],
         markets=["all_player_props"],
@@ -103,10 +97,10 @@ def test_best_value_filters_out_unsupported_nhl_player_props():
         max_results=None,
     )
 
-    result = service.get_best_value_plays(query, api_key="dummy", use_dummy_data=False)
+    result = service.get_best_value_plays(query, use_dummy_data=False)
 
-    assert repository.calls[0]["markets"] == expected_markets
-    assert "player_saves" not in repository.calls[0]["markets"]
+    assert calls[0]["markets"] == expected_markets
+    assert "player_saves" not in calls[0]["markets"]
     assert len(result.plays) == len(expected_markets)
     assert "player_saves" not in {play.market for play in result.plays}
     assert {play.market for play in result.plays} == set(expected_markets)
