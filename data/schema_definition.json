@@ -1,4 +1,64 @@
 {
+    "meta": {
+        "schema_name": "odds_snapshot_schema",
+        "schema_version": "1.0.0",
+        "description": "Canonical schema for odds snapshots, markets, and player props used by the application"
+    },
+    "snapshot_schema": {
+        "snapshot_id": "string",
+        "generated_at": "ISO-8601 timestamp",
+        "source": "odds_api | dummy | replay",
+        "sports": [
+            "sport_schema"
+        ]
+    },
+    "sport_schema": {
+        "sport_key": "basketball_nba | football_nfl | baseball_mlb | etc",
+        "sport_title": "string",
+        "events": [
+            "event_schema"
+        ]
+    },
+    "event_schema": {
+        "event_id": "string",
+        "commence_time": "ISO-8601 timestamp",
+        "home_team": "string",
+        "away_team": "string",
+        "status": "scheduled | live | finished",
+        "markets": [
+            "market_instance_schema"
+        ]
+    },
+    "book_schema": {
+        "book_key": "fliff | novig | draftkings | fanduel",
+        "book_title": "string",
+        "region": "us | us2 | eu",
+        "last_updated": "ISO-8601 timestamp"
+    },
+    "market_instance_schema": {
+        "market_key": "h2h | spreads | totals | player_points | etc",
+        "market_type": "team | total | player",
+        "period": "full_game | q1 | h1 | p1 | innings_1",
+        "player": "string | null",
+        "books": [
+            "book_market_schema"
+        ]
+    },
+    "book_market_schema": {
+        "book_key": "string",
+        "is_live": "boolean",
+        "market_status": "open | suspended | closed",
+        "outcomes": [
+            "outcome_schema"
+        ]
+    },
+    "outcome_schema": {
+        "name": "team name | Over | Under | Yes | No",
+        "price": "integer (American odds)",
+        "point": "number | null",
+        "side": "home | away | over | under | yes | no | player",
+        "is_sentinel": "boolean"
+    },
     "featured_markets": {
         "h2h": "Head to head, Moneyline",
         "spreads": "Points spread, Handicap",
