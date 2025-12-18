@@ -31,8 +31,8 @@ from services.odds_utils import (
     estimate_ev_percent,
     points_match,
     apply_vig_adjustment,
-    MAX_VALID_AMERICAN_ODDS,
     decimal_to_american,
+    sanitize_american_price,
 )
 from services.player_props_config import (
     ALL_PLAYER_PROP_MARKETS as CONFIG_ALL_PLAYER_PROP_MARKETS,
@@ -914,13 +914,11 @@ def collect_value_plays(
         cleaned: List[Dict[str, Any]] = []
         for outcome in market.get("outcomes", []):
             name = outcome.get("name")
-            price = outcome.get("price")
+            price = sanitize_american_price(outcome.get("price"))
             point = outcome.get("point", None)
             description = outcome.get("description", None)
 
             if name is None or price is None:
-                continue
-            if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                 continue
 
             if is_totals_market:
@@ -1066,9 +1064,10 @@ def collect_value_plays(
         book_outcomes = market_outcomes_by_book.get(target_book, [])
         if market_key == "h2h":
             posted_prices = [
-                o.get("price")
+                sanitized_price
                 for o in book_outcomes
-                if o.get("price") is not None and abs(o.get("price")) < MAX_VALID_AMERICAN_ODDS
+                for sanitized_price in [sanitize_american_price(o.get("price"))]
+                if sanitized_price is not None
             ]
             if len(posted_prices) < 2:
                 _log_market_skip(
@@ -1107,7 +1106,7 @@ def collect_value_plays(
 
         for o in book_outcomes:
             name = o.get("name")
-            price = o.get("price")
+            price = sanitize_american_price(o.get("price"))
             point = o.get("point", None)
             description = o.get("description", None)  # For player props, this is the player name
             if name is None or price is None:
@@ -1117,14 +1116,7 @@ def collect_value_plays(
                     detail="target outcome missing name or price",
                 )
                 continue
-            if abs(price) >= MAX_VALID_AMERICAN_ODDS:
-                _log_market_skip(
-                    "SKIP_INVALID_ODDS",
-                    event_id=event_id,
-                    detail="target price outside valid american odds range",
-                )
-                continue
-            
+
             # For totals markets, outcomes MUST have a point value (totals always have a line)
             # Also validate that the name is "Over" or "Under" for totals
             # Totals odds should be in a reasonable range (typically -150 to +150, not like -300 which is ML territory)
@@ -1181,6 +1173,11 @@ def collect_value_plays(
                     detail=f"no comparison line for {name} @ {point or '—'}",
                 )
                 continue
+            # For spreads/totals arbitrage comparisons, require the exact same point line
+            if market_key in ("totals", "spreads") and not points_match(
+                point, matching_compare.get("point"), allow_half_point_flex=False
+            ):
+                continue
 
             # Find the *other* comparison book side (hedge side) with matching/close point
             other_compare = None
@@ -1203,6 +1200,10 @@ def collect_value_plays(
                     allow_half_point_flex=allow_half_point_flex,
                     opposite=True,
                 )
+            if market_key in ("totals", "spreads") and other_compare is not None:
+                # Require the hedge side to share the same point to avoid mismatched lines
+                if not points_match(point, other_compare.get("point"), allow_half_point_flex=False):
+                    other_compare = None
 
             # Require an opposite-side price so we only surface hedgeable bets
             if other_compare is None:
@@ -2838,10 +2839,11 @@ def _extract_line_tracker_markets(
                 away_price = None
                 for outcome in h2h_market.get("outcomes", []):
                     name = outcome.get("name")
+                    price = sanitize_american_price(outcome.get("price"))
                     if name == home:
-                        home_price = outcome.get("price")
+                        home_price = price
                     elif name == away:
-                        away_price = outcome.get("price")
+                        away_price = price
                 book_entry["moneyline"] = {
                     "home_price": home_price,
                     "away_price": away_price,
@@ -2860,12 +2862,13 @@ def _extract_line_tracker_markets(
                 away_price = None
                 for outcome in spread_market.get("outcomes", []):
                     name = outcome.get("name")
+                    price = sanitize_american_price(outcome.get("price"))
                     if name == home:
                         home_point = outcome.get("point")
-                        home_price = outcome.get("price")
+                        home_price = price
                     elif name == away:
                         away_point = outcome.get("point")
-                        away_price = outcome.get("price")
+                        away_price = price
                 book_entry["spread"] = {
                     "home_point": home_point,
                     "home_price": home_price,
@@ -2885,7 +2888,7 @@ def _extract_line_tracker_markets(
                 under_price = None
                 for outcome in totals_market.get("outcomes", []):
                     name = outcome.get("name", "")
-                    price = outcome.get("price")
+                    price = sanitize_american_price(outcome.get("price"))
                     point = outcome.get("point")
                     if "over" in name.lower():
                         total_point = point

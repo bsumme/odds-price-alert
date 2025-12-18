@@ -29,7 +29,7 @@ import requests
 
 # Import shared utilities
 from services.odds_api import get_api_key, fetch_odds
-from services.odds_utils import is_price_or_better
+from services.odds_utils import is_price_or_better, sanitize_american_price
 from utils.regions import compute_regions_for_books
 from utils.formatting import pretty_book_label
 
@@ -151,7 +151,7 @@ def extract_team_prices(
             price_for_team = None
             for outcome in market.get("outcomes", []):
                 if outcome.get("name") == team_name:
-                    price_for_team = outcome.get("price")
+                    price_for_team = sanitize_american_price(outcome.get("price"))
                     break
 
             prices_for_game[book_key] = price_for_team
