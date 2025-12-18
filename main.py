@@ -7,7 +7,7 @@ import sys
 import unicodedata
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from typing import ClassVar, List, Dict, Any, Set, Optional
+from typing import ClassVar, List, Dict, Any, Set, Optional, Sequence
 
 import requests
 from fastapi import FastAPI, HTTPException
@@ -16,14 +16,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 # Import shared utilities
+from services.api_gateway import ApiGateway
 from services.odds_api import (
     get_api_key,
     fetch_odds,
     fetch_player_props,
     fetch_sport_events,
-    BASE_URL,
-    ApiCreditTracker,
 )
+from services.results_store import ResultsStore
+from services.scheduler import SnapshotScheduler
 from services.domain import mappers as domain_mappers
 from services.odds_service import OddsService
 from services.odds_utils import (
@@ -43,6 +44,15 @@ from services.player_props_config import (
 )
 from services.value_play_service import ValuePlayService
 from services.repositories.odds_repository import OddsRepository
+from services.snapshot import OddsSnapshot, SnapshotHolder
+from services.snapshot_loader import SnapshotLoader
+from services.snapshot_config import (
+    DEFAULT_BOOKMAKERS,
+    DEFAULT_MARKETS_BY_SPORT,
+    DEFAULT_PLAYER_PROP_MARKETS_BY_SPORT,
+    DEFAULT_SNAPSHOT_SPORTS,
+    SNAPSHOT_INTERVAL_SECONDS,
+)
 from utils.formatting import format_start_time_est
 from utils.logging_control import apply_trace_level, should_log_trace_entries
 
@@ -1341,33 +1351,6 @@ def collect_value_plays(
 app = FastAPI()
 
 
-def _require_dummy_data_allowed(requested: bool) -> bool:
-    """Return True when dummy data is requested and startup allows it."""
-
-    if DUMMY_DATA_ENABLED and not os.getenv("PYTEST_CURRENT_TEST"):
-        return True
-
-    if not requested:
-        return False
-
-    allow_test_override = os.getenv("ALLOW_DUMMY_DATA_FOR_TESTS", "")
-    if allow_test_override.lower() in {"1", "true", "yes"} or os.getenv(
-        "PYTEST_CURRENT_TEST", ""
-    ):
-        logger.warning(
-            "Allowing dummy data because ALLOW_DUMMY_DATA_FOR_TESTS is enabled"
-        )
-        return True
-
-    raise HTTPException(
-        status_code=403,
-        detail=(
-            "Dummy data is disabled. Restart the server with -DummyData to enable "
-            "mock odds."
-        ),
-    )
-
-
 def _validate_data_source(events: List[Dict[str, Any]], allow_dummy: bool) -> None:
     """Ensure dummy payloads never leak into live calls unexpectedly."""
 
@@ -1383,7 +1366,7 @@ def _validate_data_source(events: List[Dict[str, Any]], allow_dummy: bool) -> No
         )
 
 
-# Repository and service instances
+api_gateway = ApiGateway()
 odds_repository = OddsRepository(
     api_key_provider=get_api_key,
     odds_fetcher=fetch_odds,
@@ -1391,57 +1374,149 @@ odds_repository = OddsRepository(
     events_fetcher=fetch_sport_events,
     dummy_odds_generator=generate_dummy_odds_data,
     dummy_player_props_generator=generate_dummy_player_props_data,
+    api_gateway=api_gateway,
 )
 
-
-def _sync_repository_sources() -> None:
-    updated = False
-
-    if odds_repository._api_key_provider is not get_api_key:
-        odds_repository._api_key_provider = get_api_key
-        updated = True
-    if odds_repository._odds_fetcher is not fetch_odds:
-        odds_repository._odds_fetcher = fetch_odds
-        updated = True
-    if odds_repository._player_props_fetcher is not fetch_player_props:
-        odds_repository._player_props_fetcher = fetch_player_props
-        updated = True
-    if odds_repository._events_fetcher is not fetch_sport_events:
-        odds_repository._events_fetcher = fetch_sport_events
-        updated = True
-    if odds_repository._dummy_odds_generator is not generate_dummy_odds_data:
-        odds_repository._dummy_odds_generator = generate_dummy_odds_data
-        updated = True
-    if odds_repository._dummy_player_props_generator is not generate_dummy_player_props_data:
-        odds_repository._dummy_player_props_generator = generate_dummy_player_props_data
-        updated = True
-
-    if updated:
-        odds_repository._cache.clear()
+snapshot_holder = SnapshotHolder()
+results_store = ResultsStore()
 
 
-def _resolve_api_key(use_dummy_data: bool) -> str:
-    """Return an API key unless dummy data is requested."""
+def _provide_snapshot_events(
+    *,
+    sport_key: str,
+    markets: Sequence[str] | str,
+    bookmaker_keys: List[str],
+    category: str = "odds",
+    snapshot=None,
+    **_: Any,
+) -> List[Dict[str, Any]]:
+    active_snapshot = snapshot or snapshot_holder.get_snapshot()
+    if active_snapshot is None:
+        return []
 
-    _sync_repository_sources()
+    normalized_markets = (
+        [m.strip() for m in markets.split(",") if m.strip()]
+        if isinstance(markets, str)
+        else list(markets)
+    )
+    return active_snapshot.get_events(
+        sport_key=sport_key,
+        markets=normalized_markets,
+        bookmaker_keys=bookmaker_keys,
+        category=category,
+    )
 
-    try:
-        return odds_repository.resolve_api_key(use_dummy_data)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
 
-
-# Service instances
 odds_service = OddsService(
-    repository=odds_repository,
+    events_provider=_provide_snapshot_events,
     data_validator=_validate_data_source,
 )
 
 value_play_service = ValuePlayService(
-    repository=odds_repository,
+    events_provider=_provide_snapshot_events,
     data_validator=_validate_data_source,
     collect_value_plays=collect_value_plays,
 )
+
+snapshot_loader = SnapshotLoader(
+    odds_repository,
+    sports=DEFAULT_SNAPSHOT_SPORTS,
+    markets_by_sport=DEFAULT_MARKETS_BY_SPORT,
+    player_prop_markets=DEFAULT_PLAYER_PROP_MARKETS_BY_SPORT,
+    bookmakers=DEFAULT_BOOKMAKERS,
+)
+
+snapshot_scheduler = SnapshotScheduler(
+    snapshot_loader,
+    snapshot_holder,
+    interval_seconds=SNAPSHOT_INTERVAL_SECONDS,
+    refresh_hooks=[results_store.clear],
+    use_dummy_data=DUMMY_DATA_ENABLED,
+)
+
+
+def _sync_repository_sources() -> None:
+    """Refresh repository fetchers so monkeypatching works in tests."""
+
+    odds_repository._api_key_provider = get_api_key
+    odds_repository._odds_fetcher = fetch_odds
+    odds_repository._player_props_fetcher = fetch_player_props
+    odds_repository._events_fetcher = fetch_sport_events
+    odds_repository._dummy_odds_generator = generate_dummy_odds_data
+    odds_repository._dummy_player_props_generator = generate_dummy_player_props_data
+    odds_repository._cache.clear()
+
+
+def _require_snapshot(request_dummy_flag: bool) -> OddsSnapshot:
+    snapshot = snapshot_holder.get_snapshot()
+    if snapshot is None:
+        _sync_repository_sources()
+        load_dummy = request_dummy_flag or DUMMY_DATA_ENABLED
+        try:
+            snapshot = snapshot_loader.load_snapshot(use_dummy_data=load_dummy)
+        except Exception:
+            if load_dummy:
+                raise HTTPException(status_code=503, detail="Snapshot not available yet.")
+
+            try:
+                snapshot = snapshot_loader.load_snapshot(use_dummy_data=True)
+                snapshot_scheduler.set_use_dummy_data(True)
+            except Exception:
+                raise HTTPException(status_code=503, detail="Snapshot not available yet.")
+
+            snapshot_holder.set_snapshot(snapshot)
+            results_store.clear()
+
+    elif os.getenv("PYTEST_CURRENT_TEST"):
+        _sync_repository_sources()
+        try:
+            snapshot = snapshot_loader.load_snapshot(
+                use_dummy_data=request_dummy_flag or DUMMY_DATA_ENABLED
+            )
+            snapshot_holder.set_snapshot(snapshot)
+            results_store.clear()
+        except Exception:
+            logger.exception("Test snapshot refresh failed; continuing with existing snapshot")
+
+    if request_dummy_flag and not snapshot.use_dummy_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Dummy data requested but the active snapshot contains live odds.",
+        )
+
+    return snapshot
+
+
+@app.on_event("startup")
+def _prime_snapshot_cache() -> None:
+    snapshot: Optional[OddsSnapshot] = None
+    try:
+        snapshot = snapshot_loader.load_snapshot(use_dummy_data=DUMMY_DATA_ENABLED)
+    except Exception:
+        logger.exception("Failed to load initial snapshot")
+        if not DUMMY_DATA_ENABLED:
+            try:
+                snapshot = snapshot_loader.load_snapshot(use_dummy_data=True)
+                snapshot_scheduler.set_use_dummy_data(True)
+                logger.warning("Falling back to dummy snapshot after live load failure")
+            except Exception:
+                logger.exception("Failed to load fallback dummy snapshot")
+
+    if snapshot:
+        snapshot_holder.set_snapshot(snapshot)
+        results_store.clear()
+        logger.info(
+            "Loaded initial snapshot (dummy=%s, credits=%s)",
+            snapshot.use_dummy_data,
+            snapshot.total_credit_usage,
+        )
+
+    snapshot_scheduler.start()
+
+
+@app.on_event("shutdown")
+def _stop_snapshot_cache() -> None:
+    snapshot_scheduler.stop()
 
 
 def _load_sports_schema() -> list:
@@ -1484,9 +1559,8 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
     if not payload.bets:
         raise HTTPException(status_code=400, detail="No bets provided")
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
-
-    api_key = _resolve_api_key(use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     all_book_keys: Set[str] = set()
     for bet in payload.bets:
@@ -1495,17 +1569,24 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
     if not all_book_keys:
         raise HTTPException(status_code=400, detail="No bookmakers specified")
 
+    cache_key = payload.model_dump()
+    cached = results_store.get(scope="odds", params=cache_key, snapshot=snapshot)
+    if cached:
+        return cached
+
     domain_bets = domain_mappers.map_bet_requests_to_domain(payload.bets)
     odds_result = odds_service.get_odds(
-        bets=domain_bets, api_key=api_key, use_dummy_data=use_dummy_data
+        bets=domain_bets, use_dummy_data=use_dummy_data, snapshot=snapshot
     )
 
-    return domain_mappers.map_odds_result_to_dto(
+    response = domain_mappers.map_odds_result_to_dto(
         odds_result,
         price_out_model=PriceOut,
         single_bet_odds_model=SingleBetOdds,
         odds_response_model=OddsResponse,
     )
+    results_store.set(scope="odds", params=cache_key, snapshot=snapshot, value=response)
+    return response
 
 
 @app.post("/api/value-plays", response_model=ValuePlaysResponse)
@@ -1532,20 +1613,26 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
             detail="Target book and comparison book cannot be the same.",
         )
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
-
-    api_key = _resolve_api_key(use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     domain_request = domain_mappers.map_value_plays_query(payload)
+    cache_key = payload.model_dump()
+    cached = results_store.get(scope="value-plays", params=cache_key, snapshot=snapshot)
+    if cached:
+        return cached
+
     domain_result = value_play_service.get_value_plays(
-        payload=domain_request, api_key=api_key, use_dummy_data=use_dummy_data
+        payload=domain_request, use_dummy_data=use_dummy_data, snapshot=snapshot
     )
 
-    return domain_mappers.map_value_plays_result_to_dto(
+    response = domain_mappers.map_value_plays_result_to_dto(
         domain_result,
         value_play_model=ValuePlayOutcome,
         response_model=ValuePlaysResponse,
     )
+    results_store.set(scope="value-plays", params=cache_key, snapshot=snapshot, value=response)
+    return response
 
 
 @app.post("/api/best-value-plays", response_model=BestValuePlaysResponse)
@@ -1569,20 +1656,31 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
             detail="At least one sport and one market must be specified.",
         )
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
-
-    api_key = _resolve_api_key(use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     domain_payload = domain_mappers.map_best_value_plays_query(payload)
+    cache_key = payload.model_dump()
+    cached = results_store.get(scope="best-value-plays", params=cache_key, snapshot=snapshot)
+    if cached:
+        return cached
+
     domain_result = value_play_service.get_best_value_plays(
-        payload=domain_payload, api_key=api_key, use_dummy_data=use_dummy_data
+        payload=domain_payload, use_dummy_data=use_dummy_data, snapshot=snapshot
     )
 
-    return domain_mappers.map_best_value_plays_result_to_dto(
+    response = domain_mappers.map_best_value_plays_result_to_dto(
         domain_result,
         best_value_model=BestValuePlayOutcome,
         response_model=BestValuePlaysResponse,
     )
+    results_store.set(
+        scope="best-value-plays",
+        params=cache_key,
+        snapshot=snapshot,
+        value=response,
+    )
+    return response
 
 
 def _clamp_boost_percent(boost_percent: Optional[float]) -> float:
@@ -1644,7 +1742,8 @@ def _select_top_parlay_legs(
 def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
     """Build a high-value parlay using the best hedge EV plays across sports/markets."""
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     boost_percent = _clamp_boost_percent(payload.boost_percent)
     # Request extra results to increase the chance of filling out the parlay.
@@ -1658,7 +1757,26 @@ def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
         use_dummy_data=use_dummy_data,
     )
 
-    best_response = get_best_value_plays(best_request)
+    best_cache_key = best_request.model_dump()
+    best_response = results_store.get(
+        scope="best-value-plays", params=best_cache_key, snapshot=snapshot
+    )
+    if best_response is None:
+        domain_payload = domain_mappers.map_best_value_plays_query(best_request)
+        domain_result = value_play_service.get_best_value_plays(
+            payload=domain_payload, use_dummy_data=use_dummy_data, snapshot=snapshot
+        )
+        best_response = domain_mappers.map_best_value_plays_result_to_dto(
+            domain_result,
+            best_value_model=BestValuePlayOutcome,
+            response_model=BestValuePlaysResponse,
+        )
+        results_store.set(
+            scope="best-value-plays",
+            params=best_cache_key,
+            snapshot=snapshot,
+            value=best_response,
+        )
     legs = _select_top_parlay_legs(best_response.plays, payload.parlay_size)
     notes: List[str] = []
 
@@ -1778,7 +1896,8 @@ def _sgp_within_odds_range(
 def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
     """Recommend SGP legs by picking the best player props within a single game."""
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     boost_percent = _clamp_boost_percent(payload.boost_percent)
     warnings: List[str] = []
@@ -2031,30 +2150,19 @@ def _within_featured_window(event: Dict[str, Any]) -> bool:
 def list_featured_games(use_dummy_data: bool = False) -> FeaturedGamesResponse:
     """Return a ranked list of upcoming headline games for SGP building."""
 
-    use_dummy_data = _require_dummy_data_allowed(use_dummy_data)
-
-    bookmaker_keys = ["draftkings", "fanduel", "novig"]
-
-    api_key = _resolve_api_key(use_dummy_data)
+    snapshot = _require_snapshot(use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     games: List[FeaturedGame] = []
     seen_ids: set[str] = set()
 
     for sport_key in FEATURED_SPORTS:
-        try:
-            events = odds_repository.get_odds_events(
-                api_key=api_key,
-                sport_key=sport_key,
-                markets=FEATURED_MARKETS,
-                bookmaker_keys=bookmaker_keys,
-                use_dummy_data=use_dummy_data,
-            )
-        except HTTPException as exc:
-            logger.warning(
-                "Skipping featured games for sport=%s: %s", sport_key, exc.detail
-            )
-            continue
-
+        events = snapshot.get_events(
+            sport_key=sport_key,
+            markets=FEATURED_MARKETS,
+            bookmaker_keys=DEFAULT_BOOKMAKERS,
+            category="odds",
+        )
         _validate_data_source(events, allow_dummy=use_dummy_data)
 
         for event in _filter_upcoming_events_only(events):
@@ -2131,29 +2239,24 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
 
     ensure_player_props_supported(payload.sport_key)
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
     )
 
-    api_key = _resolve_api_key(use_dummy_data)
+    cache_key = payload.model_dump()
+    cached = results_store.get(scope="player-prop-games", params=cache_key, snapshot=snapshot)
+    if cached:
+        return cached
 
-    try:
-        events = odds_repository.get_sport_events(
-            api_key=api_key,
-            sport_key=payload.sport_key,
-            use_dummy_data=use_dummy_data,
-            discovery_markets=discovery_markets,
-            bookmaker_keys=["novig", "draftkings", "fanduel"],
-        )
-    except HTTPException as exc:
-        logger.error("Events API error for sport=%s: %s", payload.sport_key, exc.detail)
-        raise HTTPException(
-            status_code=502,
-            detail=f"Events API error for sport {payload.sport_key}: {exc.detail}",
-        )
-
+    events = snapshot.get_events(
+        sport_key=payload.sport_key,
+        markets=discovery_markets,
+        bookmaker_keys=DEFAULT_BOOKMAKERS,
+        category="sport_events",
+    )
     _validate_data_source(events, allow_dummy=use_dummy_data)
 
     events = _filter_upcoming_events_only(events)
@@ -2178,9 +2281,11 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
 
     games.sort(key=lambda g: g.commence_time or "")
 
-    return PlayerPropGamesResponse(
+    response = PlayerPropGamesResponse(
         sport_key=payload.sport_key, games=games, last_update=last_update
     )
+    results_store.set(scope="player-prop-games", params=cache_key, snapshot=snapshot, value=response)
+    return response
 
 
 @app.post("/api/player-props/markets", response_model=PlayerPropMarketsResponse)
@@ -2197,7 +2302,8 @@ def list_player_prop_markets(
 
     ensure_player_props_supported(payload.sport_key)
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
@@ -2211,23 +2317,17 @@ def list_player_prop_markets(
     if not bookmaker_keys:
         bookmaker_keys = ["novig", "draftkings"]
 
-    api_key = _resolve_api_key(use_dummy_data)
+    cache_key = payload.model_dump()
+    cached = results_store.get(scope="player-prop-markets", params=cache_key, snapshot=snapshot)
+    if cached:
+        return cached
 
-    try:
-        events = odds_repository.get_odds_events(
-            api_key=api_key,
-            sport_key=payload.sport_key,
-            markets=discovery_markets,
-            bookmaker_keys=bookmaker_keys,
-            use_dummy_data=use_dummy_data,
-            force_player_props=True,
-        )
-    except HTTPException as exc:
-        logger.error("Player props API error for sport=%s: %s", payload.sport_key, exc.detail)
-        raise HTTPException(
-            status_code=502,
-            detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}",
-        )
+    events = snapshot.get_events(
+        sport_key=payload.sport_key,
+        markets=discovery_markets,
+        bookmaker_keys=bookmaker_keys,
+        category="player_props",
+    )
 
     _validate_data_source(events, allow_dummy=use_dummy_data)
 
@@ -2238,9 +2338,11 @@ def list_player_prop_markets(
 
     available = sorted(all_markets) if all_markets else discovery_markets
 
-    return PlayerPropMarketsResponse(
+    response = PlayerPropMarketsResponse(
         sport_key=payload.sport_key, available_markets=available
     )
+    results_store.set(scope="player-prop-markets", params=cache_key, snapshot=snapshot, value=response)
+    return response
 
 
 @app.post("/api/player-props", response_model=PlayerPropsResponse)
@@ -2264,11 +2366,6 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         payload.use_dummy_data,
     )
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
-    credit_tracker = (
-        ApiCreditTracker() if TRACE_LOGGING_ENABLED and not use_dummy_data else None
-    )
-
     # Validate sport key against local schema
     schema = _load_sports_schema()
     available_keys = {item.get('key') for item in schema if isinstance(item, dict) and item.get('key')}
@@ -2289,7 +2386,8 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             detail="Target book and comparison book cannot be the same.",
         )
 
-    api_key = _resolve_api_key(use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     bookmaker_keys = [target_book, compare_book]
     regions = odds_repository.compute_regions(bookmaker_keys)
@@ -2313,25 +2411,18 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         regions,
         use_dummy_data,
     )
-    try:
-        events = odds_repository.get_odds_events(
-            api_key=api_key,
-            sport_key=payload.sport_key,
-            markets=discovery_markets,
-            bookmaker_keys=bookmaker_keys,
-            use_dummy_data=use_dummy_data,
-            team=payload.team,
-            player_name=payload.player_name,
-            event_id=payload.event_id,
-            credit_tracker=credit_tracker,
-            force_player_props=True,
-        )
-    except HTTPException as exc:
-        logger.error("Player props fetch failed for sport=%s: %s", payload.sport_key, exc.detail)
-        raise HTTPException(
-            status_code=502,
-            detail=f"Player props API error for sport {payload.sport_key}: {exc.detail}",
-        )
+    cache_key = payload.model_dump()
+    cached = results_store.get(scope="player-props", params=cache_key, snapshot=snapshot)
+    if cached:
+        return cached
+
+    events = _provide_snapshot_events(
+        sport_key=payload.sport_key,
+        markets=discovery_markets,
+        bookmaker_keys=bookmaker_keys,
+        category="player_props",
+        snapshot=snapshot,
+    )
 
     _validate_data_source(events, allow_dummy=use_dummy_data)
 
@@ -2467,15 +2558,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         len(top_plays),
     )
 
-    if credit_tracker:
-        logger.info(
-            "SpotOddsAPI credits used for /api/player-props: %d (sport=%s markets=%s)",
-            credit_tracker.total_credits_used,
-            payload.sport_key,
-            market_param,
-        )
-
-    return PlayerPropsResponse(
+    response = PlayerPropsResponse(
         target_book=target_book,
         compare_book=compare_book,
         markets=markets_to_process,
@@ -2483,6 +2566,8 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         warnings=warnings,
         last_update=last_update,
     )
+    results_store.set(scope="player-props", params=cache_key, snapshot=snapshot, value=response)
+    return response
 
 
 @app.post("/api/player-props/arbitrage-all", response_model=PlayerPropArbitrageResponse)
@@ -2510,12 +2595,8 @@ def get_all_sport_player_prop_arbitrage(
                 detail=f"Unknown sport key: {key}. See /api/sports for available keys.",
             )
 
-    use_dummy_data = _require_dummy_data_allowed(payload.use_dummy_data)
-    credit_tracker = (
-        ApiCreditTracker() if TRACE_LOGGING_ENABLED and not use_dummy_data else None
-    )
-
-    api_key = _resolve_api_key(use_dummy_data)
+    snapshot = _require_snapshot(payload.use_dummy_data)
+    use_dummy_data = snapshot.use_dummy_data
 
     bookmaker_keys = sorted(set(target_books + [compare_book]))
 
@@ -2553,20 +2634,13 @@ def get_all_sport_player_prop_arbitrage(
             sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
         )
 
-        try:
-            events = odds_repository.get_odds_events(
-                api_key=api_key,
-                sport_key=sport_key,
-                markets=discovery_markets,
-                bookmaker_keys=bookmaker_keys,
-                use_dummy_data=use_dummy_data,
-                credit_tracker=credit_tracker,
-                force_player_props=True,
-            )
-        except HTTPException as exc:
-            warnings.append(f"Player props API error for {sport_key}: {exc.detail}")
-            continue
-
+        events = _provide_snapshot_events(
+            sport_key=sport_key,
+            markets=discovery_markets,
+            bookmaker_keys=bookmaker_keys,
+            category="player_props",
+            snapshot=snapshot,
+        )
         _validate_data_source(events, allow_dummy=use_dummy_data)
         events = _filter_upcoming_events_only(events)
 
@@ -2618,15 +2692,6 @@ def get_all_sport_player_prop_arbitrage(
     if max_results > 0:
         all_plays = all_plays[:max_results]
 
-    if credit_tracker:
-        logger.info(
-            "SpotOddsAPI credits used for /api/player-props/arbitrage-all: %d (sports=%s targets=%s compare=%s)",
-            credit_tracker.total_credits_used,
-            ",".join(sport_keys),
-            ",".join(target_books),
-            compare_book,
-        )
-
     return PlayerPropArbitrageResponse(
         compare_book=compare_book,
         target_books=target_books,
@@ -2642,94 +2707,66 @@ def check_active_odds(sport: str, bookmaker: str):
     Check if there are active odds available for a given sport and bookmaker.
     Returns True if there are upcoming events with odds from the bookmaker.
     """
-    try:
-        api_key = _resolve_api_key(False)
-    except HTTPException:
+    snapshot = snapshot_holder.get_snapshot()
+    if snapshot is None:
         return {"has_active_odds": False}
 
-    bookmaker_keys = [bookmaker]
+    events = _provide_snapshot_events(
+        sport_key=sport,
+        markets="h2h",
+        bookmaker_keys=[bookmaker],
+        category="odds",
+        snapshot=snapshot,
+    )
 
-    try:
-        events = odds_repository.get_odds_events(
-            api_key=api_key,
-            sport_key=sport,
-            markets="h2h",
-            bookmaker_keys=bookmaker_keys,
-            use_dummy_data=False,
-        )
-        
-        # Check if there are any events with odds from this bookmaker
-        now_utc = datetime.now(timezone.utc)
-        has_active = False
-        
-        for event in events:
-            # Check if event has this bookmaker
-            for bookmaker_data in event.get("bookmakers", []):
-                if bookmaker_data.get("key", "").lower() == bookmaker.lower():
-                    # Check if event is in the future
-                    start_time = event.get("commence_time")
-                    if start_time:
-                        try:
-                            event_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                            if event_dt > now_utc:
-                                has_active = True
-                                break
-                        except Exception:
-                            pass
-                if has_active:
-                    break
-            if has_active:
-                break
-        
-        return {"has_active_odds": has_active}
-    except Exception as e:
-        # On error, return False
-        print(f"Error checking active odds for {sport}/{bookmaker}: {e}")
-        return {"has_active_odds": False}
+    now_utc = datetime.now(timezone.utc)
+    for event in events:
+        for bookmaker_data in event.get("bookmakers", []):
+            if bookmaker_data.get("key", "").lower() == bookmaker.lower():
+                start_time = event.get("commence_time")
+                if start_time:
+                    try:
+                        event_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                        if event_dt > now_utc:
+                            return {"has_active_odds": True}
+                    except Exception:
+                        continue
+                else:
+                    return {"has_active_odds": True}
+
+    return {"has_active_odds": False}
 
 
 @app.get("/api/credits")
 def get_api_credits():
     """
     Get API subscription usage credits.
-    Returns usage information from API response headers.
+    Returns usage information from the latest snapshot metadata.
     """
-    api_credits = None
-    
-    # Get API credits from a lightweight API call
-    try:
-        api_key = get_api_key()
-        # Make a minimal API call to get usage headers
-        # Using sports endpoint as it's lightweight
-        url = f"{BASE_URL}/sports"
-        params = {"apiKey": api_key}
-        response = requests.get(url, params=params, timeout=10)
-        
-        if response.status_code == 200:
-            used = response.headers.get("x-requests-used")
-            remaining = response.headers.get("x-requests-remaining")
+    snapshot = snapshot_holder.get_snapshot()
+    if snapshot is None:
+        return {
+            "api_credits": {
+                "used": None,
+                "remaining": None,
+                "total": API_REQUEST_LIMIT,
+                "display": "unavailable",
+            }
+        }
 
-            if used is not None and remaining is not None:
-                try:
-                    used_int = int(used)
-                    remaining_int = int(remaining)
-                    total_from_headers = used_int + remaining_int
-                    total = max(total_from_headers, API_REQUEST_LIMIT)
-                    remaining_calculated = max(remaining_int, total - used_int)
-                    api_credits = {
-                        "used": used_int,
-                        "remaining": remaining_calculated,
-                        "total": total,
-                        "display": f"{used_int}/{total}"
-                    }
-                except (ValueError, TypeError):
-                    pass
-    except Exception as e:
-        # If API key is not available or call fails, return None
-        print(f"Error fetching API credits: {e}")
-    
+    used = snapshot.total_credit_usage
+    total = API_REQUEST_LIMIT
+    remaining = max(0, total - used)
+
     return {
-        "api_credits": api_credits
+        "api_credits": {
+            "used": used,
+            "remaining": remaining,
+            "total": total,
+            "display": f"{used}/{total}",
+            "using_dummy_data": snapshot.use_dummy_data,
+            "last_snapshot": snapshot.fetched_at.isoformat(),
+        }
     }
 
 
@@ -2981,10 +3018,7 @@ def get_line_tracker_snapshot(payload: LineTrackerRequest) -> LineTrackerSnapsho
     The frontend is responsible for polling this endpoint (e.g. every minute)
     to visualize line movement over time.
     """
-    try:
-        api_key = _resolve_api_key(False)
-    except HTTPException as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+    snapshot = _require_snapshot(False)
 
     if not payload.bookmaker_keys:
         raise HTTPException(status_code=400, detail="No bookmakers specified")
@@ -3003,16 +3037,13 @@ def get_line_tracker_snapshot(payload: LineTrackerRequest) -> LineTrackerSnapsho
 
     markets_param = ",".join(markets_to_request)
 
-    try:
-        events = odds_repository.get_odds_events(
-            api_key=api_key,
-            sport_key=payload.sport_key,
-            markets=markets_param,
-            bookmaker_keys=payload.bookmaker_keys,
-            use_dummy_data=False,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Error fetching odds: {e}")
+    events = _provide_snapshot_events(
+        sport_key=payload.sport_key,
+        markets=markets_param,
+        bookmaker_keys=payload.bookmaker_keys,
+        category="odds",
+        snapshot=snapshot,
+    )
 
     snapshot_events: List[LineTrackerEvent] = []
 

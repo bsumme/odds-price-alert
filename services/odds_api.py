@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 from fastapi import HTTPException
+from services.api_gateway import ApiGateway
 
 try:  # pragma: no cover - exercised in tests via fallback
     import aiohttp
@@ -116,6 +117,26 @@ def _log_api_response(endpoint: str, response: Any) -> None:
     logger.debug(
         "%s response status=%s body=%s", endpoint, response.status_code, truncated_body
     )
+
+
+def _perform_get(
+    url: str,
+    params: Dict[str, Any],
+    *,
+    gateway: Optional[ApiGateway],
+    gateway_caller: Optional[str],
+    timeout: int = 15,
+) -> requests.Response:
+    """Route outbound HTTP calls through the configured gateway."""
+
+    caller = gateway_caller or "snapshot_loader"
+    if gateway is not None:
+        return gateway.get(url, params, caller=caller)
+
+    if caller != "snapshot_loader":
+        raise RuntimeError("Direct HTTP calls are blocked outside the snapshot loader")
+
+    return requests.get(url, params=params, timeout=timeout)
 
 
 def _format_outcome_for_human_log(outcome: Dict[str, Any]) -> Optional[str]:
@@ -331,6 +352,8 @@ def fetch_odds(
     use_dummy_data: bool = False,
     dummy_data_generator=None,
     credit_tracker: Optional[ApiCreditTracker] = None,
+    gateway: Optional[ApiGateway] = None,
+    gateway_caller: str = "snapshot_loader",
 ) -> List[Dict[str, Any]]:
     """
     Core call to /v4/sports/{sport_key}/odds.
@@ -349,7 +372,12 @@ def fetch_odds(
 
     url = f"{BASE_URL}/sports/{sport_key}/odds"
     _log_api_request("odds", url, params)
-    response = requests.get(url, params=params, timeout=15)
+    response = _perform_get(
+        url,
+        params,
+        gateway=gateway,
+        gateway_caller=gateway_caller,
+    )
     _log_api_response("odds", response)
     _record_credit_usage(response, credit_tracker)
     if response.status_code != 200:
@@ -374,7 +402,11 @@ def fetch_odds(
 
 @cached_odds(ttl=300)
 def fetch_sport_events(
-    api_key: str, sport_key: str, credit_tracker: Optional[ApiCreditTracker] = None
+    api_key: str,
+    sport_key: str,
+    credit_tracker: Optional[ApiCreditTracker] = None,
+    gateway: Optional[ApiGateway] = None,
+    gateway_caller: str = "snapshot_loader",
 ) -> List[Dict[str, Any]]:
     """Fetch the list of events for a sport using The Odds API."""
 
@@ -382,7 +414,12 @@ def fetch_sport_events(
     logger.info("Fetching events list: url=%s", events_url)
     _log_api_request("events", events_url, {"apiKey": api_key})
 
-    response = requests.get(events_url, params={"apiKey": api_key}, timeout=15)
+    response = _perform_get(
+        events_url,
+        {"apiKey": api_key},
+        gateway=gateway,
+        gateway_caller=gateway_caller,
+    )
     _log_api_response("events", response)
     _record_credit_usage(response, credit_tracker)
     if response.status_code != 200:
@@ -468,15 +505,29 @@ class _AsyncResponseWrapper:
 
 
 class _AsyncRequestContext:
-    def __init__(self, url: str, params: Dict[str, Any], timeout: int):
+    def __init__(
+        self,
+        url: str,
+        params: Dict[str, Any],
+        timeout: int,
+        gateway: Optional[ApiGateway],
+        gateway_caller: Optional[str],
+    ):
         self.url = url
         self.params = params
         self.timeout = timeout
+        self.gateway = gateway
+        self.gateway_caller = gateway_caller
         self._response: Optional[requests.Response] = None
 
     async def __aenter__(self) -> _AsyncResponseWrapper:
         self._response = await asyncio.to_thread(
-            requests.get, self.url, params=self.params, timeout=self.timeout
+            _perform_get,
+            self.url,
+            self.params,
+            gateway=self.gateway,
+            gateway_caller=self.gateway_caller,
+            timeout=self.timeout,
         )
         return _AsyncResponseWrapper(self._response)
 
@@ -487,8 +538,15 @@ class _AsyncRequestContext:
 class _AsyncRequestsSession:
     """Simple async wrapper around requests for environments without aiohttp."""
 
-    def __init__(self, timeout: int = 15):
+    def __init__(
+        self,
+        timeout: int = 15,
+        gateway: Optional[ApiGateway] = None,
+        gateway_caller: Optional[str] = None,
+    ):
         self.timeout = timeout
+        self.gateway = gateway
+        self.gateway_caller = gateway_caller
 
     async def __aenter__(self) -> "_AsyncRequestsSession":
         return self
@@ -497,7 +555,13 @@ class _AsyncRequestsSession:
         return None
 
     def get(self, url: str, params: Dict[str, Any]) -> _AsyncRequestContext:
-        return _AsyncRequestContext(url, params, self.timeout)
+        return _AsyncRequestContext(
+            url,
+            params,
+            self.timeout,
+            gateway=self.gateway,
+            gateway_caller=self.gateway_caller,
+        )
 
 
 def _parse_invalid_markets(error_text: str) -> List[str]:
@@ -548,6 +612,8 @@ def fetch_player_props(
     use_dummy_data: bool = False,
     dummy_data_generator=None,
     credit_tracker: Optional[ApiCreditTracker] = None,
+    gateway: Optional[ApiGateway] = None,
+    gateway_caller: str = "snapshot_loader",
 ) -> List[Dict[str, Any]]:
     """
     Retrieve player prop markets by first fetching events, then requesting event odds.
@@ -566,7 +632,12 @@ def fetch_player_props(
     events_url = f"{BASE_URL}/sports/{sport_key}/events"
     logger.info("Fetching events for player props: url=%s", events_url)
     _log_api_request("player_props_events", events_url, {"apiKey": api_key})
-    events_response = requests.get(events_url, params={"apiKey": api_key}, timeout=15)
+    events_response = _perform_get(
+        events_url,
+        {"apiKey": api_key},
+        gateway=gateway,
+        gateway_caller=gateway_caller,
+    )
     _log_api_response("player_props_events", events_response)
     _record_credit_usage(events_response, credit_tracker)
     if events_response.status_code != 200:
@@ -705,6 +776,8 @@ def fetch_player_props(
                 bookmaker_keys=bookmaker_keys,
                 use_dummy_data=False,
                 credit_tracker=credit_tracker,
+                gateway=gateway,
+                gateway_caller=gateway_caller,
             )
         except HTTPException as exc:
             logger.error(
@@ -861,14 +934,18 @@ def fetch_player_props(
 
     async def _gather_events() -> List[Dict[str, Any]]:
         timeout_seconds = 15
-        if aiohttp is not None:
+        if aiohttp is not None and gateway is None:
             timeout = aiohttp.ClientTimeout(total=timeout_seconds)
 
             def session_factory():
                 return aiohttp.ClientSession(timeout=timeout)
         else:
             def session_factory():
-                return _AsyncRequestsSession(timeout=timeout_seconds)
+                return _AsyncRequestsSession(
+                    timeout=timeout_seconds,
+                    gateway=gateway,
+                    gateway_caller=gateway_caller,
+                )
 
         async with session_factory() as session:
             semaphore = asyncio.Semaphore(EVENT_ODDS_CONCURRENCY_LIMIT)
