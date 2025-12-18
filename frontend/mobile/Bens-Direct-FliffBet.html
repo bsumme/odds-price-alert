@@ -27,7 +27,7 @@
             color-scheme: dark;
             --bg: #0f172a;
             --panel: #111827;
-            --accent: #22c55e;
+            --accent: #38bdf8;
             --muted: #94a3b8;
             --border: #1f2937;
             --danger: #f87171;
@@ -113,14 +113,14 @@
 
         button {
             background: var(--accent);
-            color: #052e16;
+            color: #0b1626;
             border: none;
             border-radius: 999px;
             padding: 0.75rem 1rem;
             font-weight: 700;
             font-size: 1rem;
             width: 100%;
-            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.35);
+            box-shadow: 0 10px 25px rgba(56, 189, 248, 0.35);
         }
 
         button:disabled {
@@ -146,10 +146,22 @@
             font-size: 0.95rem;
         }
 
+        .badge-positive {
+            background: #166534;
+            color: #bbf7d0;
+            border-color: rgba(74, 222, 128, 0.35);
+        }
+
+        .badge-negative {
+            background: #7f1d1d;
+            color: #fecaca;
+            border-color: rgba(248, 113, 113, 0.35);
+        }
+
         .value {
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: var(--accent);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #e5e7eb;
         }
 
         .label {
@@ -161,7 +173,7 @@
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 0.75rem;
         }
 
@@ -184,6 +196,34 @@
             color: var(--muted);
         }
 
+        .list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .bet-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 0.85rem;
+            padding: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .bet-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .highlight {
+            color: var(--accent);
+            font-weight: 800;
+        }
+
         @media (max-width: 520px) {
             body {
                 padding: 0 0.75rem 1.5rem;
@@ -196,7 +236,7 @@
     <header>
         <a class="back-link" href="/ArbritrageBetFinder-mobile.html">← Arb Finder</a>
         <h1>Direct Fliff Hedge</h1>
-        <p class="subtitle">Mobile-only shortcut to the best Fliff vs Novig main-market arbitrage.</p>
+        <p class="subtitle">Mobile-only shortcut to Fliff opportunities against Novig.</p>
     </header>
 
     <main class="stack">
@@ -206,9 +246,9 @@
                 <span class="status" id="updated-at">Loading…</span>
             </div>
 
-            <div id="bet-details" class="stack"></div>
+            <div id="bet-list" class="list"></div>
 
-            <button id="refresh-btn">Refresh best bet</button>
+            <button id="refresh-btn">Refresh best bets</button>
             <div class="status" id="status-text"></div>
         </div>
     </main>
@@ -223,15 +263,54 @@
         const MARKETS = ["h2h", "spreads", "totals"];
         const TARGET_BOOK = "fliff";
         const COMPARE_BOOK = "novig";
+        const REFRESH_COOLDOWN_MS = 15000;
 
         const statusText = document.getElementById("status-text");
-        const betDetails = document.getElementById("bet-details");
+        const betList = document.getElementById("bet-list");
         const updatedAt = document.getElementById("updated-at");
         const refreshBtn = document.getElementById("refresh-btn");
+        let refreshCoolingDown = false;
+        let refreshCooldownTimer = null;
+        let refreshInFlight = false;
+
+        function applyRefreshButtonState() {
+            if (!refreshBtn) return;
+            refreshBtn.disabled = refreshCoolingDown || refreshInFlight;
+            refreshBtn.title = refreshCoolingDown
+                ? "Please wait before running another full search."
+                : "";
+        }
+
+        function startRefreshCooldown() {
+            refreshCoolingDown = true;
+            applyRefreshButtonState();
+            if (refreshCooldownTimer) {
+                clearTimeout(refreshCooldownTimer);
+            }
+            refreshCooldownTimer = setTimeout(() => {
+                refreshCoolingDown = false;
+                applyRefreshButtonState();
+            }, REFRESH_COOLDOWN_MS);
+        }
 
         function formatPercentage(value) {
             if (value === null || value === undefined) return "—";
             return `${value.toFixed(2)}%`;
+        }
+
+        function formatStartTime(isoString) {
+            if (!isoString) return "TBD";
+            const date = new Date(isoString);
+            if (Number.isNaN(date.getTime())) return isoString;
+            const options = {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+            };
+            return `${date.toLocaleString("en-US", options)} ET`;
         }
 
         function formatPoint(point) {
@@ -241,71 +320,120 @@
             return pointNumber > 0 ? `+${pointNumber}` : `${pointNumber}`;
         }
 
-        function renderBet(bet) {
-            betDetails.innerHTML = "";
+        function formatPrice(price) {
+            if (price === null || price === undefined) return "—";
+            const asNumber = Number(price);
+            return Number.isNaN(asNumber) ? `${price}` : asNumber > 0 ? `+${asNumber}` : `${asNumber}`;
+        }
 
-            if (!bet) {
-                betDetails.innerHTML = `
+        function describeMarket(bet) {
+            const line = [bet.market?.toUpperCase(), bet.outcome_name, formatPoint(bet.point)]
+                .filter(Boolean)
+                .join(" · ");
+            return line || "Unknown market";
+        }
+
+        function renderBets(bets) {
+            betList.innerHTML = "";
+
+            if (!bets || bets.length === 0) {
+                betList.innerHTML = `
                     <div class="empty">
-                        <strong>No arbitrage bets available right now.</strong><br />
+                        <strong>No Fliff hedges available right now.</strong><br />
                         Try again in a few moments.
                     </div>
                 `;
                 return;
             }
 
-            const line = [bet.market?.toUpperCase(), bet.outcome_name, formatPoint(bet.point)]
-                .filter(Boolean)
-                .join(" · ");
+            bets.slice(0, 3).forEach((bet, index) => {
+                const matchup = bet.matchup || `${bet.sport_key} matchup`;
+                const start = formatStartTime(bet.start_time);
+                const marketLine = describeMarket(bet);
+                const isArb = typeof bet.arb_margin_percent === "number";
+                const arbValue = typeof bet.arb_margin_percent === "number" ? bet.arb_margin_percent : null;
+                const arbClass =
+                    arbValue === null
+                        ? "badge"
+                        : arbValue >= 0
+                            ? "badge badge-positive"
+                            : "badge badge-negative";
+                const arbDisplay = arbValue === null ? "—" : formatPercentage(arbValue);
 
-            const matchup = bet.matchup || `${bet.sport_key} matchup`;
-
-            betDetails.innerHTML = `
-                <div class="stack">
-                    <div>
-                        <div class="label">Matchup</div>
-                        <div class="value">${matchup}</div>
-                        <div class="muted">${bet.start_time || "—"}</div>
+                const tile = document.createElement("div");
+                tile.className = "bet-card";
+                tile.innerHTML = `
+                    <div class="bet-title">
+                        <div>
+                            <div class="label">Pick #${index + 1}</div>
+                            <div class="value">${matchup}</div>
+                            <div class="muted">${start}</div>
+                        </div>
+                        <span class="badge">Fliff</span>
                     </div>
 
                     <div>
                         <div class="label">Market</div>
-                        <div class="value">${line}</div>
+                        <div class="value">${marketLine}</div>
                     </div>
 
                     <div class="grid">
                         <div class="tile">
                             <div class="label">Fliff Price</div>
-                            <div class="value">${bet.book_price || "—"}</div>
+                            <div class="value highlight">${formatPrice(bet.book_price)}</div>
                         </div>
                         <div class="tile">
                             <div class="label">Novig Opposite</div>
-                            <div class="value">${bet.novig_reverse_price ?? "—"}</div>
+                            <div class="value">${formatPrice(bet.novig_reverse_price)}</div>
                         </div>
                         <div class="tile">
                             <div class="label">Arb Margin</div>
-                            <div class="value">${formatPercentage(bet.arb_margin_percent)}</div>
+                            <div class="value">
+                                <span class="${arbClass}">${arbDisplay}</span>
+                            </div>
                         </div>
                         <div class="tile">
                             <div class="label">Value Score</div>
                             <div class="value">${formatPercentage(bet.ev_percent)}</div>
                         </div>
                     </div>
-                </div>
-            `;
+
+                    <div class="muted">${isArb ? "Best hedge window vs Novig right now." : "Strong Fliff value vs Novig."}</div>
+                `;
+                betList.appendChild(tile);
+            });
         }
 
-        function pickBestArbitrage(plays = []) {
-            const arbitragePlays = plays.filter((play) => typeof play.arb_margin_percent === "number");
-            if (arbitragePlays.length === 0) return null;
-            return arbitragePlays[0];
+        function pickTopBets(plays = []) {
+            const sorted = [...plays].sort((a, b) => {
+                const arbA = typeof a.arb_margin_percent === "number" ? a.arb_margin_percent : -Infinity;
+                const arbB = typeof b.arb_margin_percent === "number" ? b.arb_margin_percent : -Infinity;
+
+                if (arbA !== arbB) return arbB - arbA;
+
+                const evA = typeof a.ev_percent === "number" ? a.ev_percent : -Infinity;
+                const evB = typeof b.ev_percent === "number" ? b.ev_percent : -Infinity;
+                return evB - evA;
+            });
+
+            return sorted.slice(0, 3);
         }
 
         async function fetchBestBet() {
-            refreshBtn.disabled = true;
-            statusText.textContent = "Scanning Fliff vs Novig for top arbitrage margin...";
+            if (refreshCoolingDown) {
+                statusText.textContent = "Cooling down between refreshes to reduce load.";
+                return;
+            }
+            if (refreshInFlight) {
+                statusText.textContent = "Already refreshing bets...";
+                return;
+            }
+
+            refreshInFlight = true;
+            applyRefreshButtonState();
+            statusText.textContent = "Scanning Fliff vs Novig for best opportunities...";
             updatedAt.textContent = "Loading…";
-            betDetails.innerHTML = "";
+            betList.innerHTML = "";
 
             try {
                 const response = await fetch("/api/best-value-plays", {
@@ -316,7 +444,7 @@
                         markets: MARKETS,
                         target_book: TARGET_BOOK,
                         compare_book: COMPARE_BOOK,
-                        max_results: 25,
+                        max_results: 50,
                     }),
                 });
 
@@ -326,20 +454,23 @@
                 }
 
                 const data = await response.json();
-                const bestBet = pickBestArbitrage(data.plays || []);
-                renderBet(bestBet);
+                const plays = (data.plays || []).map((play) => ({ ...play, target_book: TARGET_BOOK }));
+                const bestBets = pickTopBets(plays);
+                renderBets(bestBets);
                 updatedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
-                statusText.textContent = bestBet
-                    ? "Found the best available arbitrage margin."
-                    : "Waiting for a fresh Fliff vs Novig arbitrage window.";
+                statusText.textContent = bestBets.length
+                    ? "Showing top Fliff plays vs Novig."
+                    : "Waiting for a fresh Fliff vs Novig edge.";
             } catch (error) {
-                statusText.textContent = `Error fetching best bet: ${error.message || error}`;
-                betDetails.innerHTML = "<div class=\"empty\">Could not load bets right now.</div>";
+                statusText.textContent = `Error fetching bets: ${error.message || error}`;
+                betList.innerHTML = "<div class=\"empty\">Could not load bets right now.</div>";
             } finally {
-                refreshBtn.disabled = false;
+                refreshInFlight = false;
+                startRefreshCooldown();
             }
         }
 
+        applyRefreshButtonState();
         refreshBtn.addEventListener("click", fetchBestBet);
         document.addEventListener("visibilitychange", () => {
             if (!document.hidden) {
