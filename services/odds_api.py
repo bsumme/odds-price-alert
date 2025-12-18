@@ -138,6 +138,18 @@ def _format_outcome_for_human_log(outcome: Dict[str, Any]) -> Optional[str]:
     return " ".join(components)
 
 
+def _extract_participant_name(outcomes: List[Dict[str, Any]]) -> Optional[str]:
+    """Return the first player/participant name found in the provided outcomes."""
+
+    for outcome in outcomes:
+        for field in ("description", "participant", "player_name"):
+            candidate = outcome.get(field)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+
+    return None
+
+
 def build_human_readable_logs(
     *,
     payload: List[Dict[str, Any]],
@@ -157,6 +169,7 @@ def build_human_readable_logs(
         for market_key in market_list:
             book_names: List[str] = []
             summaries: List[str] = []
+            participant_name: Optional[str] = None
 
             for bookmaker in bookmakers:
                 book_key = bookmaker.get("key")
@@ -177,6 +190,10 @@ def build_human_readable_logs(
                     if outcome.get("name") in {home, away}
                 ]
                 selected = prioritized if prioritized else outcomes
+
+                if participant_name is None and selected:
+                    participant_name = _extract_participant_name(selected)
+
                 formatted_outcomes = [
                     summary
                     for summary in (
@@ -203,7 +220,12 @@ def build_human_readable_logs(
             messages.append(
                 f"Retrieved {matchup} for market {market_key} at {books_phrase}"
             )
-            messages.append(" | ".join(summaries))
+
+            summary_message = " | ".join(summaries)
+            if participant_name:
+                summary_message = f"{participant_name} {summary_message}"
+
+            messages.append(summary_message)
 
     return messages
 
