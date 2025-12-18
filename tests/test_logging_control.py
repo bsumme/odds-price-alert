@@ -1,4 +1,4 @@
-from utils.logging_control import truncate_for_log
+from utils.logging_control import TraceLevel, get_trace_level_from_env, should_log_trace_entries, truncate_for_log
 
 
 def test_truncate_for_log_returns_unchanged_when_short() -> None:
@@ -20,3 +20,15 @@ def test_truncate_for_log_handles_non_string_values() -> None:
 
     assert truncated.startswith("{'key': 'val")
     assert "truncated" in truncated
+
+
+def test_get_trace_level_accepts_human_alias(monkeypatch) -> None:
+    monkeypatch.setenv("TRACE_LEVEL", "human")
+
+    assert get_trace_level_from_env() == TraceLevel.HUMAN
+
+
+def test_human_trace_level_triggers_trace_entries(monkeypatch) -> None:
+    monkeypatch.setenv("TRACE_LEVEL", "human_readable")
+
+    assert should_log_trace_entries() is True
