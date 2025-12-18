@@ -230,11 +230,35 @@
         const MARKETS = ["h2h", "spreads", "totals", "all_player_props"];
         const TARGET_BOOKS = ["fanduel", "draftkings"];
         const COMPARE_BOOK = "novig";
+        const REFRESH_COOLDOWN_MS = 15000;
 
         const statusText = document.getElementById("status-text");
         const betList = document.getElementById("bet-list");
         const updatedAt = document.getElementById("updated-at");
         const refreshBtn = document.getElementById("refresh-btn");
+        let refreshCoolingDown = false;
+        let refreshCooldownTimer = null;
+        let refreshInFlight = false;
+
+        function applyRefreshButtonState() {
+            if (!refreshBtn) return;
+            refreshBtn.disabled = refreshCoolingDown || refreshInFlight;
+            refreshBtn.title = refreshCoolingDown
+                ? "Please wait before running another full search."
+                : "";
+        }
+
+        function startRefreshCooldown() {
+            refreshCoolingDown = true;
+            applyRefreshButtonState();
+            if (refreshCooldownTimer) {
+                clearTimeout(refreshCooldownTimer);
+            }
+            refreshCooldownTimer = setTimeout(() => {
+                refreshCoolingDown = false;
+                applyRefreshButtonState();
+            }, REFRESH_COOLDOWN_MS);
+        }
 
         function formatPercentage(value) {
             if (value === null || value === undefined) return "—";
@@ -369,7 +393,17 @@
         }
 
         async function fetchBestBets() {
-            refreshBtn.disabled = true;
+            if (refreshCoolingDown) {
+                statusText.textContent = "Cooling down between refreshes to reduce load.";
+                return;
+            }
+            if (refreshInFlight) {
+                statusText.textContent = "Already refreshing bets...";
+                return;
+            }
+
+            refreshInFlight = true;
+            applyRefreshButtonState();
             statusText.textContent = "Scanning Fanduel/DraftKings vs Novig for best opportunities...";
             updatedAt.textContent = "Loading…";
             betList.innerHTML = "";
@@ -401,10 +435,12 @@
                 statusText.textContent = `Error fetching bets: ${error.message || error}`;
                 betList.innerHTML = "<div class=\"empty\">Could not load bets right now.</div>";
             } finally {
-                refreshBtn.disabled = false;
+                refreshInFlight = false;
+                startRefreshCooldown();
             }
         }
 
+        applyRefreshButtonState();
         refreshBtn.addEventListener("click", fetchBestBets);
         document.addEventListener("visibilitychange", () => {
             if (!document.hidden) {

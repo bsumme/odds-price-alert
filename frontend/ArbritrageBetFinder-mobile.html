@@ -936,6 +936,9 @@
         let currentMode = "arb";
         let propsData = { plays: [] };
         let stopWatcher = () => { };
+        const PROPS_SEARCH_COOLDOWN_MS = 15000;
+        let propsSearchCoolingDown = false;
+        let propsSearchCooldownTimer = null;
 
         const BOOK_LABELS = {
             draftkings: "DraftKings",
@@ -1518,6 +1521,27 @@
             if (bar) bar.textContent = msg;
         }
 
+        function lockPropsSearchButtons() {
+            propsSearchCoolingDown = true;
+            if (propsSearchCooldownTimer) {
+                clearTimeout(propsSearchCooldownTimer);
+                propsSearchCooldownTimer = null;
+            }
+            updatePropsSearchButton();
+        }
+
+        function startPropsSearchCooldown() {
+            propsSearchCoolingDown = true;
+            updatePropsSearchButton();
+            if (propsSearchCooldownTimer) {
+                clearTimeout(propsSearchCooldownTimer);
+            }
+            propsSearchCooldownTimer = setTimeout(() => {
+                propsSearchCoolingDown = false;
+                updatePropsSearchButton();
+            }, PROPS_SEARCH_COOLDOWN_MS);
+        }
+
         function resetParlayBar(containerId) {
             const bar = document.getElementById(containerId);
             if (!bar) return;
@@ -1676,11 +1700,26 @@
         function updatePropsSearchButton() {
             const sportSelected = Boolean(document.getElementById("props-sport")?.value);
             const searchBtn = document.getElementById("props-search-btn");
+            const allSportsBtn = document.getElementById("props-all-sports-btn");
 
-            if (!searchBtn) return;
+            if (searchBtn) {
+                const disabled = !sportSelected || propsSearchCoolingDown;
+                searchBtn.disabled = disabled;
+                if (!sportSelected) {
+                    searchBtn.title = "Select sport from drop down";
+                } else if (propsSearchCoolingDown) {
+                    searchBtn.title = "Please wait before searching player props again.";
+                } else {
+                    searchBtn.title = "";
+                }
+            }
 
-            searchBtn.disabled = !sportSelected;
-            searchBtn.title = sportSelected ? "" : "Select sport from drop down";
+            if (allSportsBtn) {
+                allSportsBtn.disabled = propsSearchCoolingDown;
+                allSportsBtn.title = propsSearchCoolingDown
+                    ? "Please wait before searching player props again."
+                    : "";
+            }
         }
 
         function formatPropsGameLabel(game) {
@@ -1745,6 +1784,8 @@
                 return;
             }
 
+            lockPropsSearchButtons();
+
             const payload = {
                 sport_key: sportKey,
                 team: document.getElementById("props-team")?.value || null,
@@ -1782,13 +1823,14 @@
                 setPropsStatus(`Error loading player props: ${err.message}`);
                 propsData = { plays: [] };
                 renderPlayerPropResults();
+            } finally {
+                startPropsSearchCooldown();
             }
         }
 
         async function fetchAllSportsPlayerProps() {
-            const button = document.getElementById("props-all-sports-btn");
             setPropsStatus("Scanning all sports for player prop arbitrage vs Novig...");
-            if (button) button.disabled = true;
+            lockPropsSearchButtons();
 
             try {
                 const res = await fetch("/api/player-props/arbitrage-all", {
@@ -1827,7 +1869,7 @@
                 propsData = { plays: [] };
                 renderPlayerPropResults();
             } finally {
-                if (button) button.disabled = false;
+                startPropsSearchCooldown();
             }
         }
 
