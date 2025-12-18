@@ -58,6 +58,26 @@
             z-index: 5;
         }
 
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: #cbd5e1;
+            text-decoration: none;
+            font-weight: 700;
+            padding: 0.35rem 0.6rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            margin-bottom: 0.5rem;
+        }
+
+        .back-link:hover,
+        .back-link:focus-visible {
+            background: rgba(255, 255, 255, 0.08);
+            outline: none;
+        }
+
         h1 {
             margin: 0;
             font-size: 1.4rem;
@@ -174,6 +194,7 @@
 
 <body>
     <header>
+        <a class="back-link" href="/ArbritrageBetFinder-mobile.html">← Arb Finder</a>
         <h1>Direct Fliff Hedge</h1>
         <p class="subtitle">Mobile-only shortcut to the best Fliff vs Novig main-market arbitrage.</p>
     </header>
