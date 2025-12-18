@@ -81,11 +81,13 @@ def should_log_api_calls(trace_level: TraceLevel | None = None) -> bool:
 def _configure_file_logging(logger: logging.Logger, trace_level: TraceLevel) -> Path:
     """Attach a timestamped file handler when verbose logging is enabled."""
 
-    log_dir = Path(__file__).resolve().parent.parent / "logs"
+    log_dir_env = os.getenv("TRACE_LOG_DIR")
+    log_dir = Path(log_dir_env) if log_dir_env else Path(__file__).resolve().parent.parent / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = log_dir / f"trace_{timestamp}.log"
+    prefix = "human" if trace_level == TraceLevel.HUMAN else "trace"
+    log_path = log_dir / f"{prefix}_{timestamp}.log"
 
     existing_handler = getattr(logger, "_trace_file_handler", None)
     if existing_handler:
@@ -93,9 +95,7 @@ def _configure_file_logging(logger: logging.Logger, trace_level: TraceLevel) -> 
 
     file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(logging.DEBUG if trace_level == TraceLevel.DEBUG else logging.INFO)
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    )
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
 
     logger.addHandler(file_handler)
     logger._trace_file_handler = file_handler  # type: ignore[attr-defined]
