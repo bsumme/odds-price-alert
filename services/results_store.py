@@ -1,7 +1,7 @@
 """In-memory cache for computed analytics derived from a snapshot."""
 from __future__ import annotations
 
-from typing import Any, Dict, Hashable, Tuple
+from typing import Any, Dict, Hashable, Optional, Tuple
 
 from services.snapshot import OddsSnapshot
 
@@ -40,5 +40,9 @@ class ResultsStore:
         key = self._build_key(scope, params)
         self._store[key] = (snapshot.fetched_at.isoformat(), value)
 
-    def clear(self) -> None:
+    def clear(self, snapshot: Optional[OddsSnapshot] = None) -> None:
+        """Reset the cached results. The optional snapshot argument is ignored and
+        exists to make this compatible with refresh hooks that pass the latest
+        snapshot to their callbacks.
+        """
         self._store.clear()
