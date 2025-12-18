@@ -5,8 +5,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-import pytest
-
 from services import odds_api
 from services.odds_cache import clear_odds_cache
 
