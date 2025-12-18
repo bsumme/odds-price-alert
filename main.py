@@ -1464,8 +1464,8 @@ def _require_snapshot(request_dummy_flag: bool) -> OddsSnapshot:
             except Exception:
                 raise HTTPException(status_code=503, detail="Snapshot not available yet.")
 
-            snapshot_holder.set_snapshot(snapshot)
-            results_store.clear()
+        snapshot_holder.set_snapshot(snapshot)
+        results_store.clear()
 
     elif os.getenv("PYTEST_CURRENT_TEST"):
         _sync_repository_sources()
