@@ -1,8 +1,7 @@
 """
 Simple in-memory cache with TTL support for API responses.
 """
-from datetime import datetime, timedelta
-from typing import Any, Optional, Callable, TypeVar, cast
+from typing import Callable, TypeVar, cast
 import functools
 import hashlib
 import json
