@@ -1120,6 +1120,11 @@ def collect_value_plays(
             )
             if matching_compare is None:
                 continue
+            # For spreads/totals arbitrage comparisons, require the exact same point line
+            if market_key in ("totals", "spreads") and not points_match(
+                point, matching_compare.get("point"), allow_half_point_flex=False
+            ):
+                continue
 
             # Find the *other* comparison book side (hedge side) with matching/close point
             other_compare = None
@@ -1142,6 +1147,10 @@ def collect_value_plays(
                     allow_half_point_flex=allow_half_point_flex,
                     opposite=True,
                 )
+            if market_key in ("totals", "spreads") and other_compare is not None:
+                # Require the hedge side to share the same point to avoid mismatched lines
+                if not points_match(point, other_compare.get("point"), allow_half_point_flex=False):
+                    other_compare = None
 
             # Require an opposite-side price so we only surface hedgeable bets
             if other_compare is None or other_compare.get("price") is None:
