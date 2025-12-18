@@ -190,7 +190,7 @@
             return plays[0];
         }
 
-        async function requestTopBet(useDummyData) {
+        async function requestTopBet() {
             const payload = {
                 sport_keys: [
                     "americanfootball_nfl",
@@ -203,10 +203,6 @@
                 compare_book: "novig",
                 max_results: 25,
             };
-
-            if (useDummyData) {
-                payload.use_dummy_data = true;
-            }
 
             const response = await fetch("/api/best-value-plays", {
                 method: "POST",
@@ -223,10 +219,7 @@
                     details = await response.text();
                 }
 
-                const error = new Error(details || `Request failed with status ${response.status}`);
-                error.status = response.status;
-                error.useDummyData = useDummyData;
-                throw error;
+                throw new Error(details || `Request failed with status ${response.status}`);
             }
 
             return response.json();
@@ -238,18 +231,7 @@
             betBox.textContent = "";
 
             try {
-                let data;
-                try {
-                    // Prefer dummy data when allowed to avoid live API costs.
-                    data = await requestTopBet(true);
-                } catch (error) {
-                    const dummyDisabled = error?.status === 403;
-                    if (!dummyDisabled) throw error;
-
-                    // Retry without dummy data when the server forbids it.
-                    data = await requestTopBet(false);
-                }
-
+                const data = await requestTopBet();
                 const plays = data?.plays ?? [];
                 const topPlay = selectTopArbitragePlay(plays);
 
