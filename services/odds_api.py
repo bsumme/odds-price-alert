@@ -21,6 +21,7 @@ from utils.logging_control import (
     get_trace_level_from_env,
     should_log_api_calls,
     should_log_trace_entries,
+    truncate_for_log,
 )
 from services.odds_cache import cached_odds
 
@@ -110,8 +111,9 @@ def _log_api_response(endpoint: str, response: Any) -> None:
     if not should_log_api_calls(TRACE_LEVEL):
         return
 
+    truncated_body = truncate_for_log(response.text)
     logger.debug(
-        "%s response status=%s body=%s", endpoint, response.status_code, response.text
+        "%s response status=%s body=%s", endpoint, response.status_code, truncated_body
     )
 
 
@@ -234,7 +236,9 @@ def fetch_sport_events(
     _record_credit_usage(response, credit_tracker)
     if response.status_code != 200:
         logger.error(
-            "Events API error: status=%s body=%s", response.status_code, response.text
+            "Events API error: status=%s body=%s",
+            response.status_code,
+            truncate_for_log(response.text),
         )
         raise HTTPException(
             status_code=502,
@@ -418,7 +422,7 @@ def fetch_player_props(
         logger.error(
             "Player props events API error: status=%s body=%s",
             events_response.status_code,
-            events_response.text,
+            truncate_for_log(events_response.text),
         )
         raise HTTPException(
             status_code=502,
@@ -672,14 +676,14 @@ def fetch_player_props(
                     "Event odds API response for player props (event_id=%s): status=%s body=%s",
                     event_identifier,
                     resp.status,
-                    body,
+                    truncate_for_log(body),
                 )
 
                 if resp.status != 200:
                     logger.error(
                         "Event odds API error for player props: status=%s body=%s",
                         resp.status,
-                        body,
+                        truncate_for_log(body),
                     )
                     raise HTTPException(
                         status_code=502,
