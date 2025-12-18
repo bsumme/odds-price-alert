@@ -407,9 +407,11 @@
             const targetCell = document.createElement("td");
             const formattedTargetOdds = oddsFormatter(play.book_price);
             const targetStakeText = play.targetStakeText || "";
-            const matchupText = play.matchup ? `<span class="small-text">${play.matchup}</span><br>` : "";
+            const playerLine = play.outcome_name ? `<div class="prop-recommended-primary">${play.outcome_name}</div>` : "";
+            const marketLine = marketLabel ? `<div class="prop-recommended-market">${marketLabel}${lineText}</div>` : "";
+            const matchupText = play.matchup ? `<div class="small-text">${play.matchup}</div>` : "";
             const stakeLine = targetStakeText ? `<div class="small-text hedge-stake">Hedge Stake: ${targetStakeText}</div>` : "";
-            targetCell.innerHTML = `${matchupText}<strong>${formattedTargetOdds}</strong><br><span class="small-text">@ ${rowTargetLabel}</span>${stakeLine}`;
+            targetCell.innerHTML = `${playerLine}${marketLine}<div class="prop-recommended-odds"><strong>${formattedTargetOdds}</strong></div><div class="small-text">@ ${rowTargetLabel}</div>${stakeLine}${matchupText}`;
             tr.appendChild(targetCell);
 
             const hedgeCell = document.createElement("td");
