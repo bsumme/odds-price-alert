@@ -892,6 +892,22 @@ def collect_value_plays(
     is_player_prop = market_key.startswith("player_")
     is_totals_market = market_key == "totals"
 
+    def _log_market_skip(reason_label: str, *, event_id: str, detail: str) -> None:
+        """Log standardized skip reasons when a market cannot be evaluated."""
+
+        if not TRACE_LOGGING_ENABLED:
+            return
+
+        logger.info(
+            "%s event_id=%s market=%s target=%s compare=%s detail=%s",
+            reason_label,
+            event_id or "unknown",
+            market_key,
+            target_book,
+            compare_book,
+            detail,
+        )
+
     def _sanitize_outcomes(market: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return a filtered list of usable outcomes for comparisons."""
 
@@ -1037,6 +1053,11 @@ def collect_value_plays(
                 book_market = market
 
         if not compare_market or not book_market:
+            _log_market_skip(
+                "SKIP_SINGLE_BOOK",
+                event_id=event_id,
+                detail="missing usable market for target or comparison book",
+            )
             continue
 
         # For moneylines, only process events where the target book has posted both sides.
@@ -1050,6 +1071,11 @@ def collect_value_plays(
                 if o.get("price") is not None and abs(o.get("price")) < MAX_VALID_AMERICAN_ODDS
             ]
             if len(posted_prices) < 2:
+                _log_market_skip(
+                    "SKIP_INVALID_ODDS",
+                    event_id=event_id,
+                    detail="moneyline missing both posted sides at target book",
+                )
                 continue
 
         # Allow 0.5-point flex for spreads, totals, and player props (Odds API sometimes
@@ -1057,6 +1083,11 @@ def collect_value_plays(
         allow_half_point_flex = market_key in ("totals", "spreads") or is_player_prop
         compare_outcomes: List[Dict[str, Any]] = market_outcomes_by_book.get(compare_book, [])
         if not compare_outcomes:
+            _log_market_skip(
+                "SKIP_INVALID_ODDS",
+                event_id=event_id,
+                detail="no usable comparison book outcomes after sanitization",
+            )
             continue
 
         def _collect_prices_for_selection(
@@ -1080,8 +1111,18 @@ def collect_value_plays(
             point = o.get("point", None)
             description = o.get("description", None)  # For player props, this is the player name
             if name is None or price is None:
+                _log_market_skip(
+                    "SKIP_INVALID_ODDS",
+                    event_id=event_id,
+                    detail="target outcome missing name or price",
+                )
                 continue
             if abs(price) >= MAX_VALID_AMERICAN_ODDS:
+                _log_market_skip(
+                    "SKIP_INVALID_ODDS",
+                    event_id=event_id,
+                    detail="target price outside valid american odds range",
+                )
                 continue
             
             # For totals markets, outcomes MUST have a point value (totals always have a line)
@@ -1089,12 +1130,27 @@ def collect_value_plays(
             # Totals odds should be in a reasonable range (typically -150 to +150, not like -300 which is ML territory)
             if market_key == "totals":
                 if point is None:
+                    _log_market_skip(
+                        "SKIP_INVALID_ODDS",
+                        event_id=event_id,
+                        detail="totals outcome missing point value",
+                    )
                     continue
                 if name.lower() not in ("over", "under"):
+                    _log_market_skip(
+                        "SKIP_INVALID_ODDS",
+                        event_id=event_id,
+                        detail="totals outcome has invalid side label",
+                    )
                     continue  # Skip invalid totals outcomes
                 # Skip totals with extreme prices that look like moneyline odds (e.g., -300, +400)
                 # Totals typically range from -150 to +150
                 if price is not None and (price < -150 or price > 150):
+                    _log_market_skip(
+                        "SKIP_INVALID_ODDS",
+                        event_id=event_id,
+                        detail="totals price outside expected range",
+                    )
                     continue  # Skip suspiciously extreme totals prices
 
             if market_key in ("totals", "spreads"):
@@ -1119,6 +1175,11 @@ def collect_value_plays(
                 allow_half_point_flex=allow_half_point_flex,
             )
             if matching_compare is None:
+                _log_market_skip(
+                    "SKIP_LINE_MISMATCH",
+                    event_id=event_id,
+                    detail=f"no comparison line for {name} @ {point or '—'}",
+                )
                 continue
 
             # Find the *other* comparison book side (hedge side) with matching/close point
@@ -1144,11 +1205,28 @@ def collect_value_plays(
                 )
 
             # Require an opposite-side price so we only surface hedgeable bets
-            if other_compare is None or other_compare.get("price") is None:
+            if other_compare is None:
+                _log_market_skip(
+                    "SKIP_LINE_MISMATCH",
+                    event_id=event_id,
+                    detail=f"missing opposite side for {name} @ {point or '—'}",
+                )
+                continue
+            if other_compare.get("price") is None:
+                _log_market_skip(
+                    "SKIP_INVALID_ODDS",
+                    event_id=event_id,
+                    detail=f"opposite side lacks price for {other_compare.get('name')}",
+                )
                 continue
 
             compare_price = matching_compare.get("price")
             if compare_price is None:
+                _log_market_skip(
+                    "SKIP_INVALID_ODDS",
+                    event_id=event_id,
+                    detail="comparison price missing for matched outcome",
+                )
                 continue
 
             ev_pct = estimate_ev_percent(book_odds=adjusted_price, sharp_odds=compare_price)
