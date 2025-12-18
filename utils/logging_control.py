@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 
 class TraceLevel(str, Enum):
@@ -88,3 +89,17 @@ def _configure_file_logging(logger: logging.Logger, trace_level: TraceLevel) -> 
     logger._trace_log_path = log_path  # type: ignore[attr-defined]
 
     return log_path
+
+
+def truncate_for_log(value: Any, max_length: int = 1200) -> str:
+    """Return a safely truncated string for log output."""
+
+    if value is None:
+        return ""
+
+    text = value if isinstance(value, str) else repr(value)
+    if len(text) <= max_length:
+        return text
+
+    omitted = len(text) - max_length
+    return f"{text[:max_length]}... [truncated {omitted} chars]"
