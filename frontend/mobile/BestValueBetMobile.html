@@ -146,6 +146,18 @@
             font-size: 0.95rem;
         }
 
+        .badge-positive {
+            background: #166534;
+            color: #bbf7d0;
+            border-color: rgba(74, 222, 128, 0.35);
+        }
+
+        .badge-negative {
+            background: #7f1d1d;
+            color: #fecaca;
+            border-color: rgba(248, 113, 113, 0.35);
+        }
+
         .value {
             font-size: 1.1rem;
             font-weight: 700;
@@ -286,6 +298,21 @@
             return `${value.toFixed(2)}%`;
         }
 
+        function formatStartTime(isoString) {
+            if (!isoString) return "TBD";
+            const date = new Date(isoString);
+            if (Number.isNaN(date.getTime())) return isoString;
+            const options = {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+            };
+            return `${date.toLocaleString("en-US", options)} ET`;
+        }
+
         function formatPoint(point) {
             if (point === null || point === undefined) return "";
             const pointNumber = Number(point);
@@ -327,9 +354,17 @@
 
             bets.slice(0, 3).forEach((bet, index) => {
                 const matchup = bet.matchup || `${bet.sport_key} matchup`;
-                const start = bet.start_time || "—";
+                const start = formatStartTime(bet.start_time);
                 const marketLine = describeMarket(bet);
                 const isArb = typeof bet.arb_margin_percent === "number";
+                const arbValue = typeof bet.arb_margin_percent === "number" ? bet.arb_margin_percent : null;
+                const arbClass =
+                    arbValue === null
+                        ? "badge"
+                        : arbValue >= 0
+                            ? "badge badge-positive"
+                            : "badge badge-negative";
+                const arbDisplay = arbValue === null ? "—" : formatPercentage(arbValue);
 
                 const tile = document.createElement("div");
                 tile.className = "bet-card";
@@ -359,7 +394,9 @@
                         </div>
                         <div class="tile">
                             <div class="label">Arb Margin</div>
-                            <div class="value">${formatPercentage(bet.arb_margin_percent)}</div>
+                            <div class="value">
+                                <span class="${arbClass}">${arbDisplay}</span>
+                            </div>
                         </div>
                         <div class="tile">
                             <div class="label">Value Score</div>
