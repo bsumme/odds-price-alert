@@ -69,6 +69,9 @@
     </main>
 
     <script>
+        const statusEl = document.getElementById("status");
+        const betBox = document.getElementById("bet-box");
+
         function formatBookName(bookKey) {
             if (!bookKey) return "Unknown book";
             return bookKey
@@ -116,14 +119,7 @@
             return plays[0];
         }
 
-        async function loadTopBet() {
-            const statusEl = document.getElementById("status");
-            const betBox = document.getElementById("bet-box");
-
-            statusEl.textContent = "Loading best bet…";
-            statusEl.classList.remove("error");
-            betBox.textContent = "";
-
+        async function requestTopBet(useDummyData) {
             const payload = {
                 sport_keys: [
                     "americanfootball_nfl",
@@ -135,21 +131,54 @@
                 target_book: "draftkings",
                 compare_book: "novig",
                 max_results: 25,
-                use_dummy_data: true,
             };
 
-            try {
-                const response = await fetch("/api/best-value-plays", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
+            if (useDummyData) {
+                payload.use_dummy_data = true;
+            }
 
-                if (!response.ok) {
-                    throw new Error(`Request failed with status ${response.status}`);
+            const response = await fetch("/api/best-value-plays", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                let details = "";
+                try {
+                    const errorJson = await response.json();
+                    details = errorJson?.detail || errorJson?.message || "";
+                } catch (parseError) {
+                    details = await response.text();
                 }
 
-                const data = await response.json();
+                const error = new Error(details || `Request failed with status ${response.status}`);
+                error.status = response.status;
+                error.useDummyData = useDummyData;
+                throw error;
+            }
+
+            return response.json();
+        }
+
+        async function loadTopBet() {
+            statusEl.textContent = "Loading best bet…";
+            statusEl.classList.remove("error");
+            betBox.textContent = "";
+
+            try {
+                let data;
+                try {
+                    // Prefer dummy data when allowed to avoid live API costs.
+                    data = await requestTopBet(true);
+                } catch (error) {
+                    const dummyDisabled = error?.status === 403;
+                    if (!dummyDisabled) throw error;
+
+                    // Retry without dummy data when the server forbids it.
+                    data = await requestTopBet(false);
+                }
+
                 const plays = data?.plays ?? [];
                 const topPlay = selectTopArbitragePlay(plays);
 
@@ -159,11 +188,13 @@
                     return;
                 }
 
-                betBox.textContent = buildBetLabel(topPlay, data?.target_book || payload.target_book);
+                betBox.textContent = buildBetLabel(topPlay, data?.target_book || "draftkings");
                 statusEl.textContent = "Here’s your top arbitrage-ready value bet:";
             } catch (error) {
                 console.error(error);
-                statusEl.textContent = "Could not load the best bet.";
+                statusEl.textContent = error?.message
+                    ? `Could not load the best bet (${error.message}).`
+                    : "Could not load the best bet.";
                 statusEl.classList.add("error");
                 betBox.textContent = "";
             }
