@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, List
 
 from services.domain import models
+from services.player_props_config import expand_player_prop_markets, is_player_prop_market
 from utils.formatting import format_start_time_est
 
 logger = logging.getLogger(__name__)
@@ -85,72 +86,77 @@ class ValuePlayService:
 
         for sport_key in payload.sport_keys:
             for market_key in payload.markets:
+                expanded_markets = self._expand_market_keys_for_sport(sport_key, market_key)
+                if not expanded_markets:
+                    continue
+
                 try:
                     events = self._repository.get_odds_events(
                         api_key=api_key,
                         sport_key=sport_key,
-                        markets=market_key,
+                        markets=expanded_markets,
                         bookmaker_keys=[payload.target_book, payload.compare_book],
                         use_dummy_data=use_dummy_data,
                     )
 
                     self._data_validator(events, allow_dummy=use_dummy_data)
 
-                    raw_plays_dto = self._collect_value_plays(
-                        events, market_key, payload.target_book, payload.compare_book
-                    )
-
-                    filtered_plays = self._filter_future_events(
-                        [
-                            models.ValuePlay(
-                                event_id=play.event_id,
-                                matchup=play.matchup,
-                                start_time=play.start_time,
-                                outcome_name=play.outcome_name,
-                                point=play.point,
-                                market=getattr(play, "market", market_key),
-                                novig_price=play.novig_price,
-                                novig_reverse_name=play.novig_reverse_name,
-                                novig_reverse_price=play.novig_reverse_price,
-                                book_price=play.book_price,
-                                ev_percent=play.ev_percent,
-                                hedge_ev_percent=getattr(play, "hedge_ev_percent", None),
-                                is_arbitrage=getattr(play, "is_arbitrage", False),
-                                arb_margin_percent=getattr(play, "arb_margin_percent", None),
-                            )
-                            for play in raw_plays_dto
-                        ]
-                    )
-
-                    for play in filtered_plays:
-                        formatted_time = play.start_time
-                        if formatted_time and formatted_time.strip():
-                            try:
-                                formatted_time = format_start_time_est(formatted_time)
-                            except Exception:
-                                formatted_time = play.start_time or "—"
-                        else:
-                            formatted_time = "—"
-
-                        all_plays.append(
-                            models.BestValuePlay(
-                                sport_key=sport_key,
-                                market=market_key,
-                                event_id=play.event_id,
-                                matchup=play.matchup,
-                                start_time=formatted_time,
-                                outcome_name=play.outcome_name,
-                                point=play.point,
-                                novig_price=play.novig_price,
-                                novig_reverse_name=play.novig_reverse_name,
-                                novig_reverse_price=play.novig_reverse_price,
-                                book_price=play.book_price,
-                                ev_percent=play.ev_percent,
-                                hedge_ev_percent=play.hedge_ev_percent,
-                                is_arbitrage=play.is_arbitrage,
-                                arb_margin_percent=play.arb_margin_percent,
-                            )
+                    for normalized_market in expanded_markets:
+                        raw_plays_dto = self._collect_value_plays(
+                            events, normalized_market, payload.target_book, payload.compare_book
                         )
+
+                        filtered_plays = self._filter_future_events(
+                            [
+                                models.ValuePlay(
+                                    event_id=play.event_id,
+                                    matchup=play.matchup,
+                                    start_time=play.start_time,
+                                    outcome_name=play.outcome_name,
+                                    point=play.point,
+                                    market=getattr(play, "market", normalized_market),
+                                    novig_price=play.novig_price,
+                                    novig_reverse_name=play.novig_reverse_name,
+                                    novig_reverse_price=play.novig_reverse_price,
+                                    book_price=play.book_price,
+                                    ev_percent=play.ev_percent,
+                                    hedge_ev_percent=getattr(play, "hedge_ev_percent", None),
+                                    is_arbitrage=getattr(play, "is_arbitrage", False),
+                                    arb_margin_percent=getattr(play, "arb_margin_percent", None),
+                                )
+                                for play in raw_plays_dto
+                            ]
+                        )
+
+                        for play in filtered_plays:
+                            formatted_time = play.start_time
+                            if formatted_time and formatted_time.strip():
+                                try:
+                                    formatted_time = format_start_time_est(formatted_time)
+                                except Exception:
+                                    formatted_time = play.start_time or "—"
+                            else:
+                                formatted_time = "—"
+
+                            all_plays.append(
+                                models.BestValuePlay(
+                                    sport_key=sport_key,
+                                    market=getattr(play, "market", normalized_market),
+                                    event_id=play.event_id,
+                                    matchup=play.matchup,
+                                    start_time=formatted_time,
+                                    outcome_name=play.outcome_name,
+                                    point=play.point,
+                                    novig_price=play.novig_price,
+                                    novig_reverse_name=play.novig_reverse_name,
+                                    novig_reverse_price=play.novig_reverse_price,
+                                    book_price=play.book_price,
+                                    ev_percent=play.ev_percent,
+                                    hedge_ev_percent=play.hedge_ev_percent,
+                                    is_arbitrage=play.is_arbitrage,
+                                    arb_margin_percent=play.arb_margin_percent,
+                                )
+                            )
                 except Exception:
                     logger.exception("Error processing %s/%s", sport_key, market_key)
                     continue
@@ -167,6 +173,19 @@ class ValuePlayService:
             plays=top_plays,
             used_dummy_data=use_dummy_data,
         )
+
+    @staticmethod
+    def _expand_market_keys_for_sport(sport_key: str, market_key: str) -> List[str]:
+        """Normalize a market key and expand player-prop aliases for a sport."""
+
+        if not market_key:
+            return []
+
+        if is_player_prop_market(market_key):
+            return expand_player_prop_markets(sport_key, [market_key])
+
+        trimmed = market_key.strip()
+        return [trimmed] if trimmed else []
 
     @staticmethod
     def _sort_by_hedge(plays: Iterable[Any]) -> List[Any]:

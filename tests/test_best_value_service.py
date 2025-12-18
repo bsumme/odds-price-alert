@@ -1,0 +1,58 @@
+from datetime import datetime, timedelta, timezone
+
+from services.domain import models
+from services.player_props_config import PLAYER_PROP_MARKETS_BY_SPORT
+from services.value_play_service import ValuePlayService
+
+
+def test_best_value_expands_all_player_props_once():
+    future_start = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat().replace("+00:00", "Z")
+    expected_markets = PLAYER_PROP_MARKETS_BY_SPORT["americanfootball_nfl"]
+
+    class RecordingRepository:
+        def __init__(self):
+            self.calls = []
+
+        def get_odds_events(self, **kwargs):
+            self.calls.append(kwargs)
+            return [{"id": "event-1"}]
+
+    def noop_validator(events, allow_dummy):
+        return None
+
+    def stub_collect(events, market_key, target_book, compare_book):
+        return [
+            models.ValuePlay(
+                event_id=f"{market_key}-id",
+                matchup="Team A vs Team B",
+                start_time=future_start,
+                outcome_name="Player",
+                point=None,
+                market=market_key,
+                novig_price=100,
+                novig_reverse_name="Opposite",
+                novig_reverse_price=-110,
+                book_price=-105,
+                ev_percent=1.2,
+                hedge_ev_percent=None,
+                is_arbitrage=False,
+                arb_margin_percent=1.5,
+            )
+        ]
+
+    repository = RecordingRepository()
+    service = ValuePlayService(repository, noop_validator, stub_collect)
+    query = models.BestValuePlaysQuery(
+        sport_keys=["americanfootball_nfl"],
+        markets=["all_player_props"],
+        target_book="fanduel",
+        compare_book="novig",
+        max_results=None,
+    )
+
+    result = service.get_best_value_plays(query, api_key="dummy", use_dummy_data=False)
+
+    assert repository.calls[0]["markets"] == expected_markets
+    assert len(result.plays) == len(expected_markets)
+    assert {play.market for play in result.plays} == set(expected_markets)
+    assert all(play.sport_key == "americanfootball_nfl" for play in result.plays)

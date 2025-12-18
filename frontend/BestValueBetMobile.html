@@ -412,6 +412,11 @@
             }
         });
 
+        // Automatically reload the page every minute to keep results fresh and queries uniform.
+        setInterval(() => {
+            window.location.reload();
+        }, 60_000);
+
         fetchBestBets();
     </script>
     <script src="/nav-trim.js" defer></script>
