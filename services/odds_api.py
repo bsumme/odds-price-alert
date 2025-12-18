@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,8 @@ BASE_URL = "https://api.the-odds-api.com/v4"
 
 logger = logging.getLogger("uvicorn.error")
 TRACE_LEVEL = get_trace_level_from_env()
+EVENT_ODDS_CONCURRENCY_LIMIT = 5
+RATE_LIMIT_MAX_ATTEMPTS = 3
 
 
 class ApiCreditTracker:
@@ -362,6 +365,21 @@ def _parse_invalid_markets(error_text: str) -> List[str]:
     return [m.strip() for m in markets_raw.split(",") if m.strip()]
 
 
+def _parse_retry_after(retry_after_header: Optional[str], default_delay: float = 1.0) -> float:
+    """Convert Retry-After header values to a sleep duration in seconds."""
+
+    if retry_after_header is None:
+        return default_delay
+
+    try:
+        parsed = float(retry_after_header)
+        if parsed < 0:
+            return default_delay
+        return parsed
+    except (TypeError, ValueError):
+        return default_delay
+
+
 @cached_odds(ttl=10)
 def fetch_player_props(
     api_key: str,
@@ -447,6 +465,64 @@ def fetch_player_props(
 
     requested_markets: List[str] = [m.strip() for m in markets.split(",") if m.strip()]
 
+    def _get_cached_player_props_result() -> Optional[List[Dict[str, Any]]]:
+        """Return any cached player props result for the current arguments."""
+
+        try:
+            from services import odds_cache as odds_cache_module
+        except Exception:
+            return None
+
+        cache_kwargs = {
+            "api_key": api_key,
+            "sport_key": sport_key,
+            "regions": regions,
+            "markets": markets,
+            "bookmaker_keys": bookmaker_keys,
+            "team": team,
+            "player_name": player_name,
+            "event_id": event_id,
+            "use_dummy_data": use_dummy_data,
+            "dummy_data_generator": dummy_data_generator,
+            "credit_tracker": credit_tracker,
+        }
+
+        cache_args = (
+            api_key,
+            sport_key,
+            regions,
+            markets,
+            bookmaker_keys,
+            team,
+            player_name,
+            event_id,
+            use_dummy_data,
+            dummy_data_generator,
+            credit_tracker,
+        )
+
+        now = time.monotonic()
+        for key in (
+            odds_cache_module._build_cache_key("fetch_player_props", tuple(), cache_kwargs),
+            odds_cache_module._build_cache_key("fetch_player_props", cache_args, {}),
+        ):
+            cached_entry = odds_cache_module._CACHE.get(key)
+            if not cached_entry:
+                continue
+
+            expires_at, value = cached_entry
+            if value is None:
+                continue
+
+            if now > expires_at:
+                logger.warning(
+                    "Using expired cached player props after rate limit exhaustion for sport=%s",
+                    sport_key,
+                )
+            return value
+
+        return None
+
     odds_params = {
         "apiKey": api_key,
         "regions": regions,
@@ -516,7 +592,7 @@ def fetch_player_props(
 
         event_url = f"{BASE_URL}/sports/{sport_key}/events/{event_identifier}/odds"
 
-        async def _call_with_markets(markets_to_use: List[str]) -> Any:
+        async def _call_with_markets(markets_to_use: List[str], rate_limit_attempt: int = 0) -> Any:
             event_params = odds_params.copy()
             event_params["markets"] = ",".join(markets_to_use)
 
@@ -540,7 +616,7 @@ def fetch_player_props(
                     if invalid_markets:
                         remaining = [m for m in markets_to_use if m not in invalid_markets]
                         logger.warning(
-                            "Retrying player props for event %s without invalid markets: %s",
+                            "Invalid markets for event %s; retrying without: %s",
                             event_identifier,
                             ",".join(sorted(invalid_markets)),
                         )
@@ -555,7 +631,42 @@ def fetch_player_props(
                         return await _call_with_markets(remaining)
 
                     if "Invalid markets" in body:
+                        logger.warning(
+                            "Invalid markets response without details for event %s; using fallback",
+                            event_identifier,
+                        )
                         raise _PlayerPropsFallbackRequired(event_params["markets"])
+
+                if resp.status == 429:
+                    retry_after_header = resp.headers.get("Retry-After")
+                    backoff_seconds = _parse_retry_after(retry_after_header)
+                    attempt_number = rate_limit_attempt + 1
+                    if attempt_number < RATE_LIMIT_MAX_ATTEMPTS:
+                        logger.warning(
+                            "Rate limited fetching player props for event %s (attempt %s/%s); retrying in %.2fs",
+                            event_identifier,
+                            attempt_number,
+                            RATE_LIMIT_MAX_ATTEMPTS,
+                            backoff_seconds,
+                        )
+                        await asyncio.sleep(backoff_seconds)
+                        return await _call_with_markets(markets_to_use, rate_limit_attempt + 1)
+
+                    logger.error(
+                        "Rate limit persisted for event %s after %s attempts; switching to fallback",
+                        event_identifier,
+                        RATE_LIMIT_MAX_ATTEMPTS,
+                    )
+
+                    cached_props = _get_cached_player_props_result()
+                    if cached_props is not None:
+                        logger.info(
+                            "Returning cached player props after rate limit exhaustion for event %s",
+                            event_identifier,
+                        )
+                        return cached_props
+
+                    raise _PlayerPropsFallbackRequired(event_params["markets"])
 
                 logger.info(
                     "Event odds API response for player props (event_id=%s): status=%s body=%s",
@@ -605,7 +716,13 @@ def fetch_player_props(
                 return _AsyncRequestsSession(timeout=timeout_seconds)
 
         async with session_factory() as session:
-            tasks = [_fetch_event_player_props(session, event) for event in events]
+            semaphore = asyncio.Semaphore(EVENT_ODDS_CONCURRENCY_LIMIT)
+
+            async def _bounded_fetch(event: Dict[str, Any]) -> Any:
+                async with semaphore:
+                    return await _fetch_event_player_props(session, event)
+
+            tasks = [_bounded_fetch(event) for event in events]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
         collected: List[Dict[str, Any]] = []
@@ -648,9 +765,3 @@ def fetch_player_props(
     )
 
     return collected_events
-
-
-
-
-
-
