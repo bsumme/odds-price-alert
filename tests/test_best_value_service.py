@@ -100,7 +100,9 @@ def test_best_value_filters_out_unsupported_nhl_player_props():
     result = service.get_best_value_plays(query, use_dummy_data=False)
 
     assert calls[0]["markets"] == expected_markets
+    assert "player_total_saves" in calls[0]["markets"]
     assert "player_saves" not in calls[0]["markets"]
     assert len(result.plays) == len(expected_markets)
+    assert "player_total_saves" in {play.market for play in result.plays}
     assert "player_saves" not in {play.market for play in result.plays}
     assert {play.market for play in result.plays} == set(expected_markets)

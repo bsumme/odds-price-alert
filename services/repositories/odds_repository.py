@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 
 from services.api_gateway import ApiGateway
 from services.odds_api import fetch_odds, fetch_player_props, fetch_sport_events
+from services.player_props_config import is_player_prop_market
 from utils.regions import compute_regions_for_books
 
 
@@ -73,7 +74,7 @@ class OddsRepository:
 
         normalized_markets = self._normalize_markets(markets)
         is_player_request = force_player_props or any(
-            market.startswith("player_") for market in normalized_markets
+            is_player_prop_market(market) for market in normalized_markets
         )
         regions = self.compute_regions(bookmaker_keys)
         cache_key = self._build_cache_key(
