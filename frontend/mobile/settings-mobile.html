@@ -37,6 +37,26 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
         }
 
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: #cbd5e1;
+            text-decoration: none;
+            font-weight: 700;
+            padding: 0.35rem 0.6rem;
+            border-radius: 999px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            margin-bottom: 0.5rem;
+        }
+
+        .back-link:hover,
+        .back-link:focus-visible {
+            background: #111f32;
+            outline: none;
+        }
+
         header h1 {
             margin: 0;
             font-size: 1.1rem;
@@ -197,6 +217,7 @@
 
 <body>
     <header>
+        <a class="back-link" href="/ArbritrageBetFinder-mobile.html">← Arb Finder</a>
         <h1>⚙️ Mobile Settings</h1>
         <p class="subtitle">Quick links for your mobile experience.</p>
     </header>
