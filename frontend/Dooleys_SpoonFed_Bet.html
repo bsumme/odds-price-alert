@@ -190,7 +190,7 @@
             return plays[0];
         }
 
-        async function requestTopBet() {
+        async function requestTopBetForBook(targetBook) {
             const payload = {
                 sport_keys: [
                     "americanfootball_nfl",
@@ -199,7 +199,7 @@
                     "icehockey_nhl",
                 ],
                 markets: ["h2h", "spreads", "totals", "player_points"],
-                target_book: "draftkings",
+                target_book: targetBook,
                 compare_book: "novig",
                 max_results: 25,
             };
@@ -219,10 +219,17 @@
                     details = await response.text();
                 }
 
-                throw new Error(details || `Request failed with status ${response.status}`);
+                const prefix = targetBook ? `[${formatBookName(targetBook)}] ` : "";
+                throw new Error(
+                    prefix + (details || `Request failed with status ${response.status}`)
+                );
             }
 
-            return response.json();
+            const data = await response.json();
+            return {
+                targetBook,
+                plays: data?.plays ?? [],
+            };
         }
 
         async function loadTopBet() {
@@ -231,18 +238,38 @@
             betBox.textContent = "";
 
             try {
-                const data = await requestTopBet();
-                const plays = data?.plays ?? [];
-                const topPlay = selectTopArbitragePlay(plays);
+                const targetBooks = ["draftkings", "fanduel"];
+                const results = await Promise.all(
+                    targetBooks.map(async (book) => {
+                        try {
+                            return await requestTopBetForBook(book);
+                        } catch (error) {
+                            console.error(error);
+                            return { targetBook: book, plays: [], error };
+                        }
+                    })
+                );
+
+                const combinedPlays = results.flatMap(({ targetBook, plays }) =>
+                    plays.map((play) => ({ ...play, targetBook }))
+                );
+
+                const topPlay = selectTopArbitragePlay(combinedPlays);
 
                 if (!topPlay) {
-                    statusEl.textContent = "No bets available right now.";
-                    betBox.textContent = "Check back soon for a spoon-fed play.";
+                    const hadErrors = results.some((result) => result.error);
+                    statusEl.textContent = hadErrors
+                        ? "Could not load the best bet right now."
+                        : "No bets available right now.";
+                    betBox.textContent = hadErrors
+                        ? "Check back soon once the books respond."
+                        : "Check back soon for a spoon-fed play.";
+                    statusEl.classList.toggle("error", hadErrors);
                     return;
                 }
 
                 renderBetDisplay(
-                    buildBetLabel(topPlay, data?.target_book || "draftkings"),
+                    buildBetLabel(topPlay, topPlay.targetBook || "draftkings"),
                     topPlay.arb_margin_percent
                 );
                 statusEl.textContent = "Here’s your top arbitrage-ready value bet:";
