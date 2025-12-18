@@ -1,10 +1,9 @@
 (() => {
     const mobileMainPage = "/ArbritrageBetFinder-mobile.html";
+    const mobileFolderPrefix = "/mobile";
     const hiddenNavTargets = ["/watcher.html", "/linetracker.html", "/value.html"];
     const mobileAllowedPages = [
         mobileMainPage,
-        "/BensSportsBookApp.html",
-        "/BestValueBetMobile.html",
         "/sgp-builder.html",
         "/settings.html",
         "/settings",
@@ -64,14 +63,22 @@
 
     const normalizeMobilePath = (pathname = "") => normalizePathname(pathname === "/" ? mobileMainPage : pathname);
 
+    const normalizedMobileFolder = normalizePathname(mobileFolderPrefix);
+    const normalizedMobileMainPage = normalizePathname(mobileMainPage);
     const allowedMobilePaths = new Set(mobileAllowedPages.map((page) => normalizePathname(page)));
+
+    const isMobileFolderPath = (normalizedPath = "") =>
+        normalizedPath === normalizedMobileFolder || normalizedPath.startsWith(`${normalizedMobileFolder}/`);
 
     const enforceMobileMainPage = () => {
         if (!isMobileDevice()) return true;
 
         const rawPathname = window.location.pathname || "";
         const normalizedPath = normalizeMobilePath(rawPathname);
-        const onAllowedPage = normalizedPath === normalizePathname(mobileMainPage) || allowedMobilePaths.has(normalizedPath);
+        const onAllowedPage =
+            normalizedPath === normalizedMobileMainPage ||
+            allowedMobilePaths.has(normalizedPath) ||
+            isMobileFolderPath(normalizedPath);
 
         debugLog("pathname", rawPathname, "normalized", normalizedPath, "onAllowedPage", onAllowedPage);
 
@@ -106,7 +113,9 @@
             allowedMobilePaths,
             enforceMobileMainPage,
             initialize,
+            isMobileFolderPath,
             isMobileDevice,
+            mobileFolderPrefix,
             mobileAllowedPages,
             mobileMainPage,
             normalizeMobilePath,
