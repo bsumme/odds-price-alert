@@ -6,13 +6,15 @@
 # 4. Check environment setup
 # 5. Start the FastAPI server
 #
-# Usage: .\rebuild_and_run.ps1 [-d|-t] [-f "<file_path>"] [-Mobile] [-DummyData]
+# Usage: .\rebuild_and_run.ps1 [-d|-t|-HumanLogs] [-f "<file_path>"] [-Mobile] [-DummyData] [-FullBuild]
 #   -d           : Run the app in debug trace level
 #   -t           : Run the app in trace level
+#   -HumanLogs   : Enable human-readable logging for this run
 #   -f           : Log script output to the specified file path
 #   -Mobile      : Bind the server to 0.0.0.0 and print the LAN URL for mobile
 #                  testing (replaces start_server_for_mobile_test.ps1)
 #   -DummyData   : Serve mock odds instead of live API responses (startup only)
+#   -FullBuild   : Recreate the virtual environment and reinstall dependencies
 #   default (no flag): Run in regular mode
 # Example with logging to a full path:
 #   .\rebuild_and_run.ps1 -d -f "C:\logs\rebuild_and_run.log"
@@ -20,18 +22,28 @@
 param(
     [switch]$d,
     [switch]$t,
+    [switch]$HumanLogs,
     [string]$f,
     [switch]$Mobile,
-    [switch]$DummyData
+    [switch]$DummyData,
+    [switch]$FullBuild
 )
 
-if ($d -and $t) {
-    Write-Host "[ERROR] Specify only one trace flag: -d for debug or -t for trace" -ForegroundColor Red
+$traceSelections = @()
+if ($d) { $traceSelections += "-d (debug)" }
+if ($t) { $traceSelections += "-t (trace)" }
+if ($HumanLogs) { $traceSelections += "-HumanLogs (human-readable logs)" }
+
+if ($traceSelections.Count -gt 1) {
+    $joinedSelections = $traceSelections -join ", "
+    Write-Host "[ERROR] Specify only one trace flag (-d, -t, or -HumanLogs). Detected: $joinedSelections" -ForegroundColor Red
     exit 1
 }
 
 $traceLevel = "regular"
-if ($d) {
+if ($HumanLogs) {
+    $traceLevel = "human"
+} elseif ($d) {
     $traceLevel = "debug"
 } elseif ($t) {
     $traceLevel = "trace"
@@ -45,6 +57,10 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Rebuilding and Starting Bet Watcher" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
+
+if ($FullBuild) {
+    Write-Host "[INFO] Full build requested: the virtual environment will be recreated and dependencies reinstalled." -ForegroundColor Yellow
+}
 
 if ($DummyData) {
     $env:DUMMY_DATA = "true"
@@ -79,6 +95,17 @@ if ($f) {
 
 # Step 1: Ensure a virtual environment exists
 Write-Host "[1/5] Ensuring virtual environment exists..." -ForegroundColor Yellow
+if ($FullBuild -and (Test-Path ".venv")) {
+    Write-Host "  [INFO] Removing existing virtual environment for a clean rebuild..." -ForegroundColor Yellow
+    try {
+        Remove-Item -Recurse -Force ".venv"
+        Write-Host "  [OK] Existing virtual environment removed" -ForegroundColor Green
+    } catch {
+        Write-Host "  [ERROR] Failed to remove virtual environment. $_" -ForegroundColor Red
+        exit 1
+    }
+}
+
 if (-not (Test-Path ".venv")) {
     Write-Host "  No .venv detected; creating one..." -ForegroundColor Yellow
     Start-Sleep -Seconds 1
@@ -140,7 +167,21 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 Write-Host "  [OK] Virtual environment activated" -ForegroundColor Green
-Write-Host "  [INFO] Skipping dependency installation for faster reloads. Ensure .venv already has required packages." -ForegroundColor Yellow
+if ($FullBuild) {
+    if (Test-Path "requirements.txt") {
+        Write-Host "  [FullBuild] Installing dependencies from requirements.txt (fresh reinstall)..." -ForegroundColor Yellow
+        pip install --upgrade --force-reinstall --no-cache-dir -r requirements.txt
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  [ERROR] Dependency installation failed during FullBuild." -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "  [OK] Dependencies reinstalled" -ForegroundColor Green
+    } else {
+        Write-Host "  [WARNING] requirements.txt not found; skipping dependency installation." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  [INFO] Skipping dependency installation for faster reloads. Use -FullBuild to reinstall dependencies." -ForegroundColor Yellow
+}
 
 # Step 4: Check for API key
 Write-Host ""
@@ -178,7 +219,11 @@ if ($Mobile) {
     }
 }
 
-Write-Host "TRACE_LEVEL set to $traceLevel" -ForegroundColor Cyan
+if ($traceLevel -eq "human") {
+    Write-Host "TRACE_LEVEL set to human (human-readable logging enabled for this run)" -ForegroundColor Cyan
+} else {
+    Write-Host "TRACE_LEVEL set to $traceLevel" -ForegroundColor Cyan
+}
 if ($dummyDataEnabled) {
     Write-Host "Dummy data mode: ENABLED (restart without -DummyData to disable)" -ForegroundColor Yellow
 } else {
