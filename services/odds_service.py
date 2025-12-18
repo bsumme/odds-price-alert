@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from services.domain import models
-from services.odds_utils import american_to_decimal, MAX_VALID_AMERICAN_ODDS
+from services.odds_utils import american_to_decimal, sanitize_american_price
 from utils.formatting import pretty_book_label
 
 
@@ -70,7 +70,7 @@ class OddsService:
 
                         for outcome in book_market.get("outcomes", []):
                             name = outcome.get("name")
-                            price = outcome.get("price")
+                            price = sanitize_american_price(outcome.get("price"))
                             point = outcome.get("point", None)
 
                             if name != bet.team:
@@ -83,8 +83,6 @@ class OddsService:
                                     continue
 
                             if price is None:
-                                continue
-                            if abs(price) >= MAX_VALID_AMERICAN_ODDS:
                                 continue
 
                             price_for_team = price

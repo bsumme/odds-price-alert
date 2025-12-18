@@ -1,6 +1,24 @@
 """Odds conversion and calculation utilities."""
 
+from typing import Optional
+
 MAX_VALID_AMERICAN_ODDS = 10000
+
+
+def sanitize_american_price(price: Optional[int]) -> Optional[int]:
+    """Return a price when it is within realistic bounds, else None.
+
+    Extremely large absolute values (e.g., -100000) are treated as invalid odds
+    and converted to ``None`` so downstream consumers ignore them.
+    """
+
+    if price is None:
+        return None
+
+    if abs(price) >= MAX_VALID_AMERICAN_ODDS:
+        return None
+
+    return price
 
 
 def american_to_decimal(odds: int) -> float:
@@ -152,7 +170,6 @@ def apply_vig_adjustment(odds: int, bookmaker_key: str) -> int:
                 else:
                     closest = odds - 10
         return closest
-
 
 
 
