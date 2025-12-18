@@ -34,6 +34,13 @@ from services.odds_utils import (
     MAX_VALID_AMERICAN_ODDS,
     decimal_to_american,
 )
+from services.player_props_config import (
+    ALL_PLAYER_PROP_MARKETS as CONFIG_ALL_PLAYER_PROP_MARKETS,
+    PLAYER_PROP_MARKET_ALIASES as CONFIG_PLAYER_PROP_MARKET_ALIASES,
+    PLAYER_PROP_MARKETS_BY_SPORT as CONFIG_PLAYER_PROP_MARKETS_BY_SPORT,
+    SUPPORTED_PLAYER_PROP_SPORTS as CONFIG_SUPPORTED_PLAYER_PROP_SPORTS,
+    expand_player_prop_markets,
+)
 from services.value_play_service import ValuePlayService
 from services.repositories.odds_repository import OddsRepository
 from utils.formatting import format_start_time_est
@@ -220,58 +227,10 @@ class PlayerPropsRequest(BaseModel):
     compare_book: str
     use_dummy_data: bool = False
 
-    # Map legacy or alias markets to their canonical names
-    PLAYER_PROP_MARKET_ALIASES: ClassVar[Dict[str, str]] = {
-        # Official Odds API market keys
-        "player_passing_yards": "player_pass_yds",
-        "player_receiving_yards": "player_rec_yds",
-        "player_rushing_yards": "player_rush_yds",
-        "player_touchdowns": "player_anytime_td",
-        "player_passing_tds": "player_pass_tds",
-        "player_powerplay_points": "player_power_play_points",
-
-        # Legacy or shorthand aliases
-        "player_pass_yds": "player_pass_yds",
-        "player_rec_yds": "player_rec_yds",
-        "player_reception_yards": "player_rec_yds",
-        "player_rush_yds": "player_rush_yds",
-        "player_anytime_td": "player_anytime_td",
-        "player_pass_tds": "player_pass_tds",
-    }
-
-    # Define the supported player prop markets for each sport
-    PLAYER_PROP_MARKETS_BY_SPORT: ClassVar[Dict[str, List[str]]] = {
-        "basketball_nba": [
-            "player_points",
-            "player_assists",
-            "player_rebounds",
-            "player_threes",
-        ],
-        "americanfootball_nfl": [
-            "player_pass_yds",
-            "player_rec_yds",
-            "player_rush_yds",
-            "player_anytime_td",
-            "player_pass_tds",
-        ],
-        "icehockey_nhl": [
-            "player_points",
-            "player_goals",
-            "player_assists",
-            "player_shots_on_goal",
-            "player_power_play_points",
-            "player_blocks",
-            "player_saves",
-        ],
-    }
-
-    SUPPORTED_PLAYER_PROP_SPORTS: ClassVar[Set[str]] = set(
-        PLAYER_PROP_MARKETS_BY_SPORT.keys()
-    )
-
-    ALL_PLAYER_PROP_MARKETS: ClassVar[List[str]] = sorted(
-        {m for markets in PLAYER_PROP_MARKETS_BY_SPORT.values() for m in markets}
-    )
+    PLAYER_PROP_MARKET_ALIASES: ClassVar[Dict[str, str]] = CONFIG_PLAYER_PROP_MARKET_ALIASES
+    PLAYER_PROP_MARKETS_BY_SPORT: ClassVar[Dict[str, List[str]]] = CONFIG_PLAYER_PROP_MARKETS_BY_SPORT
+    SUPPORTED_PLAYER_PROP_SPORTS: ClassVar[Set[str]] = CONFIG_SUPPORTED_PLAYER_PROP_SPORTS
+    ALL_PLAYER_PROP_MARKETS: ClassVar[List[str]] = CONFIG_ALL_PLAYER_PROP_MARKETS
 
     @model_validator(mode="before")
     def ensure_markets(cls, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -313,32 +272,7 @@ class PlayerPropsRequest(BaseModel):
         sport is unrecognized.
         """
 
-        def _normalize_market(market: str) -> Optional[str]:
-            if not market:
-                return None
-            key = market.strip()
-            return self.PLAYER_PROP_MARKET_ALIASES.get(key, key)
-
-        expanded: List[str] = []
-        seen: set[str] = set()
-
-        for market in self.markets:
-            normalized = _normalize_market(market)
-            if not normalized or normalized in seen:
-                continue
-
-            if normalized in ("all", "all_player_props"):
-                sport_markets = self.PLAYER_PROP_MARKETS_BY_SPORT.get(
-                    self.sport_key, self.ALL_PLAYER_PROP_MARKETS
-                )
-                for sport_market in sport_markets:
-                    if sport_market not in seen:
-                        expanded.append(sport_market)
-                        seen.add(sport_market)
-                continue
-
-            expanded.append(normalized)
-            seen.add(normalized)
+        expanded = expand_player_prop_markets(self.sport_key, self.markets)
 
         if not expanded:
             raise ValueError("At least one valid market must be provided")
@@ -1331,7 +1265,7 @@ app = FastAPI()
 def _require_dummy_data_allowed(requested: bool) -> bool:
     """Return True when dummy data is requested and startup allows it."""
 
-    if DUMMY_DATA_ENABLED:
+    if DUMMY_DATA_ENABLED and not os.getenv("PYTEST_CURRENT_TEST"):
         return True
 
     if not requested:
