@@ -119,6 +119,12 @@
             return price > 0 ? `+${price}` : `${price}`;
         }
 
+        function formatPoint(point) {
+            const numeric = Number(point);
+            if (!Number.isFinite(numeric)) return "";
+            return numeric.toString();
+        }
+
         function buildBetLabel(play, targetBook) {
             const pieces = [];
             if (play.matchup) {
@@ -127,8 +133,15 @@
             if (play.outcome_name) {
                 pieces.push(play.outcome_name);
             }
-            if (play.point !== null && play.point !== undefined) {
-                pieces.push(play.point);
+
+            const pointLabel = formatPoint(play.point);
+            const outcomeHasPoint =
+                pointLabel &&
+                typeof play.outcome_name === "string" &&
+                play.outcome_name.includes(pointLabel);
+
+            if (pointLabel && !outcomeHasPoint) {
+                pieces.push(pointLabel);
             }
 
             const betName = pieces.join(" ").trim();
