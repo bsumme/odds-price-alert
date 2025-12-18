@@ -43,7 +43,6 @@ PLAYER_PROP_MARKETS_BY_SPORT: Dict[str, List[str]] = {
         "player_shots_on_goal",
         "player_power_play_points",
         "player_blocks",
-        "player_saves",
     ],
 }
 
