@@ -269,16 +269,20 @@
         const betList = document.getElementById("bet-list");
         const updatedAt = document.getElementById("updated-at");
         const refreshBtn = document.getElementById("refresh-btn");
+        let initialLoadComplete = false;
         let refreshCoolingDown = false;
         let refreshCooldownTimer = null;
         let refreshInFlight = false;
 
         function applyRefreshButtonState() {
             if (!refreshBtn) return;
-            refreshBtn.disabled = refreshCoolingDown || refreshInFlight;
+            const shouldDisable = !initialLoadComplete || refreshCoolingDown || refreshInFlight;
+            refreshBtn.disabled = shouldDisable;
             refreshBtn.title = refreshCoolingDown
                 ? "Please wait before running another full search."
-                : "";
+                : shouldDisable
+                    ? "Scanning for best bets..."
+                    : "";
         }
 
         function startRefreshCooldown() {
@@ -494,6 +498,7 @@
                 betList.innerHTML = "<div class=\"empty\">Could not load bets right now.</div>";
             } finally {
                 refreshInFlight = false;
+                initialLoadComplete = true;
                 startRefreshCooldown();
             }
         }
