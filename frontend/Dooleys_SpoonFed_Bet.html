@@ -53,7 +53,41 @@
             min-height: 3.25rem;
             display: flex;
             align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
             color: #e2e8f0;
+        }
+
+        .bet-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+            flex-wrap: wrap;
+        }
+
+        .bet-details {
+            flex: 1;
+            min-width: 240px;
+        }
+
+        .badge {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 0.15rem 0.6rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-positive {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .badge-negative {
+            background: #7f1d1d;
+            color: #fecaca;
         }
 
         .error {
@@ -103,6 +137,30 @@
 
             if (!betName && !price) return "No bet details available";
             return `${betName} ${price} @${book}`.trim();
+        }
+
+        function renderBetDisplay(betLabel, arbMarginPercent) {
+            betBox.innerHTML = "";
+
+            const info = document.createElement("div");
+            info.className = "bet-info";
+
+            const label = document.createElement("div");
+            label.className = "bet-details";
+            label.textContent = betLabel;
+            info.appendChild(label);
+
+            if (typeof arbMarginPercent === "number" && !Number.isNaN(arbMarginPercent)) {
+                const rounded = Math.round(arbMarginPercent * 100) / 100;
+                const badge = document.createElement("span");
+                badge.className = rounded >= 0 ? "badge badge-positive" : "badge badge-negative";
+                badge.textContent = `${rounded}%`;
+                badge.title = "Arbitrage margin";
+                badge.setAttribute("aria-label", `Arbitrage margin ${rounded} percent`);
+                info.appendChild(badge);
+            }
+
+            betBox.appendChild(info);
         }
 
         function selectTopArbitragePlay(plays) {
@@ -188,7 +246,10 @@
                     return;
                 }
 
-                betBox.textContent = buildBetLabel(topPlay, data?.target_book || "draftkings");
+                renderBetDisplay(
+                    buildBetLabel(topPlay, data?.target_book || "draftkings"),
+                    topPlay.arb_margin_percent
+                );
                 statusEl.textContent = "Here’s your top arbitrage-ready value bet:";
             } catch (error) {
                 console.error(error);
