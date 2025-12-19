@@ -36,6 +36,7 @@ class OddsService:
                 markets=",".join(markets),
                 bookmaker_keys=bookmaker_keys,
                 category="odds",
+                use_dummy_data=use_dummy_data,
                 snapshot=snapshot,
             )
 

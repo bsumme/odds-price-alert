@@ -138,6 +138,10 @@ The backend now captures Odds API payloads into an in-memory snapshot so every A
 - **Results store**: Derived analyses (odds, value plays, player props, featured games, etc.) are cached in `services/results_store.py` so repeated requests reuse work as long as the snapshot timestamp is unchanged.
 - **Runtime behavior**: During startup the app loads an initial snapshot; if live fetches fail it falls back to dummy data when available. Requests will use the newest snapshot; if none exists the server attempts to build one on demand.
 
+### On-demand fetch mode (disable snapshots)
+
+If you want the app to behave like pre-snapshot versions and fetch data live on each request, set `ON_DEMAND_FETCH=true` in the environment before starting the server. This skips the snapshot scheduler entirely and routes API calls through the repository for fresh odds and props on every request. Snapshot-derived caches are bypassed in this mode, and `/api/credits` will report that live on-demand fetching is active.
+
 ### Basic testing checklist
 
 Run the automated suite and linting before sending changes:
