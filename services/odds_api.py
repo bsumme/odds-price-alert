@@ -5,9 +5,10 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import requests
 from fastapi import HTTPException
@@ -978,7 +979,32 @@ def fetch_player_props(
 
         return collected
 
-    collected_events = asyncio.run(_gather_events())
+    def _run_coroutine_in_thread(
+        async_fn: Callable[[], Awaitable[List[Dict[str, Any]]]]
+    ) -> List[Dict[str, Any]]:
+        result: Dict[str, Any] = {}
+
+        def _runner() -> None:
+            try:
+                result["value"] = asyncio.run(async_fn())
+            except BaseException as exc:  # pragma: no cover - passthrough for caller handling
+                result["exception"] = exc
+
+        thread = threading.Thread(target=_runner, name="player-props-fetch")
+        thread.start()
+        thread.join()
+
+        if "exception" in result:
+            raise result["exception"]
+
+        return result.get("value", [])
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        collected_events = asyncio.run(_gather_events())
+    else:
+        collected_events = _run_coroutine_in_thread(_gather_events)
 
     logger.info(
         "Player props API returned %d events for sport=%s market=%s",
