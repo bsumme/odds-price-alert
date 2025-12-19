@@ -1,0 +1,929 @@
+{
+    "snapshot_id": "dummy_snapshot_2024_mega",
+    "generated_at": "2025-12-01T15:30:00+00:00",
+    "source": "dummy",
+    "sports": [
+        {
+            "sport_key": "basketball_nba",
+            "sport_title": "NBA",
+            "events": [
+                {
+                    "event_id": "nba_dummy_lal_bos_2024_1201",
+                    "commence_time": "2025-12-02T00:30:00+00:00",
+                    "home_team": "Boston Celtics",
+                    "away_team": "Los Angeles Lakers",
+                    "status": "scheduled",
+                    "markets": [
+                        {
+                            "market_key": "h2h",
+                            "market_type": "team",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Boston Celtics",
+                                            "price": -110,
+                                            "point": null,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Los Angeles Lakers",
+                                            "price": -105,
+                                            "point": null,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "draftkings",
+                                    "book_title": "DraftKings",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Boston Celtics",
+                                            "price": -108,
+                                            "point": null,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Los Angeles Lakers",
+                                            "price": 100,
+                                            "point": null,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "spreads",
+                            "market_type": "team",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Boston Celtics",
+                                            "price": -102,
+                                            "point": -3.5,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Los Angeles Lakers",
+                                            "price": -102,
+                                            "point": 3.5,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "fanduel",
+                                    "book_title": "FanDuel",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Boston Celtics",
+                                            "price": -105,
+                                            "point": -3.5,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Los Angeles Lakers",
+                                            "price": -115,
+                                            "point": 3.5,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "totals",
+                            "market_type": "total",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -112,
+                                            "point": 227.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -108,
+                                            "point": 227.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "fliff",
+                                    "book_title": "Fliff",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -105,
+                                            "point": 228.0,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -115,
+                                            "point": 228.0,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "player_points",
+                            "market_type": "player",
+                            "period": "full_game",
+                            "player": "LeBron James",
+                            "books": [
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -104,
+                                            "point": 27.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -104,
+                                            "point": 27.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "draftkings",
+                                    "book_title": "DraftKings",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -110,
+                                            "point": 28.0,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -110,
+                                            "point": 28.0,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "id": "nba_dummy_lal_bos_2024_1201"
+                },
+                {
+                    "event_id": "nba_dummy_den_nyk_2024_1201",
+                    "commence_time": "2025-12-02T02:00:00+00:00",
+                    "home_team": "New York Knicks",
+                    "away_team": "Denver Nuggets",
+                    "status": "scheduled",
+                    "markets": [
+                        {
+                            "market_key": "h2h",
+                            "market_type": "team",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "New York Knicks",
+                                            "price": 130,
+                                            "point": null,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Denver Nuggets",
+                                            "price": -140,
+                                            "point": null,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "fanduel",
+                                    "book_title": "FanDuel",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "New York Knicks",
+                                            "price": 135,
+                                            "point": null,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Denver Nuggets",
+                                            "price": -150,
+                                            "point": null,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "totals",
+                            "market_type": "total",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "fliff",
+                                    "book_title": "Fliff",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -112,
+                                            "point": 215.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -102,
+                                            "point": 215.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "draftkings",
+                                    "book_title": "DraftKings",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -110,
+                                            "point": 214.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -110,
+                                            "point": 214.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "player_rebounds",
+                            "market_type": "player",
+                            "period": "full_game",
+                            "player": "Nikola Jokic",
+                            "books": [
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -118,
+                                            "point": 11.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -102,
+                                            "point": 11.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "fanduel",
+                                    "book_title": "FanDuel",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -120,
+                                            "point": 12.0,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -108,
+                                            "point": 12.0,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "id": "nba_dummy_den_nyk_2024_1201"
+                }
+            ]
+        },
+        {
+            "sport_key": "americanfootball_nfl",
+            "sport_title": "NFL",
+            "events": [
+                {
+                    "event_id": "nfl_dummy_kc_buf_2024_w13",
+                    "commence_time": "2025-12-08T18:00:00+00:00",
+                    "home_team": "Buffalo Bills",
+                    "away_team": "Kansas City Chiefs",
+                    "status": "scheduled",
+                    "markets": [
+                        {
+                            "market_key": "h2h",
+                            "market_type": "team",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "draftkings",
+                                    "book_title": "DraftKings",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Buffalo Bills",
+                                            "price": -115,
+                                            "point": null,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Kansas City Chiefs",
+                                            "price": -105,
+                                            "point": null,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "fliff",
+                                    "book_title": "Fliff",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Buffalo Bills",
+                                            "price": -120,
+                                            "point": null,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Kansas City Chiefs",
+                                            "price": 102,
+                                            "point": null,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "spreads",
+                            "market_type": "team",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Buffalo Bills",
+                                            "price": -102,
+                                            "point": -2.5,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Kansas City Chiefs",
+                                            "price": -102,
+                                            "point": 2.5,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "draftkings",
+                                    "book_title": "DraftKings",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Buffalo Bills",
+                                            "price": -110,
+                                            "point": -3.0,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Kansas City Chiefs",
+                                            "price": -110,
+                                            "point": 3.0,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "totals",
+                            "market_type": "total",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "fanduel",
+                                    "book_title": "FanDuel",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -110,
+                                            "point": 47.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -110,
+                                            "point": 47.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -104,
+                                            "point": 47.0,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -104,
+                                            "point": 47.0,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "player_pass_yds",
+                            "market_type": "player",
+                            "period": "full_game",
+                            "player": "Patrick Mahomes",
+                            "books": [
+                                {
+                                    "book_key": "draftkings",
+                                    "book_title": "DraftKings",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -115,
+                                            "point": 281.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -105,
+                                            "point": 281.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -108,
+                                            "point": 280.0,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -108,
+                                            "point": 280.0,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "player_rush_yds",
+                            "market_type": "player",
+                            "period": "full_game",
+                            "player": "Josh Allen",
+                            "books": [
+                                {
+                                    "book_key": "fliff",
+                                    "book_title": "Fliff",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -112,
+                                            "point": 36.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -102,
+                                            "point": 36.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -104,
+                                            "point": 35.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -104,
+                                            "point": 35.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "id": "nfl_dummy_kc_buf_2024_w13"
+                }
+            ]
+        },
+        {
+            "sport_key": "baseball_mlb",
+            "sport_title": "MLB",
+            "events": [
+                {
+                    "event_id": "mlb_dummy_nyy_bos_2024",
+                    "commence_time": "2026-07-12T23:05:00+00:00",
+                    "home_team": "Boston Red Sox",
+                    "away_team": "New York Yankees",
+                    "status": "scheduled",
+                    "markets": [
+                        {
+                            "market_key": "h2h",
+                            "market_type": "team",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Boston Red Sox",
+                                            "price": -108,
+                                            "point": null,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "New York Yankees",
+                                            "price": -108,
+                                            "point": null,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "fanduel",
+                                    "book_title": "FanDuel",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Boston Red Sox",
+                                            "price": -110,
+                                            "point": null,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "New York Yankees",
+                                            "price": -102,
+                                            "point": null,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "totals",
+                            "market_type": "total",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "draftkings",
+                                    "book_title": "DraftKings",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -110,
+                                            "point": 8.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -110,
+                                            "point": 8.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -102,
+                                            "point": 8.0,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -102,
+                                            "point": 8.0,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "spreads",
+                            "market_type": "team",
+                            "period": "full_game",
+                            "player": null,
+                            "books": [
+                                {
+                                    "book_key": "draftkings",
+                                    "book_title": "DraftKings",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Boston Red Sox",
+                                            "price": 150,
+                                            "point": -1.5,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "New York Yankees",
+                                            "price": -170,
+                                            "point": 1.5,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Boston Red Sox",
+                                            "price": 145,
+                                            "point": -1.5,
+                                            "side": "home",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "New York Yankees",
+                                            "price": -160,
+                                            "point": 1.5,
+                                            "side": "away",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "market_key": "pitcher_strikeouts",
+                            "market_type": "player",
+                            "period": "full_game",
+                            "player": "Gerrit Cole",
+                            "books": [
+                                {
+                                    "book_key": "fanduel",
+                                    "book_title": "FanDuel",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -122,
+                                            "point": 7.5,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": 104,
+                                            "point": 7.5,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                },
+                                {
+                                    "book_key": "novig",
+                                    "book_title": "Novig",
+                                    "region": "us",
+                                    "market_status": "open",
+                                    "is_live": false,
+                                    "outcomes": [
+                                        {
+                                            "name": "Over",
+                                            "price": -110,
+                                            "point": 7.0,
+                                            "side": "over",
+                                            "is_sentinel": false
+                                        },
+                                        {
+                                            "name": "Under",
+                                            "price": -110,
+                                            "point": 7.0,
+                                            "side": "under",
+                                            "is_sentinel": false
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "id": "mlb_dummy_nyy_bos_2024"
+                }
+            ]
+        }
+    ]
+}

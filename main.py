@@ -1424,6 +1424,7 @@ snapshot_loader = SnapshotLoader(
     markets_by_sport=DEFAULT_MARKETS_BY_SPORT,
     player_prop_markets=DEFAULT_PLAYER_PROP_MARKETS_BY_SPORT,
     bookmakers=DEFAULT_BOOKMAKERS,
+    dummy_snapshot_path=Path("data/BensMassiveSnapshotDummyData.json"),
 )
 
 snapshot_scheduler = SnapshotScheduler(
