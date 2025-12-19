@@ -40,6 +40,7 @@ from services.player_props_config import (
     PLAYER_PROP_MARKET_ALIASES as CONFIG_PLAYER_PROP_MARKET_ALIASES,
     PLAYER_PROP_MARKETS_BY_SPORT as CONFIG_PLAYER_PROP_MARKETS_BY_SPORT,
     SUPPORTED_PLAYER_PROP_SPORTS as CONFIG_SUPPORTED_PLAYER_PROP_SPORTS,
+    is_player_prop_market,
     expand_player_prop_markets,
 )
 from services.value_play_service import ValuePlayService
@@ -664,6 +665,31 @@ def generate_dummy_player_props_data(
     def _slugify(value: str) -> str:
         return value.replace(" ", "_").lower()
 
+    yes_no_markets = {
+        "player_1st_td",
+        "player_anytime_td",
+        "player_last_td",
+        "player_first_basket",
+        "player_first_team_basket",
+        "player_double_double",
+        "player_triple_double",
+        "batter_first_home_run",
+        "pitcher_record_a_win",
+        "player_goal_scorer_first",
+        "player_goal_scorer_last",
+        "player_goal_scorer_anytime",
+        "player_first_goal_scorer",
+        "player_last_goal_scorer",
+        "player_try_scorer_first",
+        "player_try_scorer_last",
+        "player_try_scorer_anytime",
+        "player_marks_most",
+        "player_tackles_most",
+        "player_afl_fantasy_points_most",
+        "player_to_receive_card",
+        "player_to_receive_red_card",
+    }
+
     # Sample players by sport and team
     nba_players = {
         "Lakers": ["LeBron James", "Anthony Davis", "D'Angelo Russell", "Austin Reaves"],
@@ -699,10 +725,40 @@ def generate_dummy_player_props_data(
         "Golden Knights": ["Jack Eichel", "Mark Stone", "Jonathan Marchessault", "Shea Theodore"],
     }
 
+    mlb_players = {
+        "Dodgers": ["Mookie Betts", "Freddie Freeman", "Shohei Ohtani", "Will Smith"],
+        "Yankees": ["Aaron Judge", "Juan Soto", "Anthony Rizzo", "Gleyber Torres"],
+        "Braves": ["Ronald Acuna Jr.", "Matt Olson", "Austin Riley", "Ozzie Albies"],
+    }
+
+    soccer_players = {
+        "Manchester City": ["Erling Haaland", "Kevin De Bruyne", "Phil Foden", "Rodri"],
+        "Real Madrid": ["Vinicius Jr", "Jude Bellingham", "Rodrygo", "Federico Valverde"],
+        "Liverpool": ["Mohamed Salah", "Luis Diaz", "Darwin Nunez", "Alexis Mac Allister"],
+    }
+
+    afl_players = {
+        "Collingwood": ["Nick Daicos", "Scott Pendlebury", "Jordan De Goey", "Brody Mihocek"],
+        "Brisbane": ["Lachie Neale", "Charlie Cameron", "Joe Daniher", "Josh Dunkley"],
+    }
+
+    nrl_players = {
+        "Panthers": ["Nathan Cleary", "Jarome Luai", "Brian To'o", "Isaah Yeo"],
+        "Broncos": ["Adam Reynolds", "Reece Walsh", "Payne Haas", "Kotoni Staggs"],
+    }
+
     players_by_sport = {
         "basketball_nba": nba_players,
+        "basketball_ncaab": nba_players,
+        "basketball_wnba": nba_players,
         "americanfootball_nfl": nfl_players,
+        "americanfootball_ncaaf": nfl_players,
+        "americanfootball_cfl": nfl_players,
         "icehockey_nhl": nhl_players,
+        "baseball_mlb": mlb_players,
+        "soccer": soccer_players,
+        "aussierules_afl": afl_players,
+        "rugbyleague_nrl": nrl_players,
     }
 
     player_map = players_by_sport.get(sport_key, nba_players)
@@ -717,20 +773,91 @@ def generate_dummy_player_props_data(
     selected_markets = markets or ["player_points"]
 
     point_ranges = {
+        # Basketball
         "player_points": (20.5, 35.5) if sport_key == "basketball_nba" else (0.5, 3.5),
+        "player_points_q1": (5.5, 12.5),
+        "player_rebounds": (6.5, 15.5),
+        "player_rebounds_q1": (1.5, 4.5),
         "player_assists": (5.5, 12.5) if sport_key == "basketball_nba" else (0.5, 2.5),
-        "player_rebounds": (8.5, 15.5),
+        "player_assists_q1": (1.5, 4.5),
         "player_threes": (2.5, 6.5),
-        "player_rec_yds": (50.5, 120.5),
-        "player_pass_yds": (200.5, 350.5),
-        "player_rush_yds": (50.5, 120.5),
-        "player_anytime_td": (0.5, 2.5),
+        "player_blocks": (0.5, 3.5),
+        "player_steals": (0.5, 3.0),
+        "player_blocks_steals": (1.5, 5.5),
+        "player_turnovers": (1.5, 5.5),
+        "player_points_rebounds_assists": (25.5, 55.5),
+        "player_points_rebounds": (25.5, 45.5),
+        "player_points_assists": (23.5, 40.5),
+        "player_rebounds_assists": (10.5, 25.5),
+        "player_field_goals": (7.5, 15.5),
+        "player_frees_made": (3.5, 10.5),
+        "player_frees_attempts": (5.5, 12.5),
+        # NFL / Football
+        "player_defensive_interceptions": (0.5, 1.5),
+        "player_kicking_points": (4.5, 10.5),
+        "player_pass_attempts": (25.5, 45.5),
+        "player_pass_completions": (18.5, 35.5),
+        "player_pass_interceptions": (0.5, 2.5),
+        "player_pass_longest_completion": (20.5, 50.5),
+        "player_pass_rush_yds": (200.5, 420.5),
+        "player_pass_rush_reception_tds": (1.5, 4.5),
+        "player_pass_rush_reception_yds": (150.5, 400.5),
         "player_pass_tds": (1.5, 3.5),
-        "player_goals": (0.5, 1.5),
-        "player_shots_on_goal": (2.0, 5.5),
+        "player_pass_yds": (200.5, 350.5),
+        "player_pass_yds_q1": (40.5, 120.5),
+        "player_pats": (1.5, 3.5),
+        "player_receptions": (3.5, 10.5),
+        "player_reception_longest": (15.5, 35.5),
+        "player_reception_tds": (0.5, 2.5),
+        "player_reception_yds": (50.5, 120.5),
+        "player_rush_attempts": (10.5, 25.5),
+        "player_rush_longest": (10.5, 35.5),
+        "player_rush_reception_tds": (1.5, 3.5),
+        "player_rush_reception_yds": (60.5, 180.5),
+        "player_rush_tds": (0.5, 2.5),
+        "player_rush_yds": (50.5, 120.5),
+        "player_sacks": (1.5, 4.5),
+        "player_solo_tackles": (3.5, 9.5),
+        "player_tackles_assists": (5.5, 12.5),
+        "player_tds_over": (0.5, 3.5),
+        # MLB
+        "batter_home_runs": (0.5, 1.5),
+        "batter_hits": (0.5, 3.5),
+        "batter_total_bases": (1.5, 4.5),
+        "batter_rbis": (0.5, 3.5),
+        "batter_runs_scored": (0.5, 2.5),
+        "batter_hits_runs_rbis": (1.5, 5.5),
+        "batter_singles": (0.5, 2.5),
+        "batter_doubles": (0.5, 1.5),
+        "batter_triples": (0.5, 1.5),
+        "batter_walks": (0.5, 2.5),
+        "batter_strikeouts": (0.5, 2.5),
+        "batter_stolen_bases": (0.5, 2.5),
+        "pitcher_strikeouts": (3.5, 10.5),
+        "pitcher_hits_allowed": (2.5, 7.5),
+        "pitcher_walks": (0.5, 3.5),
+        "pitcher_earned_runs": (0.5, 5.5),
+        "pitcher_outs": (15.5, 21.5),
+        # NHL
         "player_power_play_points": (0.25, 1.5),
-        "player_blocks": (1.5, 4.5),
-        "player_saves": (24.5, 34.5),
+        "player_blocked_shots": (1.5, 4.5),
+        "player_shots_on_goal": (2.0, 5.5),
+        "player_goals": (0.5, 2.5),
+        "player_total_saves": (24.5, 34.5),
+        # AFL
+        "player_disposals": (15.5, 35.5),
+        "player_disposals_over": (18.5, 32.5),
+        "player_goals_scored_over": (1.5, 4.5),
+        "player_marks_over": (3.5, 12.5),
+        "player_tackles_over": (3.5, 9.5),
+        "player_afl_fantasy_points": (60.5, 120.5),
+        "player_afl_fantasy_points_over": (70.5, 130.5),
+        "player_afl_fantasy_points_most": (70.5, 130.5),
+        # Rugby League
+        "player_try_scorer_over": (0.5, 2.5),
+        # Soccer
+        "player_shots_on_target": (0.5, 3.5),
+        "player_shots": (1.5, 5.5),
     }
 
     default_range = (20.5, 35.5)
@@ -753,8 +880,29 @@ def generate_dummy_player_props_data(
 
         def build_outcomes(market_key: str, *, over_price: int, under_price: int) -> Dict[str, Any]:
             market_range = point_ranges.get(market_key, default_range)
+            if market_key == "player_assists" and sport_key != "basketball_nba":
+                market_range = (0.5, 2.5)
+            if market_key == "player_field_goals" and sport_key != "basketball_nba":
+                market_range = (1.5, 3.5)
             outcomes: List[Dict[str, Any]] = []
             for player in players:
+                if market_key in yes_no_markets:
+                    outcomes.append({
+                        "name": "Yes",
+                        "description": player,
+                        "price": over_price,
+                        "point": None,
+                        "last_update": last_update,
+                    })
+                    outcomes.append({
+                        "name": "No",
+                        "description": player,
+                        "price": under_price,
+                        "point": None,
+                        "last_update": last_update,
+                    })
+                    continue
+
                 point_value = round(random.uniform(market_range[0], market_range[1]) * 2) / 2
                 outcomes.append({
                     "name": "Over",
@@ -899,7 +1047,7 @@ def collect_value_plays(
     # Filter out live events at the event level
     now_utc = datetime.now(timezone.utc)
 
-    is_player_prop = market_key.startswith("player_")
+    is_player_prop = is_player_prop_market(market_key)
     is_totals_market = market_key == "totals"
 
     def _log_market_skip(reason_label: str, *, event_id: str, detail: str) -> None:
@@ -1271,19 +1419,75 @@ def collect_value_plays(
             outcome_display_name = name
             player_prop_units = {
                 "player_points": "points",
+                "player_points_q1": "points",
                 "player_assists": "assists",
+                "player_assists_q1": "assists",
                 "player_rebounds": "rebounds",
+                "player_rebounds_q1": "rebounds",
                 "player_threes": "3-pointers",
-                "player_rec_yds": "receiving yards",
+                "player_blocks": "blocks",
+                "player_steals": "steals",
+                "player_blocks_steals": "blocks + steals",
+                "player_turnovers": "turnovers",
+                "player_points_rebounds_assists": "PRA",
+                "player_points_rebounds": "points + rebounds",
+                "player_points_assists": "points + assists",
+                "player_rebounds_assists": "rebounds + assists",
+                "player_field_goals": "field goals",
+                "player_frees_made": "free throws made",
+                "player_frees_attempts": "free throws attempted",
+                "player_reception_yds": "receiving yards",
+                "player_receptions": "receptions",
+                "player_reception_tds": "receiving TDs",
+                "player_reception_longest": "longest reception",
+                "player_pass_yds_q1": "passing yards",
                 "player_pass_yds": "passing yards",
+                "player_pass_attempts": "pass attempts",
+                "player_pass_completions": "completions",
+                "player_pass_interceptions": "interceptions",
+                "player_pass_longest_completion": "longest completion",
+                "player_pass_rush_yds": "total yards",
+                "player_pass_rush_reception_yds": "total yards",
+                "player_pass_rush_reception_tds": "total TDs",
                 "player_rush_yds": "rushing yards",
+                "player_rush_attempts": "rush attempts",
+                "player_rush_longest": "longest rush",
+                "player_rush_reception_yds": "total yards",
+                "player_rush_reception_tds": "total TDs",
+                "player_rush_tds": "rushing TDs",
                 "player_anytime_td": "touchdowns",
+                "player_tds_over": "touchdowns",
                 "player_pass_tds": "passing TDs",
+                "player_sacks": "sacks",
+                "player_solo_tackles": "solo tackles",
+                "player_tackles_assists": "tackles + assists",
+                "player_kicking_points": "kicking points",
+                "player_pats": "PATS",
+                "player_defensive_interceptions": "defensive INTs",
                 "player_goals": "goals",
                 "player_shots_on_goal": "shots on goal",
                 "player_power_play_points": "power play points",
-                "player_blocks": "blocks",
-                "player_saves": "saves",
+                "player_blocked_shots": "blocked shots",
+                "player_total_saves": "saves",
+                "batter_home_runs": "home runs",
+                "batter_hits": "hits",
+                "batter_total_bases": "total bases",
+                "batter_rbis": "RBIs",
+                "batter_runs_scored": "runs",
+                "batter_hits_runs_rbis": "hits + runs + RBIs",
+                "batter_singles": "singles",
+                "batter_doubles": "doubles",
+                "batter_triples": "triples",
+                "batter_walks": "walks",
+                "batter_strikeouts": "strikeouts",
+                "batter_stolen_bases": "stolen bases",
+                "pitcher_strikeouts": "strikeouts",
+                "pitcher_hits_allowed": "hits allowed",
+                "pitcher_walks": "walks",
+                "pitcher_earned_runs": "earned runs",
+                "pitcher_outs": "outs",
+                "player_shots_on_target": "shots on target",
+                "player_shots": "shots",
             }
             if is_player_prop and description:
                 line_suffix = ""

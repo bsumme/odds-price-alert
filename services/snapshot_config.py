@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from typing import Dict, List
 
+from services.player_props_config import PLAYER_PROP_MARKETS_BY_SPORT
+
 DEFAULT_SNAPSHOT_SPORTS: List[str] = [
     "basketball_nba",
     "americanfootball_nfl",
@@ -19,8 +21,9 @@ DEFAULT_MARKETS_BY_SPORT: Dict[str, List[str]] = {
 }
 
 DEFAULT_PLAYER_PROP_MARKETS_BY_SPORT: Dict[str, List[str]] = {
-    "basketball_nba": ["player_points", "player_assists", "player_rebounds", "player_threes"],
-    "americanfootball_nfl": ["player_pass_tds", "player_rush_yds", "player_rec_yds"],
+    sport: PLAYER_PROP_MARKETS_BY_SPORT[sport]
+    for sport in DEFAULT_SNAPSHOT_SPORTS
+    if sport in PLAYER_PROP_MARKETS_BY_SPORT
 }
 
 DEFAULT_BOOKMAKERS: List[str] = ["draftkings", "fanduel", "novig", "fliff"]

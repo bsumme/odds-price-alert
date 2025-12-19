@@ -34,7 +34,7 @@ class ValuePlayService:
             sport_key=payload.sport_key,
             markets=payload.market,
             bookmaker_keys=bookmaker_keys,
-            category="player_props" if payload.market.startswith("player_") else "odds",
+            category="player_props" if is_player_prop_market(payload.market) else "odds",
             snapshot=snapshot,
         )
 
@@ -95,7 +95,9 @@ class ValuePlayService:
                         sport_key=sport_key,
                         markets=expanded_markets,
                         bookmaker_keys=[payload.target_book, payload.compare_book],
-                        category="player_props" if any(m.startswith("player_") for m in expanded_markets) else "odds",
+                        category="player_props"
+                        if any(is_player_prop_market(m) for m in expanded_markets)
+                        else "odds",
                         snapshot=snapshot,
                     )
 
