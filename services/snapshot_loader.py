@@ -1,9 +1,11 @@
 """Load a complete odds snapshot in a single pass."""
 from __future__ import annotations
 
+import json
 import logging
-from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Optional
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence
 
 from services.odds_api import ApiCreditTracker
 from services.repositories.odds_repository import OddsRepository
@@ -30,6 +32,7 @@ class SnapshotLoader:
         player_prop_markets: Optional[Dict[str, List[str]]] = None,
         bookmakers: Optional[Iterable[str]] = None,
         gateway_caller: str = "snapshot_loader",
+        dummy_snapshot_path: Optional[str] = None,
     ) -> None:
         self._repository = repository
         self._sports = list(sports or DEFAULT_SNAPSHOT_SPORTS)
@@ -37,8 +40,18 @@ class SnapshotLoader:
         self._player_prop_markets = player_prop_markets or DEFAULT_PLAYER_PROP_MARKETS_BY_SPORT
         self._bookmakers = list(bookmakers or DEFAULT_BOOKMAKERS)
         self._gateway_caller = gateway_caller
+        self._dummy_snapshot_path = Path(dummy_snapshot_path) if dummy_snapshot_path else None
 
     def load_snapshot(self, *, use_dummy_data: bool) -> OddsSnapshot:
+        if use_dummy_data and self._dummy_snapshot_path:
+            try:
+                return self._load_schema_snapshot(self._dummy_snapshot_path)
+            except Exception:
+                logger.exception(
+                    "Failed to load dummy snapshot from %s; falling back to generators",
+                    self._dummy_snapshot_path,
+                )
+
         tracker = ApiCreditTracker() if not use_dummy_data else None
         snapshot = OddsSnapshot(
             use_dummy_data=use_dummy_data,
@@ -147,5 +160,103 @@ class SnapshotLoader:
 
         if tracker:
             snapshot.total_credit_usage = tracker.total_credits_used
+
+        return snapshot
+
+    def _load_schema_snapshot(self, path: Path) -> OddsSnapshot:
+        """Load a dummy snapshot from disk that aligns with the schema definition."""
+
+        with path.open("r", encoding="utf-8") as f:
+            raw_snapshot = json.load(f)
+
+        generated_at = raw_snapshot.get("generated_at")
+        fetched_at = (
+            datetime.fromisoformat(generated_at)
+            if generated_at
+            else datetime.now(timezone.utc)
+        )
+
+        snapshot = OddsSnapshot(
+            use_dummy_data=True,
+            fetched_at=fetched_at,
+            total_credit_usage=0,
+        )
+
+        def _retarget_commence_times(events: Sequence[Dict[str, Any]]) -> None:
+            """Ensure commence_time values stay inside the featured lookahead window."""
+
+            base_time = datetime.now(timezone.utc) + timedelta(hours=2)
+            for idx, event in enumerate(events):
+                scheduled_time = base_time + timedelta(hours=idx * 2)
+                event["commence_time"] = scheduled_time.isoformat()
+                event.setdefault("last_update", scheduled_time.isoformat())
+
+        sports: Sequence[Dict] = raw_snapshot.get("sports", [])
+        for sport in sports:
+            sport_key = sport.get("sport_key", "unknown_sport")
+            events = sport.get("events", [])
+            _retarget_commence_times(events)
+            markets = sorted(
+                {
+                    market.get("market_key", "")
+                    for event in events
+                    for market in event.get("markets", [])
+                    if market.get("market_key")
+                }
+            )
+            bookmaker_keys = sorted(
+                set(self._bookmakers)
+                | {
+                    book.get("book_key", "")
+                    for event in events
+                    for market in event.get("markets", [])
+                    for book in market.get("books", [])
+                    if book.get("book_key")
+                }
+            )
+            configured_markets = self._markets_by_sport.get(sport_key, markets)
+            merged_markets = sorted(set(configured_markets) | set(markets))
+
+            snapshot.add_entry(
+                category="odds",
+                sport_key=sport_key,
+                markets=merged_markets,
+                bookmaker_keys=bookmaker_keys,
+                events=events,
+                fetched_at=fetched_at,
+            )
+
+            player_prop_markets = sorted(
+                {
+                    market.get("market_key", "")
+                    for event in events
+                    for market in event.get("markets", [])
+                    if market.get("market_type") == "player" and market.get("market_key")
+                }
+            )
+            configured_props = self._player_prop_markets.get(
+                sport_key, player_prop_markets
+            )
+            merged_prop_markets = sorted(set(configured_props) | set(player_prop_markets))
+
+            if events:
+                snapshot.add_entry(
+                    category="sport_events",
+                    sport_key=sport_key,
+                    markets=merged_prop_markets,
+                    bookmaker_keys=bookmaker_keys,
+                    events=events,
+                    fetched_at=fetched_at,
+                )
+
+            if player_prop_markets:
+                snapshot.add_entry(
+                    category="player_props",
+                    sport_key=sport_key,
+                    markets=merged_prop_markets,
+                    bookmaker_keys=bookmaker_keys,
+                    events=events,
+                    fetched_at=fetched_at,
+                )
 
         return snapshot
