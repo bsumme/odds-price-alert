@@ -35,6 +35,7 @@ class ValuePlayService:
             markets=payload.market,
             bookmaker_keys=bookmaker_keys,
             category="player_props" if is_player_prop_market(payload.market) else "odds",
+            use_dummy_data=use_dummy_data,
             snapshot=snapshot,
         )
 
@@ -98,6 +99,7 @@ class ValuePlayService:
                         category="player_props"
                         if any(is_player_prop_market(m) for m in expanded_markets)
                         else "odds",
+                        use_dummy_data=use_dummy_data,
                         snapshot=snapshot,
                     )
 

@@ -89,6 +89,16 @@ def _dummy_data_flag_enabled() -> bool:
 
 DUMMY_DATA_ENABLED = _dummy_data_flag_enabled()
 
+
+def _on_demand_mode_enabled() -> bool:
+    """Return True when snapshot scheduling should be skipped in favor of live fetches."""
+
+    env_flag = os.getenv("ON_DEMAND_FETCH", "")
+    return env_flag.lower() in {"1", "true", "yes", "on"}
+
+
+ON_DEMAND_FETCH_MODE = _on_demand_mode_enabled()
+
 # -------------------------------------------------------------------
 # Pydantic Models
 # -------------------------------------------------------------------
@@ -1591,6 +1601,7 @@ def _provide_snapshot_events(
     markets: Sequence[str] | str,
     bookmaker_keys: List[str],
     category: str = "odds",
+    use_dummy_data: bool | None = None,
     snapshot=None,
     **_: Any,
 ) -> List[Dict[str, Any]]:
@@ -1611,13 +1622,54 @@ def _provide_snapshot_events(
     )
 
 
+def _provide_live_events(
+    *,
+    sport_key: str,
+    markets: Sequence[str] | str,
+    bookmaker_keys: List[str],
+    category: str = "odds",
+    use_dummy_data: bool = False,
+    snapshot=None,
+    **_: Any,
+) -> List[Dict[str, Any]]:
+    normalized_markets = (
+        [m.strip() for m in markets.split(",") if m.strip()]
+        if isinstance(markets, str)
+        else list(markets)
+    )
+    resolved_dummy = use_dummy_data or DUMMY_DATA_ENABLED
+    api_key = odds_repository.resolve_api_key(resolved_dummy)
+
+    if category == "sport_events":
+        return odds_repository.get_sport_events(
+            api_key=api_key,
+            sport_key=sport_key,
+            use_dummy_data=resolved_dummy,
+            discovery_markets=normalized_markets,
+            bookmaker_keys=bookmaker_keys,
+            gateway_caller="on_demand_api",
+        )
+
+    return odds_repository.get_odds_events(
+        api_key=api_key,
+        sport_key=sport_key,
+        markets=normalized_markets,
+        bookmaker_keys=bookmaker_keys,
+        use_dummy_data=resolved_dummy,
+        force_player_props=category == "player_props",
+        gateway_caller="on_demand_api",
+    )
+
+
+events_provider = _provide_live_events if ON_DEMAND_FETCH_MODE else _provide_snapshot_events
+
 odds_service = OddsService(
-    events_provider=_provide_snapshot_events,
+    events_provider=events_provider,
     data_validator=_validate_data_source,
 )
 
 value_play_service = ValuePlayService(
-    events_provider=_provide_snapshot_events,
+    events_provider=events_provider,
     data_validator=_validate_data_source,
     collect_value_plays=collect_value_plays,
 )
@@ -1650,6 +1702,16 @@ def _sync_repository_sources() -> None:
     odds_repository._dummy_odds_generator = generate_dummy_odds_data
     odds_repository._dummy_player_props_generator = generate_dummy_player_props_data
     odds_repository._cache.clear()
+
+
+def _resolve_data_context(request_dummy_flag: bool) -> tuple[Optional[OddsSnapshot], bool]:
+    """Return the active snapshot (if enabled) and resolved dummy flag."""
+
+    if ON_DEMAND_FETCH_MODE:
+        return None, DUMMY_DATA_ENABLED or request_dummy_flag
+
+    snapshot = _require_snapshot(request_dummy_flag)
+    return snapshot, snapshot.use_dummy_data
 
 
 def _require_snapshot(request_dummy_flag: bool) -> OddsSnapshot:
@@ -1694,6 +1756,12 @@ def _require_snapshot(request_dummy_flag: bool) -> OddsSnapshot:
 
 @app.on_event("startup")
 def _prime_snapshot_cache() -> None:
+    if ON_DEMAND_FETCH_MODE:
+        snapshot_holder.set_snapshot(None)
+        results_store.clear()
+        logger.info("On-demand fetch mode enabled; snapshot scheduler is disabled.")
+        return
+
     snapshot: Optional[OddsSnapshot] = None
     try:
         snapshot = snapshot_loader.load_snapshot(use_dummy_data=DUMMY_DATA_ENABLED)
@@ -1764,8 +1832,7 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
     if not payload.bets:
         raise HTTPException(status_code=400, detail="No bets provided")
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     all_book_keys: Set[str] = set()
     for bet in payload.bets:
@@ -1775,9 +1842,11 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
         raise HTTPException(status_code=400, detail="No bookmakers specified")
 
     cache_key = payload.model_dump()
-    cached = results_store.get(scope="odds", params=cache_key, snapshot=snapshot)
-    if cached:
-        return cached
+    cached = None
+    if snapshot:
+        cached = results_store.get(scope="odds", params=cache_key, snapshot=snapshot)
+        if cached:
+            return cached
 
     domain_bets = domain_mappers.map_bet_requests_to_domain(payload.bets)
     odds_result = odds_service.get_odds(
@@ -1790,7 +1859,10 @@ def get_odds(payload: OddsRequest) -> OddsResponse:
         single_bet_odds_model=SingleBetOdds,
         odds_response_model=OddsResponse,
     )
-    results_store.set(scope="odds", params=cache_key, snapshot=snapshot, value=response)
+    if snapshot:
+        results_store.set(
+            scope="odds", params=cache_key, snapshot=snapshot, value=response
+        )
     return response
 
 
@@ -1818,14 +1890,17 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
             detail="Target book and comparison book cannot be the same.",
         )
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     domain_request = domain_mappers.map_value_plays_query(payload)
     cache_key = payload.model_dump()
-    cached = results_store.get(scope="value-plays", params=cache_key, snapshot=snapshot)
-    if cached:
-        return cached
+    cached = None
+    if snapshot:
+        cached = results_store.get(
+            scope="value-plays", params=cache_key, snapshot=snapshot
+        )
+        if cached:
+            return cached
 
     domain_result = value_play_service.get_value_plays(
         payload=domain_request, use_dummy_data=use_dummy_data, snapshot=snapshot
@@ -1836,7 +1911,10 @@ def get_value_plays(payload: ValuePlaysRequest) -> ValuePlaysResponse:
         value_play_model=ValuePlayOutcome,
         response_model=ValuePlaysResponse,
     )
-    results_store.set(scope="value-plays", params=cache_key, snapshot=snapshot, value=response)
+    if snapshot:
+        results_store.set(
+            scope="value-plays", params=cache_key, snapshot=snapshot, value=response
+        )
     return response
 
 
@@ -1861,14 +1939,17 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
             detail="At least one sport and one market must be specified.",
         )
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     domain_payload = domain_mappers.map_best_value_plays_query(payload)
     cache_key = payload.model_dump()
-    cached = results_store.get(scope="best-value-plays", params=cache_key, snapshot=snapshot)
-    if cached:
-        return cached
+    cached = None
+    if snapshot:
+        cached = results_store.get(
+            scope="best-value-plays", params=cache_key, snapshot=snapshot
+        )
+        if cached:
+            return cached
 
     domain_result = value_play_service.get_best_value_plays(
         payload=domain_payload, use_dummy_data=use_dummy_data, snapshot=snapshot
@@ -1879,12 +1960,13 @@ def get_best_value_plays(payload: BestValuePlaysRequest) -> BestValuePlaysRespon
         best_value_model=BestValuePlayOutcome,
         response_model=BestValuePlaysResponse,
     )
-    results_store.set(
-        scope="best-value-plays",
-        params=cache_key,
-        snapshot=snapshot,
-        value=response,
-    )
+    if snapshot:
+        results_store.set(
+            scope="best-value-plays",
+            params=cache_key,
+            snapshot=snapshot,
+            value=response,
+        )
     return response
 
 
@@ -1947,8 +2029,7 @@ def _select_top_parlay_legs(
 def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
     """Build a high-value parlay using the best hedge EV plays across sports/markets."""
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     boost_percent = _clamp_boost_percent(payload.boost_percent)
     # Request extra results to increase the chance of filling out the parlay.
@@ -1963,9 +2044,11 @@ def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
     )
 
     best_cache_key = best_request.model_dump()
-    best_response = results_store.get(
-        scope="best-value-plays", params=best_cache_key, snapshot=snapshot
-    )
+    best_response = None
+    if snapshot:
+        best_response = results_store.get(
+            scope="best-value-plays", params=best_cache_key, snapshot=snapshot
+        )
     if best_response is None:
         domain_payload = domain_mappers.map_best_value_plays_query(best_request)
         domain_result = value_play_service.get_best_value_plays(
@@ -1976,12 +2059,13 @@ def build_best_parlay(payload: ParlayBuilderRequest) -> ParlayBuilderResponse:
             best_value_model=BestValuePlayOutcome,
             response_model=BestValuePlaysResponse,
         )
-        results_store.set(
-            scope="best-value-plays",
-            params=best_cache_key,
-            snapshot=snapshot,
-            value=best_response,
-        )
+        if snapshot:
+            results_store.set(
+                scope="best-value-plays",
+                params=best_cache_key,
+                snapshot=snapshot,
+                value=best_response,
+            )
     legs = _select_top_parlay_legs(best_response.plays, payload.parlay_size)
     notes: List[str] = []
 
@@ -2101,8 +2185,7 @@ def _sgp_within_odds_range(
 def build_sgp(payload: SGPBuilderRequest) -> SGPBuilderResponse:
     """Recommend SGP legs by picking the best player props within a single game."""
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     boost_percent = _clamp_boost_percent(payload.boost_percent)
     warnings: List[str] = []
@@ -2355,18 +2438,19 @@ def _within_featured_window(event: Dict[str, Any]) -> bool:
 def list_featured_games(use_dummy_data: bool = False) -> FeaturedGamesResponse:
     """Return a ranked list of upcoming headline games for SGP building."""
 
-    snapshot = _require_snapshot(use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(use_dummy_data)
 
     games: List[FeaturedGame] = []
     seen_ids: set[str] = set()
 
     for sport_key in FEATURED_SPORTS:
-        events = snapshot.get_events(
+        events = events_provider(
             sport_key=sport_key,
             markets=FEATURED_MARKETS,
             bookmaker_keys=DEFAULT_BOOKMAKERS,
             category="odds",
+            snapshot=snapshot,
+            use_dummy_data=use_dummy_data,
         )
         _validate_data_source(events, allow_dummy=use_dummy_data)
 
@@ -2444,23 +2528,28 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
 
     ensure_player_props_supported(payload.sport_key)
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
     )
 
     cache_key = payload.model_dump()
-    cached = results_store.get(scope="player-prop-games", params=cache_key, snapshot=snapshot)
-    if cached:
-        return cached
+    cached = None
+    if snapshot:
+        cached = results_store.get(
+            scope="player-prop-games", params=cache_key, snapshot=snapshot
+        )
+        if cached:
+            return cached
 
-    events = snapshot.get_events(
+    events = events_provider(
         sport_key=payload.sport_key,
         markets=discovery_markets,
         bookmaker_keys=DEFAULT_BOOKMAKERS,
         category="sport_events",
+        snapshot=snapshot,
+        use_dummy_data=use_dummy_data,
     )
     _validate_data_source(events, allow_dummy=use_dummy_data)
 
@@ -2489,7 +2578,10 @@ def list_player_prop_games(payload: PlayerPropGamesRequest) -> PlayerPropGamesRe
     response = PlayerPropGamesResponse(
         sport_key=payload.sport_key, games=games, last_update=last_update
     )
-    results_store.set(scope="player-prop-games", params=cache_key, snapshot=snapshot, value=response)
+    if snapshot:
+        results_store.set(
+            scope="player-prop-games", params=cache_key, snapshot=snapshot, value=response
+        )
     return response
 
 
@@ -2507,8 +2599,7 @@ def list_player_prop_markets(
 
     ensure_player_props_supported(payload.sport_key)
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     discovery_markets = PlayerPropsRequest.PLAYER_PROP_MARKETS_BY_SPORT.get(
         payload.sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
@@ -2523,15 +2614,21 @@ def list_player_prop_markets(
         bookmaker_keys = ["novig", "draftkings"]
 
     cache_key = payload.model_dump()
-    cached = results_store.get(scope="player-prop-markets", params=cache_key, snapshot=snapshot)
-    if cached:
-        return cached
+    cached = None
+    if snapshot:
+        cached = results_store.get(
+            scope="player-prop-markets", params=cache_key, snapshot=snapshot
+        )
+        if cached:
+            return cached
 
-    events = snapshot.get_events(
+    events = events_provider(
         sport_key=payload.sport_key,
         markets=discovery_markets,
         bookmaker_keys=bookmaker_keys,
         category="player_props",
+        snapshot=snapshot,
+        use_dummy_data=use_dummy_data,
     )
 
     _validate_data_source(events, allow_dummy=use_dummy_data)
@@ -2546,7 +2643,10 @@ def list_player_prop_markets(
     response = PlayerPropMarketsResponse(
         sport_key=payload.sport_key, available_markets=available
     )
-    results_store.set(scope="player-prop-markets", params=cache_key, snapshot=snapshot, value=response)
+    if snapshot:
+        results_store.set(
+            scope="player-prop-markets", params=cache_key, snapshot=snapshot, value=response
+        )
     return response
 
 
@@ -2591,8 +2691,7 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
             detail="Target book and comparison book cannot be the same.",
         )
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     bookmaker_keys = [target_book, compare_book]
     regions = odds_repository.compute_regions(bookmaker_keys)
@@ -2617,16 +2716,19 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         use_dummy_data,
     )
     cache_key = payload.model_dump()
-    cached = results_store.get(scope="player-props", params=cache_key, snapshot=snapshot)
-    if cached:
-        return cached
+    cached = None
+    if snapshot:
+        cached = results_store.get(scope="player-props", params=cache_key, snapshot=snapshot)
+        if cached:
+            return cached
 
-    events = _provide_snapshot_events(
+    events = events_provider(
         sport_key=payload.sport_key,
         markets=discovery_markets,
         bookmaker_keys=bookmaker_keys,
         category="player_props",
         snapshot=snapshot,
+        use_dummy_data=use_dummy_data,
     )
 
     _validate_data_source(events, allow_dummy=use_dummy_data)
@@ -2771,7 +2873,10 @@ def get_player_props(payload: PlayerPropsRequest) -> PlayerPropsResponse:
         warnings=warnings,
         last_update=last_update,
     )
-    results_store.set(scope="player-props", params=cache_key, snapshot=snapshot, value=response)
+    if snapshot:
+        results_store.set(
+            scope="player-props", params=cache_key, snapshot=snapshot, value=response
+        )
     return response
 
 
@@ -2800,8 +2905,7 @@ def get_all_sport_player_prop_arbitrage(
                 detail=f"Unknown sport key: {key}. See /api/sports for available keys.",
             )
 
-    snapshot = _require_snapshot(payload.use_dummy_data)
-    use_dummy_data = snapshot.use_dummy_data
+    snapshot, use_dummy_data = _resolve_data_context(payload.use_dummy_data)
 
     bookmaker_keys = sorted(set(target_books + [compare_book]))
 
@@ -2839,12 +2943,13 @@ def get_all_sport_player_prop_arbitrage(
             sport_key, PlayerPropsRequest.ALL_PLAYER_PROP_MARKETS
         )
 
-        events = _provide_snapshot_events(
+        events = events_provider(
             sport_key=sport_key,
             markets=discovery_markets,
             bookmaker_keys=bookmaker_keys,
             category="player_props",
             snapshot=snapshot,
+            use_dummy_data=use_dummy_data,
         )
         _validate_data_source(events, allow_dummy=use_dummy_data)
         events = _filter_upcoming_events_only(events)
@@ -2912,16 +3017,15 @@ def check_active_odds(sport: str, bookmaker: str):
     Check if there are active odds available for a given sport and bookmaker.
     Returns True if there are upcoming events with odds from the bookmaker.
     """
-    snapshot = snapshot_holder.get_snapshot()
-    if snapshot is None:
-        return {"has_active_odds": False}
+    snapshot, use_dummy_data = _resolve_data_context(False)
 
-    events = _provide_snapshot_events(
+    events = events_provider(
         sport_key=sport,
         markets="h2h",
         bookmaker_keys=[bookmaker],
         category="odds",
         snapshot=snapshot,
+        use_dummy_data=use_dummy_data,
     )
 
     now_utc = datetime.now(timezone.utc)
@@ -2948,6 +3052,18 @@ def get_api_credits():
     Get API subscription usage credits.
     Returns usage information from the latest snapshot metadata.
     """
+    if ON_DEMAND_FETCH_MODE:
+        return {
+            "api_credits": {
+                "used": None,
+                "remaining": None,
+                "total": API_REQUEST_LIMIT,
+                "display": "on-demand mode",
+                "using_dummy_data": DUMMY_DATA_ENABLED,
+                "last_snapshot": None,
+            }
+        }
+
     snapshot = snapshot_holder.get_snapshot()
     if snapshot is None:
         return {
@@ -3223,7 +3339,7 @@ def get_line_tracker_snapshot(payload: LineTrackerRequest) -> LineTrackerSnapsho
     The frontend is responsible for polling this endpoint (e.g. every minute)
     to visualize line movement over time.
     """
-    snapshot = _require_snapshot(False)
+    snapshot, use_dummy_data = _resolve_data_context(False)
 
     if not payload.bookmaker_keys:
         raise HTTPException(status_code=400, detail="No bookmakers specified")
@@ -3242,13 +3358,15 @@ def get_line_tracker_snapshot(payload: LineTrackerRequest) -> LineTrackerSnapsho
 
     markets_param = ",".join(markets_to_request)
 
-    events = _provide_snapshot_events(
+    events = events_provider(
         sport_key=payload.sport_key,
         markets=markets_param,
         bookmaker_keys=payload.bookmaker_keys,
         category="odds",
         snapshot=snapshot,
+        use_dummy_data=use_dummy_data,
     )
+    _validate_data_source(events, allow_dummy=use_dummy_data)
 
     snapshot_events: List[LineTrackerEvent] = []
 
