@@ -120,6 +120,26 @@ def _log_api_response(endpoint: str, response: Any) -> None:
     )
 
 
+def _format_provider_error_detail(response: requests.Response) -> str:
+    """Return an error message that highlights possible credit usage issues."""
+
+    base_detail = f"Error from The Odds API: {response.status_code}, {response.text}"
+
+    headers = getattr(response, "headers", {}) or {}
+    used = headers.get("x-requests-used")
+    remaining = headers.get("x-requests-remaining")
+    credit_tokens = [f"used={used}" for _ in [used] if used is not None]
+    if remaining is not None:
+        credit_tokens.append(f"remaining={remaining}")
+
+    body_mentions_credit = "credit" in (response.text or "").lower()
+    if credit_tokens or body_mentions_credit:
+        usage_hint = ", ".join(credit_tokens) if credit_tokens else "see provider response"
+        return f"{base_detail} (possible credit usage issue: {usage_hint})"
+
+    return base_detail
+
+
 def _perform_get(
     url: str,
     params: Dict[str, Any],
@@ -384,7 +404,7 @@ def fetch_odds(
     if response.status_code != 200:
         raise HTTPException(
             status_code=502,
-            detail=f"Error from The Odds API: {response.status_code}, {response.text}",
+            detail=_format_provider_error_detail(response),
         )
 
     data: List[Dict[str, Any]] = response.json()
@@ -431,10 +451,7 @@ def fetch_sport_events(
         )
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Error fetching events from The Odds API: "
-                f"{response.status_code}, {response.text}"
-            ),
+            detail=_format_provider_error_detail(response),
         )
 
     return response.json()
