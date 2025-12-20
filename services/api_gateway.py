@@ -16,7 +16,8 @@ class ApiGateway:
         allowed_callers: Iterable[str] | None = None,
         timeout: int = 15,
     ) -> None:
-        self._allowed_callers = set(allowed_callers or {"snapshot_loader"})
+        default_callers = {"snapshot_loader", "on_demand_api"}
+        self._allowed_callers = set(allowed_callers or default_callers)
         self._timeout = timeout
         self._lock = threading.Lock()
 
